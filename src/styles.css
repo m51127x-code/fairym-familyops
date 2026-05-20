@@ -1,0 +1,594 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f6f7f9;
+  color: #172026;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #6b7280;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: 36px;
+  letter-spacing: -0.04em;
+}
+
+.subtitle {
+  margin: 10px 0 0;
+  color: #667085;
+}
+
+.refreshButton,
+.filter,
+.smallFilter,
+.actions button,
+.messageCreateButton,
+.quickIssueButton {
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #172026;
+  cursor: pointer;
+}
+
+.refreshButton {
+  border-radius: 999px;
+  padding: 10px 16px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.summaryCard {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.04);
+}
+
+.summaryCard span {
+  display: block;
+  color: #667085;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.summaryCard strong {
+  font-size: 32px;
+}
+
+.summaryCard.danger {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.summaryCard.muted {
+  background: #f9fafb;
+}
+
+.sectionBlock {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.04);
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.sectionHeader p {
+  margin: 6px 0 0;
+  color: #667085;
+  font-size: 14px;
+}
+
+.smallFilter {
+  border-radius: 999px;
+  padding: 9px 14px;
+}
+
+.smallFilter.active {
+  background: #172026;
+  color: white;
+  border-color: #172026;
+}
+
+.groupGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.groupCard {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  border-left: 6px solid #d0d5dd;
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 16px;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.groupCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(16, 24, 40, 0.08);
+}
+
+.groupCard.selected {
+  outline: 3px solid rgba(23, 32, 38, 0.12);
+}
+
+.groupCard.high {
+  border-left-color: #ef4444;
+  background: #fffafa;
+}
+
+.groupCard.medium {
+  border-left-color: #f59e0b;
+  background: #fffdf6;
+}
+
+.groupCard.watch {
+  border-left-color: #3b82f6;
+}
+
+.groupCard.normal {
+  border-left-color: #94a3b8;
+}
+
+.groupTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.riskBadge {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.riskBadge.high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.riskBadge.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.riskBadge.watch {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.riskBadge.normal {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.groupTime {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.groupCard h3 {
+  margin: 14px 0 8px;
+  font-size: 15px;
+  word-break: break-all;
+}
+
+.groupMessage {
+  margin: 0;
+  color: #344054;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 42px;
+}
+
+.groupStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.groupStats span {
+  background: #f2f4f7;
+  color: #475467;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+.filter {
+  border-radius: 999px;
+  padding: 9px 14px;
+}
+
+.filter.active {
+  background: #172026;
+  color: white;
+  border-color: #172026;
+}
+
+.issueList {
+  display: grid;
+  gap: 14px;
+}
+
+.issueCard {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-left: 6px solid #d0d5dd;
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.04);
+}
+
+.issueCard.high {
+  border-left-color: #ef4444;
+  background: #fffafa;
+}
+
+.issueCard.medium {
+  border-left-color: #f59e0b;
+}
+
+.issueCard.normal {
+  border-left-color: #94a3b8;
+}
+
+.issueCard.resolved {
+  opacity: 0.58;
+}
+
+.issueTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.urgencyBadge,
+.typeBadge,
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  margin-right: 8px;
+}
+
+.urgencyBadge.high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.urgencyBadge.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.urgencyBadge.normal,
+.urgencyBadge.low {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.typeBadge {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.statusBadge.open {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.statusBadge.tracking {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.statusBadge.resolved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.statusBadge.ignored {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.issueCard h2 {
+  margin: 14px 0 8px;
+  font-size: 20px;
+}
+
+.sourceMessage {
+  margin: 0 0 14px;
+  color: #344054;
+  line-height: 1.6;
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #98a2b3;
+  font-size: 12px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.actions button {
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.actions button:hover:not(:disabled),
+.messageCreateButton:hover,
+.quickIssueButton:hover {
+  background: #f9fafb;
+}
+
+.actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.messageSection {
+  margin-top: 24px;
+}
+
+.messageList {
+  display: grid;
+  gap: 10px;
+}
+
+.messageItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-left: 5px solid #d0d5dd;
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.messageItem.linkedIssue {
+  border-left-color: #6366f1;
+  background: #fbfbff;
+}
+
+.messageContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.messageTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.messageGroup {
+  color: #475467;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.messageTime {
+  color: #98a2b3;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.messageContent p {
+  margin: 0;
+  color: #172026;
+  line-height: 1.6;
+}
+
+.messageMeta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.messageStatus {
+  display: flex;
+  align-items: flex-start;
+}
+
+.messageLinked,
+.messagePlain {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.messageLinked {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.messagePlain {
+  background: #f2f4f7;
+  color: #475467;
+}
+
+.messageCreateButton {
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.quickIssuePanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  min-width: 260px;
+}
+
+.quickIssueLabel {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.quickIssueButtons {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quickIssueButton {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.quickIssueButton.high {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #991b1b;
+}
+
+.quickIssueButton.medium {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.quickIssueButton.normal {
+  border-color: #d0d5dd;
+  background: #ffffff;
+  color: #344054;
+}
+
+.empty {
+  color: #667085;
+  padding: 24px;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+@media (max-width: 960px) {
+  .groupGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .header {
+    flex-direction: column;
+  }
+
+  .summaryGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .meta {
+    flex-direction: column;
+  }
+
+  .messageItem {
+    flex-direction: column;
+  }
+
+  .messageTop {
+    flex-direction: column;
+  }
+
+  .quickIssuePanel {
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  .quickIssueButtons {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .groupGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .sectionHeader {
+    flex-direction: column;
+  }
+}
