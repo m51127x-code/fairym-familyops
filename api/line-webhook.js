@@ -248,14 +248,28 @@ console.log("classified:", classified);
         await insertRoutine(classified);
 
         await pushNotification(
-          `✅ 已記錄週期事項\n\n${classified.title}\n負責：${classified.member}\n日期：${classified.date}`
-        );
+`🔁 FairyM 幫家裡記下這個週期事項了
+
+「${classified.title}」
+
+👤 主要負責：${classified.member}
+📅 這次記錄：${classified.date}
+
+之後可以回頭看上次什麼時候做過，避免大家都以為別人處理了。`
+);
       } else {
         await insertEvent(classified);
 
         await pushNotification(
-          `✅ 已新增家庭事項\n\n${classified.title}\n類型：${classified.type}\n負責：${classified.member}\n日期：${classified.date}`
-        );
+`🏠 FairyM 幫家裡新增了一件事
+
+「${classified.title}」
+
+👤 相關成員：${classified.member}
+📅 日期：${classified.date}
+
+先幫你放進家庭事項清單，記得的人不用再靠冰箱或 LINE 記事本了。`
+);
       }
     }
 
