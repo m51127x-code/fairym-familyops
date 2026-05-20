@@ -222,11 +222,6 @@ export default async function handler(req, res) {
       console.log("ENV group:", targetGroupId);
       console.log("Incoming group:", groupId);
 
-      if (targetGroupId && groupId !== targetGroupId) {
-        console.log("ignored: group not matched");
-        continue;
-      }
-
       const messageText = event.message.text;
       const classified = classifyMessage(messageText);
 
