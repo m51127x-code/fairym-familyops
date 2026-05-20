@@ -5,82 +5,48 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-function shouldRecordMessage(message) {
-  const text = message.toLowerCase();
-
-  const recordKeywords = [
-    "請問", "問題", "錯誤", "不能", "無法", "失敗", "異常",
-    "登入", "帳號", "權限", "出單", "訂單", "庫存", "報表",
-    "付款", "結帳", "系統", "app", "後台", "協助", "確認",
-    "急", "緊急", "#記錄", "#issue",
-  ];
-
-  return recordKeywords.some((keyword) => text.includes(keyword));
+function getTodayString(offsetDays = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
 }
 
-function detectIssue(message) {
-  const text = message.toLowerCase();
+function classifyMessage(message) {
+  const text = (message || "").trim();
 
-  const issueKeywords = [
-    "壞掉", "錯誤", "不能用", "無法", "失敗", "有問題", "異常",
-    "卡住", "沒反應", "打不開", "開不起來", "進不去", "登不進去",
-    "登入不了", "不能登入", "無法登入", "連不上", "出不來",
-    "跑不出來", "查不到", "不見", "沒有資料", "不能出單",
-    "無法出單", "出單失敗", "結帳失敗", "付款失敗",
-  ];
+  let type = "event";
+  let member = "全家";
+  let date = getTodayString(0);
 
-  return issueKeywords.some((k) => text.includes(k));
-}
+  if (/明天/.test(text)) date = getTodayString(1);
+  if (/後天/.test(text)) date = getTodayString(2);
 
-function detectUrgency(message) {
-  const text = message.toLowerCase();
-
-  const highKeywords = [
-    "急", "現在", "馬上", "緊急", "今天", "客戶在等", "來不及",
-  ];
-
-  return highKeywords.some((k) => text.includes(k)) ? "high" : "normal";
-}
-
-function detectType(message) {
-  const text = message.toLowerCase();
-
-  if (text.includes("登入") || text.includes("帳號") || text.includes("權限")) {
-    return "帳號問題";
+  if (/買|採買|超市|補|衛生紙|洗碗精|菜|牛奶|米/.test(text)) {
+    type = "shopping";
+  } else if (/回診|看醫生|牙醫|吃藥|健康|檢查|診所|醫院/.test(text)) {
+    type = "health";
+  } else if (/濾網|加鹽|機油|保養|清潔|換|澆花|倒垃圾/.test(text)) {
+    type = "routine";
+  } else if (/心情|今天覺得|好累|開心|難過|煩|不錯/.test(text)) {
+    type = "note";
   }
 
-  if (text.includes("出單") || text.includes("庫存") || text.includes("報表")) {
-    return "ERP問題";
-  }
+  if (/媽媽|媽/.test(text)) member = "媽媽";
+  else if (/爸爸|爸/.test(text)) member = "爸爸";
+  else if (/姐姐|姊姊/.test(text)) member = "姐姐";
+  else if (/哥哥|弟弟|妹妹|小孩|孩子|兒子|女兒/.test(text)) member = "小孩";
 
-  if (text.includes("壞掉") || text.includes("錯誤") || text.includes("異常")) {
-    return "系統異常";
-  }
-
-  return "客戶問題";
+  return {
+    type,
+    title: text,
+    date,
+    member,
+  };
 }
-function getSuggestedAction(issueType) {
-  switch (issueType) {
-    case "帳號問題":
-      return "→ 立即確認帳號權限與登入服務";
 
-    case "ERP問題":
-      return "→ 確認 ERP API、庫存與出單狀態";
-
-    case "系統異常":
-      return "→ 確認系統服務與錯誤 log";
-
-    default:
-      return "→ 請人工確認與追蹤";
-  }
-}
-async function pushToFairyMOps(text) {
+async function pushNotification(text) {
   const groupId = process.env.FAIRYM_OPS_GROUP_ID;
-
-  if (!groupId) {
-    console.error("Missing FAIRYM_OPS_GROUP_ID");
-    return;
-  }
+  if (!groupId) return;
 
   const response = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
@@ -171,28 +137,104 @@ async function syncUserProfile(groupId, userId) {
   }
 }
 
+async function insertRoutine(classified) {
+  const { data: existingRoutine, error: findError } = await supabase
+    .from("routines")
+    .select("*")
+    .eq("name", classified.title)
+    .maybeSingle();
+
+  if (findError) {
+    console.error("find routine error:", findError);
+  }
+
+  let routine = existingRoutine;
+
+  if (!routine) {
+    const { data, error } = await supabase
+      .from("routines")
+      .insert([
+        {
+          name: classified.title,
+          member: classified.member,
+          interval_days: 30,
+          category: "routine",
+          active: true,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+    routine = data;
+  }
+
+  const { error: logError } = await supabase.from("routine_logs").insert([
+    {
+      routine_name: routine.name,
+      member: routine.member || classified.member,
+      interval_days: routine.interval_days || 30,
+      last_done_at: classified.date,
+      note: "LINE 記錄",
+    },
+  ]);
+
+  if (logError) throw logError;
+
+  return routine;
+}
+
+async function insertEvent(classified) {
+  const { data, error } = await supabase
+    .from("events")
+    .insert([
+      {
+        title: classified.title,
+        type: classified.type,
+        member: classified.member,
+        date: classified.date,
+        completed: false,
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 export default async function handler(req, res) {
   try {
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
     const events = req.body.events || [];
 
     for (const event of events) {
       if (event.type !== "message") continue;
       if (event.message?.type !== "text") continue;
 
-      const messageText = event.message.text;
-      const shouldRecord = shouldRecordMessage(messageText);
-      const shouldCreateIssue = detectIssue(messageText);
+      const groupId = event.source?.groupId || null;
+      const userId = event.source?.userId || null;
+      const targetGroupId = process.env.FAIRYM_OPS_GROUP_ID;
 
-      if (!shouldRecord && !shouldCreateIssue) {
+      console.log("LINE source:", event.source);
+      console.log("ENV group:", targetGroupId);
+      console.log("Incoming group:", groupId);
+
+      if (targetGroupId && groupId !== targetGroupId) {
+        console.log("ignored: group not matched");
         continue;
       }
 
-      const groupId = event.source?.groupId || null;
-      const userId = event.source?.userId || null;
+      const messageText = event.message.text;
+      const classified = classifyMessage(messageText);
 
-      const groupName = await syncGroupName(groupId);
-      const userProfile = await syncUserProfile(groupId, userId);
-      const userName = userProfile?.displayName || userId || "未知使用者";
+      console.log("classified:", classified);
+
+      await syncGroupName(groupId);
+      await syncUserProfile(groupId, userId);
 
       await supabase.from("line_messages").insert([
         {
@@ -203,36 +245,18 @@ export default async function handler(req, res) {
         },
       ]);
 
-      if (shouldCreateIssue) {
-        const issueType = detectType(messageText);
-        const urgency = detectUrgency(messageText);
+      if (classified.type === "routine") {
+        await insertRoutine(classified);
 
-        await supabase.from("issues").insert([
-          {
-            group_id: groupId,
-            source_message: messageText,
-            issue_title: messageText,
-            issue_type: issueType,
-            urgency,
-            status: "open",
-          },
-        ]);
+        await pushNotification(
+          `✅ 已記錄週期事項\n\n${classified.title}\n負責：${classified.member}\n日期：${classified.date}`
+        );
+      } else {
+        await insertEvent(classified);
 
-        if (urgency === "high") {
-  const suggestion = getSuggestedAction(issueType);
-
-  await pushToFairyMOps(
-`🚨 [HIGH] ${issueType}
-
-群組：${groupName || groupId || "未知群組"}
-留言人：${userName}
-
-${messageText}
-
-建議：
-${suggestion}`
-  );
-}
+        await pushNotification(
+          `✅ 已新增家庭事項\n\n${classified.title}\n類型：${classified.type}\n負責：${classified.member}\n日期：${classified.date}`
+        );
       }
     }
 
