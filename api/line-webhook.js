@@ -217,7 +217,6 @@ export default async function handler(req, res) {
 
       const groupId = event.source?.groupId || null;
       const userId = event.source?.userId || null;
-      const targetGroupId = process.env.FAIRYM_OPS_GROUP_ID;
 
       console.log("LINE source:", event.source);
       console.log("ENV group:", targetGroupId);
