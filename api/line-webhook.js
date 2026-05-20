@@ -215,17 +215,22 @@ export default async function handler(req, res) {
       if (event.type !== "message") continue;
       if (event.message?.type !== "text") continue;
 
-      const groupId = event.source?.groupId || null;
-      const userId = event.source?.userId || null;
+   const groupId = event.source?.groupId || null;
+const userId = event.source?.userId || null;
 
-      console.log("LINE source:", event.source);
-      console.log("ENV group:", targetGroupId);
-      console.log("Incoming group:", groupId);
+console.log("LINE source:", event.source);
 
-      const messageText = event.message.text;
-      const classified = classifyMessage(messageText);
+console.log(
+  "Notify group:",
+  process.env.FAIRYM_OPS_GROUP_ID
+);
 
-      console.log("classified:", classified);
+console.log("Incoming group:", groupId);
+
+const messageText = event.message.text;
+const classified = classifyMessage(messageText);
+
+console.log("classified:", classified);
 
       await syncGroupName(groupId);
       await syncUserProfile(groupId, userId);
