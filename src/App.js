@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import "./styles.css";
+import { classifyMessage } from "./classifyMessage";
 
 const STATUS_LABEL = {
   open: "未處理",
