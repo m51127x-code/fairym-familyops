@@ -90,6 +90,7 @@ export default function FamilyHub() {
   const [toast, setToast] = useState(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [expandedRoutineId, setExpandedRoutineId] = useState(null);
+  const [logModalRoutine, setLogModalRoutine] = useState(null);
   // 4. 👇 新增這一段：網頁載入時去 Supabase 撈取資料
   useEffect(() => {
     async function fetchSupabaseData() {
