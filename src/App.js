@@ -99,6 +99,7 @@ export default function FamilyHub() {
       const { data: eventsData } = await supabase
         .from('events')
         .select('*')
+        .gte('date', '2026-05-22')
         .order('date', { ascending: true });
       
       if (eventsData) setEvents(eventsData);
@@ -106,11 +107,8 @@ export default function FamilyHub() {
       // 撈取週期任務 (routines) 與它的歷史紀錄 (routine_logs)
       const { data: routinesData } = await supabase
         .from('routines')
-        .select(`
-          *,
-          logs:routine_logs(*) 
-        `)
-        .order('id', { ascending: true });
+        .select('*')
+        .gte('created_at', '2026-05-22T00:00:00Z');
         
       if (routinesData) {
         // 為了確保畫面不跑版，給予預設圖示和排序歷史紀錄
