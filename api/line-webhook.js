@@ -12,7 +12,7 @@ function getTodayString(offsetDays = 0) {
 }
 
 function isFairyMMessage(text) {
-  return /fairym|fairy m|@FairyM|@fairym/i.test(text.trim());
+  return /fairym|fairy m|@FairyM|FairyM|@fairym/i.test(text.trim());
 }
 
 function extractContent(text) {
