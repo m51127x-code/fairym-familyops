@@ -19,12 +19,13 @@ function extractContent(text) {
   return text.replace(/^@?fairy\s?m\s*/gi, "").trim();
 }
 
-function classifyMessage(message) {
+// 加入第二個參數 userRole，預設為 "全家"
+function classifyMessage(message, userRole = "全家") {
   const text = (message || "").trim();
   const content = extractContent(text);
 
   let type = "todo";
-  let member = "全家";
+  let member = userRole; // 預設使用傳進來的發言者身分
   let date = getTodayString(0);
   let mood = null;
 
@@ -47,6 +48,7 @@ function classifyMessage(message) {
     type = "todo";
   }
 
+  // 文字覆蓋：如果內容特別提到別人，才覆蓋掉原本的發言者
   if (/媽媽|媽/.test(content)) member = "媽媽";
   else if (/爸爸|爸/.test(content)) member = "爸爸";
   else if (/姐姐|姊姊/.test(content)) member = "姐姐";
@@ -79,7 +81,6 @@ async function pushNotification(text) {
 async function syncGroupName(groupId) {
   if (!groupId) return null;
 
-  // 先查 Supabase，有資料就跳過 API 呼叫
   const { data: existing } = await supabase
     .from("group_aliases")
     .select("group_name")
@@ -121,7 +122,6 @@ async function syncGroupName(groupId) {
 async function syncUserProfile(groupId, userId) {
   if (!groupId || !userId) return null;
 
-  // 先查 Supabase，有資料就跳過 API 呼叫
   const { data: existing } = await supabase
     .from("line_users")
     .select("display_name")
@@ -202,7 +202,7 @@ async function insertRoutine(classified) {
 
   if (logError) throw logError;
 
-  // 同步寫入 events，讓前端日曆可以顯示
+  // 同步寫入 events，讓前端日曆可以顯示 (修正 500 錯誤的部分)
   await supabase
     .from("events")
     .insert([{
@@ -257,12 +257,43 @@ export default async function handler(req, res) {
 
       const groupId = event.source?.groupId || null;
       const userId = event.source?.userId || null;
-      const classified = classifyMessage(messageText);
-
-      console.log("classified:", classified);
 
       await syncGroupName(groupId);
       await syncUserProfile(groupId, userId);
+
+      // --- 新增功能：攔截使用者設定角色的指令 ---
+      const roleMatch = messageText.match(/^@?Fairy\s?M\s*我是(媽媽|爸爸|姐姐|哥哥|弟弟|妹妹|小孩)/i);
+      if (roleMatch && userId) {
+        const newRole = roleMatch[1];
+        
+        // 寫入 Supabase 資料庫
+        await supabase
+          .from("line_users")
+          .update({ role: newRole })
+          .eq("user_id", userId);
+
+        await pushNotification(`✅ 沒問題！我記住了，以後發送訊息預設就是「${newRole}」。`);
+        continue; // 處理完設定就跳到下一則訊息
+      }
+      // ------------------------------------------
+
+      // 撈取使用者的角色 (如果資料庫沒設定過，預設為 "全家")
+      let userRole = "全家";
+      if (userId) {
+        const { data: userData } = await supabase
+          .from("line_users")
+          .select("role")
+          .eq("user_id", userId)
+          .maybeSingle();
+          
+        if (userData && userData.role) {
+          userRole = userData.role;
+        }
+      }
+
+      // 將查到的角色傳入分類器
+      const classified = classifyMessage(messageText, userRole);
+      console.log("classified:", classified);
 
       await supabase.from("line_messages").insert([{
         group_id: groupId,
@@ -283,13 +314,13 @@ export default async function handler(req, res) {
         );
       } else if (classified.type === "mood") {
         await insertEvent(classified);
+        // --- 修改心情的推播格式 ---
         await pushNotification(
-`${classified.mood || "💬"} FairyM 記下心情
+`${classified.mood || "💬"} FairyM 收到心情分享
 
-「${classified.content}」
+${classified.member}說：「${classified.content}」
 
-👤 ${classified.member}
-📅 ${classified.date}`
+📅 日期：${classified.date}`
         );
       } else {
         await insertEvent(classified);
