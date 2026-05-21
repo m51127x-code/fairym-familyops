@@ -36,7 +36,7 @@ function classifyMessage(message) {
     type = "health";
   } else if (/濾網|加鹽|機油|保養|清潔|換|澆花|倒垃圾/.test(content)) {
     type = "routine";
-  } else if (/心情|今天覺得|好累|開心|難過|煩|不錯|累/.test(content)) {
+  } else if (/心情|今天覺得|好累|開心|難過|煩|不錯|累|焦慮|壓力|緊張|興奮|感動|委屈|生氣|煩躁|疲憊|開心|滿足/.test(content)) {
     type = "mood";
     const moodMap = { "開心":"😊","快樂":"😄","累":"😴","好累":"😴","煩":"😤","難過":"😢","不錯":"🙂","放鬆":"😌" };
     for (const [word, emoji] of Object.entries(moodMap)) {
