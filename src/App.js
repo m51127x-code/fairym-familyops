@@ -158,23 +158,36 @@ export default function FamilyHub() {
     const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
 
     const calendarDays = useMemo(() => {
-      const y = currentMonth.getFullYear();
-      const m = currentMonth.getMonth();
-      const firstDay = getFirstDayOfMonth(y, m);
-      const days = [];
-      for (let i = 0; i < firstDay; i++) days.push({ type: 'empty', id: `empty-${i}` });
-      for (let i = 1; i <= getDaysInMonth(y, m); i++) {
-        const dateStr = fmtDate(new Date(y, m, i));
-days.push({
-  type: 'day',
-  date: dateStr,
-  dayNum: i,
-  events: events.filter(e => e.date === dateStr),
-  isSun: new Date(y, m, i).getDay() === 0,
-  holiday: HOLIDAYS[dateStr] || null,
-});
-      return days;
-    }, [currentMonth, events]);
+  const days = [];
+
+  const y = currentMonth.getFullYear();
+  const m = currentMonth.getMonth();
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+  for (let i = 0; i < firstDay; i++) {
+    days.push({
+      type: "empty",
+      key: `empty-${i}`,
+    });
+  }
+
+  for (let i = 1; i <= daysInMonth; i++) {
+    const date = new Date(y, m, i);
+    const dateStr = formatDateKey(date);
+
+    days.push({
+      type: "day",
+      date: dateStr,
+      dayNum: i,
+      events: events.filter((e) => e.date === dateStr),
+      isSun: date.getDay() === 0,
+      holiday: HOLIDAYS[dateStr] || null,
+    });
+  }
+
+  return days;
+}, [currentMonth, events]);
 
     const dayEvents = events.filter(e => e.date === selectedDate && (filter === 'all' || e.type === filter));
     const isTodaySelected = selectedDate === fmtDate(TODAY);
