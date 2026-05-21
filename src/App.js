@@ -64,6 +64,7 @@ const TYPE_CONFIG = {
   remind: { label: '提醒', color: PALETTE.remind, icon: AlertCircle },
   health: { label: '健康', color: PALETTE.health, icon: HeartPulse },
   mood: { label: '心情', color: PALETTE.mood, icon: Smile },
+  routine: { label: '週期', color: PALETTE.inkMuted, icon: RotateCw },
 };
 
 // --- 假資料 ---
@@ -196,7 +197,7 @@ export default function FamilyHub() {
     const dayEvents = events.filter(e => e.date === selectedDate && (filter === 'all' || e.type === filter));
     const isTodaySelected = selectedDate === fmtDate(TODAY);
     const monthEvents = events.filter(e => e.date.startsWith(fmtDate(currentMonth).substring(0, 7)));
-    const stats = { todo: 0, shop: 0, remind: 0, health: 0, mood: 0 };
+    const stats = { todo: 0, shop: 0, remind: 0, health: 0, mood: 0, routine: 0 };
     monthEvents.forEach(e => { if(stats[e.type]!==undefined) stats[e.type]++; });
 
     // 點擊滑動並觸發小動畫 (透過 key 改變觸發)
