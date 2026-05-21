@@ -22,6 +22,11 @@ import {
   History,
   PenLine
 } from 'lucide-react';
+新增這一段設定連線 (請替換成你的真實網址與金鑰)
+const supabase = createClient(
+  'https://pmhudmhdxfctmyfmmxhh.supabase.co',
+'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtaHVkbWhkeGZjdG15Zm1teGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjQ5MDQsImV4cCI6MjA5NDY0MDkwNH0.ymAzLChmVVvtkKCw2AIQLfhfodo8vJTONihzufw9CY0'
+);
 
 // --- 工具函數與常數 ---
 const TODAY = new Date();
@@ -85,7 +90,42 @@ export default function FamilyHub() {
   const [toast, setToast] = useState(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [expandedRoutineId, setExpandedRoutineId] = useState(null);
-  const [logModalRoutine, setLogModalRoutine] = useState(null);
+  // 4. 👇 新增這一段：網頁載入時去 Supabase 撈取資料
+  useEffect(() => {
+    async function fetchSupabaseData() {
+      // 撈取手札事件 (events)
+      const { data: eventsData } = await supabase
+        .from('events')
+        .select('*')
+        .order('date', { ascending: true });
+      
+      if (eventsData) setEvents(eventsData);
+
+      // 撈取週期任務 (routines) 與它的歷史紀錄 (routine_logs)
+      const { data: routinesData } = await supabase
+        .from('routines')
+        .select(`
+          *,
+          logs:routine_logs(*) 
+        `)
+        .order('id', { ascending: true });
+        
+      if (routinesData) {
+        // 為了確保畫面不跑版，給予預設圖示和排序歷史紀錄
+        const formattedRoutines = routinesData.map(r => ({
+          ...r,
+          icon: r.icon || 'activity',
+          color: r.color || '#425C73', // 預設莫蘭迪藍
+          logs: r.logs ? r.logs.sort((a, b) => new Date(b.date) - new Date(a.date)) : []
+        }));
+        setRoutines(formattedRoutines);
+      }
+    }
+
+    fetchSupabaseData();
+  }, []); // 空陣列代表只在網頁一打開時執行一次
+  
+  // ==========================================
 
   const showToast = (msg) => {
     setToast(msg);
