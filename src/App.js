@@ -22,6 +22,7 @@ import {
   History,
   PenLine
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
   'https://pmhudmhdxfctmyfmmxhh.supabase.co',
 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtaHVkbWhkeGZjdG15Zm1teGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjQ5MDQsImV4cCI6MjA5NDY0MDkwNH0.ymAzLChmVVvtkKCw2AIQLfhfodo8vJTONihzufw9CY0'
