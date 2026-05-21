@@ -166,15 +166,12 @@ export default function FamilyHub() {
   const daysInMonth = new Date(y, m + 1, 0).getDate();
 
   for (let i = 0; i < firstDay; i++) {
-    days.push({
-      type: "empty",
-      key: `empty-${i}`,
-    });
+    days.push({ type: "empty", id: `empty-${i}` });
   }
 
   for (let i = 1; i <= daysInMonth; i++) {
     const date = new Date(y, m, i);
-    const dateStr = formatDateKey(date);
+    const dateStr = fmtDate(date);
 
     days.push({
       type: "day",
@@ -404,10 +401,10 @@ export default function FamilyHub() {
                       {/* 填滿 */}
                       <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${pct}%`, backgroundColor: statusColor }}></div>
                     </div>
-                    <div className="flex justify-between mt-1.5 text-[10px] font-medium text-[#878378] tracking-widest uppercase">
-                      <span>上次: {lastLog.date.substring(5).replace('-','/')}</span>
-                      <span>下次預計: {shiftDays(lastLog.date, r.interval).substring(5).replace('-','/')}</span>
-                    </div>
+                   <div className="flex justify-between mt-1.5 text-[10px] font-medium text-[#878378] tracking-widest uppercase">
+  <span>上次: {lastLog ? lastLog.date.substring(5).replace('-','/') : '—'}</span>
+  <span>下次預計: {lastLog ? shiftDays(lastLog.date, r.interval).substring(5).replace('-','/') : '—'}</span>
+</div>
                   </div>
 
                   {/* 操作區 */}
