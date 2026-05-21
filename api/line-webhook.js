@@ -7,6 +7,7 @@ const supabase = createClient(
 
 function getTodayString(offsetDays = 0) {
   const date = new Date();
+  date.setHours(date.getHours() + 8);
   date.setDate(date.getDate() + offsetDays);
   return date.toISOString().slice(0, 10);
 }
