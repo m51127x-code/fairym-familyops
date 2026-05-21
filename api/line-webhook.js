@@ -10,13 +10,14 @@ function getTodayString(offsetDays = 0) {
   date.setDate(date.getDate() + offsetDays);
   return date.toISOString().slice(0, 10);
 }
+
 function isFairyMMessage(text) {
-  return /fairym|fairy m|@fairym|^m\s/i.test(text.trim());
-}
-function extractContent(text) {
-  return text.replace(/^@?fairy\s?m\s*/gi, "").replace(/^m\s+/i, "").trim();
+  return /fairym|fairy m|@fairym/i.test(text.trim());
 }
 
+function extractContent(text) {
+  return text.replace(/^@?fairy\s?m\s*/gi, "").trim();
+}
 
 function classifyMessage(message) {
   const text = (message || "").trim();
@@ -36,7 +37,7 @@ function classifyMessage(message) {
     type = "health";
   } else if (/濾網|加鹽|機油|保養|清潔|換|澆花|倒垃圾/.test(content)) {
     type = "routine";
-  } else if (/心情|今天覺得|好累|開心|難過|煩|不錯|累|焦慮|壓力|緊張|興奮|感動|委屈|生氣|煩躁|疲憊|開心|滿足/.test(content)) {
+  } else if (/心情|今天覺得|好累|開心|難過|煩|不錯|累|焦慮|壓力|緊張|興奮|感動|委屈|生氣|煩躁|疲憊|滿足/.test(content)) {
     type = "mood";
     const moodMap = { "開心":"😊","快樂":"😄","累":"😴","好累":"😴","煩":"😤","難過":"😢","不錯":"🙂","放鬆":"😌" };
     for (const [word, emoji] of Object.entries(moodMap)) {
@@ -78,6 +79,15 @@ async function pushNotification(text) {
 async function syncGroupName(groupId) {
   if (!groupId) return null;
 
+  // 先查 Supabase，有資料就跳過 API 呼叫
+  const { data: existing } = await supabase
+    .from("group_aliases")
+    .select("group_name")
+    .eq("group_id", groupId)
+    .maybeSingle();
+
+  if (existing) return existing.group_name;
+
   try {
     const response = await fetch(
       `https://api.line.me/v2/bot/group/${groupId}/summary`,
@@ -110,6 +120,16 @@ async function syncGroupName(groupId) {
 
 async function syncUserProfile(groupId, userId) {
   if (!groupId || !userId) return null;
+
+  // 先查 Supabase，有資料就跳過 API 呼叫
+  const { data: existing } = await supabase
+    .from("line_users")
+    .select("display_name")
+    .eq("group_id", groupId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existing) return existing;
 
   try {
     const response = await fetch(
@@ -181,6 +201,17 @@ async function insertRoutine(classified) {
     }]);
 
   if (logError) throw logError;
+
+  // 同步寫入 events，讓前端日曆可以顯示
+  await supabase.from("events").insert([{
+    date: classified.date,
+    type: "routine",
+    text: classified.content,
+    member: classified.member,
+    mood: null,
+    is_done: true,
+  }]);
+
   return routine;
 }
 
@@ -213,50 +244,50 @@ export default async function handler(req, res) {
       if (event.type !== "message") continue;
       if (event.message?.type !== "text") continue;
 
-   const messageText = event.message.text;
+      const messageText = event.message.text;
 
-if (!isFairyMMessage(messageText)) continue;
+      if (!isFairyMMessage(messageText)) continue;
 
-const groupId = event.source?.groupId || null;
-const userId = event.source?.userId || null;
-const classified = classifyMessage(messageText);
+      const groupId = event.source?.groupId || null;
+      const userId = event.source?.userId || null;
+      const classified = classifyMessage(messageText);
 
-console.log("classified:", classified);
+      console.log("classified:", classified);
 
-await syncGroupName(groupId);
-await syncUserProfile(groupId, userId);
+      await syncGroupName(groupId);
+      await syncUserProfile(groupId, userId);
 
-await supabase.from("line_messages").insert([{
-  group_id: groupId,
-  user_id: userId,
-  message_text: messageText,
-  message_type: "text",
-}]);
+      await supabase.from("line_messages").insert([{
+        group_id: groupId,
+        user_id: userId,
+        message_text: messageText,
+        message_type: "text",
+      }]);
 
-if (classified.type === "routine") {
-  await insertRoutine(classified);
-  await pushNotification(
+      if (classified.type === "routine") {
+        await insertRoutine(classified);
+        await pushNotification(
 `🔁 FairyM 記下週期事項
 
 「${classified.content}」
 
 👤 負責：${classified.member}
 📅 記錄日期：${classified.date}`
-  );
-} else if (classified.type === "mood") {
-  await insertEvent(classified);
-  await pushNotification(
+        );
+      } else if (classified.type === "mood") {
+        await insertEvent(classified);
+        await pushNotification(
 `${classified.mood || "💬"} FairyM 記下心情
 
 「${classified.content}」
 
 👤 ${classified.member}
 📅 ${classified.date}`
-  );
-} else {
-  await insertEvent(classified);
-  const typeLabel = { todo:"待辦", shop:"採買", health:"健康", remind:"提醒" };
-  await pushNotification(
+        );
+      } else {
+        await insertEvent(classified);
+        const typeLabel = { todo:"待辦", shop:"採買", health:"健康", remind:"提醒" };
+        await pushNotification(
 `🏠 FairyM 新增家庭事項
 
 「${classified.content}」
@@ -264,8 +295,8 @@ if (classified.type === "routine") {
 👤 負責：${classified.member}
 📅 日期：${classified.date}
 🏷 分類：${typeLabel[classified.type] || "待辦"}`
-  );
-}
+        );
+      }
     }
 
     return res.status(200).send("OK");
