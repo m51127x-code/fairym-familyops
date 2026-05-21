@@ -219,16 +219,20 @@ async function insertRoutine(classified) {
 async function insertEvent(classified) {
   const { data, error } = await supabase
     .from("events")
-    .insert([{
-      date: classified.date,
-      type: classified.type,
-      text: classified.content,
-      member: classified.member,
-      mood: classified.mood || null,
-      is_done: false,
-    }])
+    .insert([
+      {
+        title: classified.content,
+        text: classified.content,
+        date: classified.date,
+        type: classified.type,
+        member: classified.member,
+        mood: classified.mood || null,
+        is_done: false,
+      },
+    ])
     .select()
     .single();
+
   if (error) throw error;
   return data;
 }
