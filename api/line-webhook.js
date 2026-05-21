@@ -203,15 +203,17 @@ async function insertRoutine(classified) {
   if (logError) throw logError;
 
   // 同步寫入 events，讓前端日曆可以顯示
-  .insert([{
-  title: classified.content,
-  text: classified.content,
-  date: classified.date,
-  type: classified.type,
-  member: classified.member,
-  mood: classified.mood || null,
-  is_done: false,
-}])
+  await supabase
+    .from("events")
+    .insert([{
+      title: classified.content,
+      text: classified.content,
+      date: classified.date,
+      type: classified.type,
+      member: classified.member,
+      mood: classified.mood || null,
+      is_done: false,
+    }]);
 
   return routine;
 }
