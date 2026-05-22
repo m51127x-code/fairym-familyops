@@ -497,11 +497,11 @@ export default function FamilyHub() {
     <div className={`min-h-screen bg-[#DFDCD4] font-sans flex justify-center selection:bg-[#E3DFD5] ${hideScrollbar}`}>
       <div className="w-full max-w-[480px] h-dvh bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
         
-        {/* Header 標題改為共生公會 */}
+        {/* Header 標題改為生活導航 */}
         <header className="flex-none pt-12 pb-3 px-6 flex justify-between items-center z-30 bg-[#F2EFE9]/95 backdrop-blur-xl border-b border-[#E3DFD5] sticky top-0">
           <div>
             <h1 className="text-[24px] font-bold tracking-wider text-[#2C2A28] font-serif">Family Hub</h1>
-            <p className="text-[9px] text-[#7D7973] tracking-[0.3em] uppercase mt-1">共生公會 (Co-op Guild)</p>
+            <p className="text-[9px] text-[#7D7973] tracking-[0.3em] uppercase mt-1">生活導航 Life Navigator</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border-2 border-[#566B56]/70 bg-[#FBF9F6]/50">
