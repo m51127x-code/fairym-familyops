@@ -74,7 +74,7 @@ export default function FamilyHub() {
     return uniqueUnbound;
   }, [lineUsers, members]);
 
-  // 🌟 將撈取資料獨立成一個函式，讓按鈕可以隨時呼叫
+  // 🌟 資料重新整理函式
   const fetchSupabaseData = async () => {
     setIsRefreshing(true);
     try {
@@ -448,12 +448,42 @@ export default function FamilyHub() {
                       <span className="text-[11px] font-medium text-[#566B56] bg-[#FBF9F6] px-1.5 py-0.5 mt-1 rounded-md border border-[#E3DFD5] inline-block">{m.role_name}</span>
                     </div>
                     <div className="flex gap-2">
+                      {/* 🌟 升級：具備三狀態防呆與自主解綁功能的安全按鈕 */}
                       <button 
                         onClick={async () => {
                           if (!currentUserLineId) {
                             alert("授權準備中，請確認已透過 LINE 內部開啟並稍後重試。");
                             return;
                           }
+
+                          // 🔓 執行「解除綁定」流程 (僅限本人)
+                          if (m.line_user_id === currentUserLineId) {
+                            if (window.confirm(`確定要解除您與「${m.name}」的綁定關係嗎？\n解除後系統將無法自動指派任務給您。`)) {
+                              try {
+                                await supabase.from("members").update({ line_user_id: null }).eq("id", m.id);
+                                setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, line_user_id: null } : mem));
+                                showToast(`🔓 已解除「${m.name}」的綁定關係`);
+                              } catch (err) {
+                                alert("解除綁定時發生異常，請重整頁面後重試。");
+                              }
+                            }
+                            return;
+                          }
+
+                          // 🛡️ 防呆 1：該角色已被其他成員綁定
+                          if (m.line_user_id && m.line_user_id !== currentUserLineId) {
+                            alert("這個角色已經被其他家人綁定囉！");
+                            return;
+                          }
+
+                          // 🛡️ 防呆 2：當下操作者自己已綁定過其他角色
+                          const myCurrentRole = members.find(mem => mem.line_user_id === currentUserLineId);
+                          if (myCurrentRole && myCurrentRole.id !== m.id) {
+                            alert(`您已經綁定為「${myCurrentRole.name}」了，無法再綁定其他身分喔！`);
+                            return;
+                          }
+
+                          // 🟢 執行連線綁定
                           try {
                             await supabase.from("members").update({ line_user_id: currentUserLineId }).eq("id", m.id);
                             setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, line_user_id: currentUserLineId } : mem));
@@ -462,9 +492,20 @@ export default function FamilyHub() {
                             alert("綁定發生異常，請重整頁面。");
                           }
                         }}
-                        className={`text-[11px] px-3 py-1.5 rounded-lg active:scale-95 transition-all font-bold ${(m.line_user_id && m.line_user_id === currentUserLineId) ? 'bg-[#566B56] text-[#FBF9F6]' : 'bg-[#2C2A28] text-[#FBF9F6]'}`}
+                        disabled={m.line_user_id && m.line_user_id !== currentUserLineId}
+                        className={`text-[11px] px-3 py-1.5 rounded-lg font-bold transition-all
+                          ${m.line_user_id === currentUserLineId 
+                            ? 'bg-[#566B56] text-[#FBF9F6] active:scale-95' 
+                            : m.line_user_id 
+                              ? 'bg-[#E3DFD5] text-[#7D7973] cursor-not-allowed opacity-70' 
+                              : 'bg-[#2C2A28] text-[#FBF9F6] active:scale-95' 
+                          }`}
                       >
-                        {(m.line_user_id && m.line_user_id === currentUserLineId) ? '已綁定' : '綁定我'}
+                        {m.line_user_id === currentUserLineId 
+                          ? '✅ 我的身分' 
+                          : m.line_user_id 
+                            ? '已被綁定' 
+                            : '綁定我'}
                       </button>
                       <button 
                         onClick={() => handleDeleteMember(m.id)}
@@ -502,6 +543,7 @@ export default function FamilyHub() {
     <div className={`min-h-screen bg-[#DFDCD4] flex justify-center selection:bg-[#E3DFD5] ${hideScrollbar}`} style={{ fontFamily: 'PingFang TC, PingFang SC, sans-serif', fontStyle: 'normal' }}>
       <div className="w-full max-w-[480px] h-dvh bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
         
+        {/* 🌟 頂部導航列 (唯一按鈕控制點與呼吸燈) */}
         <header className="flex-none pt-12 pb-3 px-6 flex justify-between items-center z-30 bg-[#F2EFE9]/95 backdrop-blur-xl border-b border-[#E3DFD5] sticky top-0">
           <div>
             <h1 className="text-[24px] font-bold tracking-wider text-[#2C2A28]">Family Hub</h1>
@@ -518,10 +560,26 @@ export default function FamilyHub() {
                 {isRefreshing ? 'SYNCING' : 'SYNC'}
               </span>
             </button>
-            <button onClick={() => setIsMemberModalOpen(true)} className="w-9 h-9 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-lg flex items-center justify-center text-[#2C2A28] shadow-sm active:bg-[#E3DFD5] transition-colors"><Users size={16} strokeWidth={2.5} /></button>
+            
+            {/* 右上角角色按鈕 (唯一進入點) */}
+            <button 
+              onClick={() => setIsMemberModalOpen(true)} 
+              className="relative w-9 h-9 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-lg flex items-center justify-center text-[#2C2A28] shadow-sm active:bg-[#E3DFD5] transition-colors"
+            >
+              <Users size={16} strokeWidth={2.5} />
+              
+              {/* 無數字純視覺呼吸燈小紅點 */}
+              {unboundLineUsers.length > 0 && (
+                <span className="absolute -top-[5px] -right-[5px] flex h-[10px] w-[10px]">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A84C3D] opacity-60"></span>
+                  <span className="relative inline-flex rounded-full h-[10px] w-[10px] bg-[#A84C3D] border-2 border-[#F2EFE9]"></span>
+                </span>
+              )}
+            </button>
           </div>
         </header>
 
+        {/* 🌟 溫馨通知橫幅 (純視覺公告欄，無點擊，文字精準引導右上角) */}
         {unboundLineUsers.length > 0 && (
           <div className="bg-[#B87A45]/10 border-b border-[#E3DFD5] px-6 py-3 flex items-center justify-between animate-in slide-in-from-top duration-300">
             <div className="flex items-center gap-2.5">
@@ -529,16 +587,10 @@ export default function FamilyHub() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-md bg-[#A84C3D] opacity-75"></span>
                 <span className="relative inline-flex rounded-md h-2 w-2 bg-[#A84C3D]"></span>
               </div>
-              <p className="text-[12px] font-bold text-[#2C2A28] m-0">
-                📢 偵測到 {unboundLineUsers.length} 位新夥伴已加入，等待導航！
+              <p className="text-[12px] font-bold text-[#2C2A28] m-0 tracking-wide">
+                📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角角色按鈕進行綁定。
               </p>
             </div>
-            <button 
-              onClick={() => setIsMemberModalOpen(true)} 
-              className="text-[11px] font-bold bg-[#2C2A28] text-[#FBF9F6] px-3 py-1 rounded-md active:scale-95 transition-transform"
-            >
-              去指派
-            </button>
           </div>
         )}
 
