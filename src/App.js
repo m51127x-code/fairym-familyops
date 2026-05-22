@@ -630,6 +630,7 @@ export default function FamilyHub() {
     <div className={`min-h-screen bg-[#DFDCD4] flex justify-center selection:bg-[#E3DFD5] ${hideScrollbar}`} style={{ fontFamily: 'PingFang TC, PingFang SC, sans-serif', fontStyle: 'normal' }}>
       <div className="w-full max-w-[480px] h-dvh bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
         
+        {/* 🌟 頂部導航列 (唯一按鈕控制點與呼吸燈) */}
         <header className="flex-none pt-12 pb-3 px-6 flex justify-between items-center z-30 bg-[#F2EFE9]/95 backdrop-blur-xl border-b border-[#E3DFD5] sticky top-0">
           <div>
             <h1 className="text-[24px] font-bold tracking-wider text-[#2C2A28]">Family Hub</h1>
@@ -647,11 +648,14 @@ export default function FamilyHub() {
               </span>
             </button>
             
+            {/* 右上角角色按鈕 (唯一進入點 + 呼吸燈) */}
             <button 
               onClick={() => setIsMemberModalOpen(true)} 
               className="relative w-9 h-9 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-lg flex items-center justify-center text-[#2C2A28] shadow-sm active:bg-[#E3DFD5] transition-colors"
             >
               <Users size={16} strokeWidth={2.5} />
+              
+              {/* 只有右上角有呼吸燈 */}
               {unboundLineUsers.length > 0 && (
                 <span className="absolute -top-[5px] -right-[5px] flex h-[10px] w-[10px]">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A84C3D] opacity-60"></span>
@@ -662,18 +666,12 @@ export default function FamilyHub() {
           </div>
         </header>
 
-        {/* 🌟 溫馨通知橫幅 (文字置左，針對小螢幕優化) */}
+        {/* 🌟 溫馨通知橫幅 (純文字、置左、無呼吸燈) */}
         {unboundLineUsers.length > 0 && (
           <div className="bg-[#B87A45]/10 border-b border-[#E3DFD5] px-6 py-3 flex items-start animate-in slide-in-from-top duration-300">
-            <div className="flex items-start gap-2.5">
-              <div className="relative flex h-2 w-2 mt-1.5 flex-shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-md bg-[#A84C3D] opacity-75"></span>
-                <span className="relative inline-flex rounded-md h-2 w-2 bg-[#A84C3D]"></span>
-              </div>
-              <p className="text-[12px] font-bold text-[#2C2A28] m-0 tracking-wide leading-relaxed">
-                📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角按鈕進行綁定。
-              </p>
-            </div>
+            <p className="text-[12px] font-bold text-[#2C2A28] m-0 tracking-wide text-left">
+              📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角按鈕進行綁定。
+            </p>
           </div>
         )}
 
