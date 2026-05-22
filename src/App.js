@@ -42,6 +42,7 @@ const MOOD_MAP = { '開心':'😊', '快樂':'😄', '累':'😴', '煩':'😤',
 
 const hideScrollbar = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']";
 
+const [lineUsers, setLineUsers] = useState([]);
 export default function FamilyHub() {
   const [activeTab, setActiveTab] = useState('board');
   const [events, setEvents] = useState([]);
@@ -59,49 +60,52 @@ export default function FamilyHub() {
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
 
-  useEffect(() => {
-    async function fetchSupabaseData() {
-      const { data: eventsData } = await supabase.from('events').select('*').gte('date', '2026-05-22').order('date', { ascending: true });
-      if (eventsData) setEvents(eventsData);
+  // 1. 先在 function FamilyHub() 內部的最上方，多加這個狀態變數
+const [lineUsers, setLineUsers] = useState([]);
 
-      const { data: routinesData } = await supabase.from('routines').select('*').gte('created_at', '2026-05-22T00:00:00Z');
-      const { data: logsData } = await supabase.from('routine_logs').select('*');
-      
-      if (routinesData) {
-        setRoutines(
-          routinesData.map(r => {
-            const myLogs = logsData ? logsData.filter(log => log.routine_name === r.name) : [];
-            return {
-              ...r,
-              icon: r.icon || 'activity', color: r.color || '#425C73',
-              logs: myLogs.map(l => ({ id: l.id, date: l.last_done_at, note: l.note })).sort((a, b) => new Date(b.date) - new Date(a.date)),
-            };
-          })
-        );
-      }
+// 2. 找到你的 useEffect，修改成以下這樣（同時撈取兩張表）
+useEffect(() => {
+  async function fetchSupabaseData() {
+    const { data: eventsData } = await supabase.from('events').select('*').gte('date', '2026-05-22').order('date', { ascending: true });
+    if (eventsData) setEvents(eventsData);
 
-      const { data: membersData } = await supabase.from('members').select('*');
-      if (membersData) setMembers(membersData);
+    const { data: routinesData } = await supabase.from('routines').select('*').gte('created_at', '2026-05-22T00:00:00Z');
+    const { data: logsData } = await supabase.from('routine_logs').select('*');
+    if (routinesData) {
+      setRoutines(routinesData.map(r => {
+        const myLogs = logsData ? logsData.filter(log => log.routine_name === r.name) : [];
+        return {
+          ...r,
+          icon: r.icon || 'activity', color: r.color || '#425C73',
+          logs: myLogs.map(l => ({ id: l.id, date: l.last_done_at, note: l.note })).sort((a, b) => new Date(b.date) - new Date(a.date))
+        };
+      }));
     }
 
-    async function initLiff() {
-      try {
-        await liff.init({ liffId: '2010165775-xmYZj7n4' });
-        if (!liff.isLoggedIn()) {
-          liff.login();
-        } else {
-          const profile = await liff.getProfile();
-          setCurrentUserLineId(profile.userId);
-          console.log('當前使用者 LINE ID 已就緒:', profile.userId);
-        }
-      } catch (err) {
-        console.error('LIFF 初始化失敗:', err);
-      }
-    }
+    // 👉 這裡同時撈取「系統角色」與「LINE 群組真實成員」
+    const { data: membersData } = await supabase.from('members').select('*');
+    if (membersData) setMembers(membersData);
 
-    fetchSupabaseData();
-    initLiff();
-  }, []);
+    const { data: lineUsersData } = await supabase.from('line_users').select('*');
+    if (lineUsersData) setLineUsers(lineUsersData);
+  }
+
+  async function initLiff() {
+    try {
+      if (!window.liff) return;
+      await window.liff.init({ liffId: '2010165775-xmYZj7n4' });
+      if (!window.liff.isLoggedIn()) {
+        window.liff.login();
+      } else {
+        const profile = await window.liff.getProfile();
+        setCurrentUserLineId(profile.userId);
+      }
+    } catch (err) { console.error('LIFF 初始化失敗:', err); }
+  }
+
+  fetchSupabaseData();
+  initLiff();
+}, []);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -449,7 +453,10 @@ export default function FamilyHub() {
       </div>
     );
   };
-
+// 自動算出：存在於 LINE 群組中，但還沒在系統 members 裡面完成綁定的人
+const unboundLineUsers = useMemo(() => {
+  return lineUsers.filter(lu => !members.some(m => m.line_user_id === lu.user_id));
+}, [lineUsers, members]);
   return (
     <div className={`min-h-screen bg-[#DFDCD4] flex justify-center selection:bg-[#E3DFD5] ${hideScrollbar}`} style={{ fontFamily: 'PingFang TC, PingFang SC, sans-serif', fontStyle: 'normal' }}>
       <div className="w-full max-w-[480px] h-dvh bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
@@ -466,7 +473,26 @@ export default function FamilyHub() {
             <button onClick={() => setIsMemberModalOpen(true)} className="w-9 h-9 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-lg flex items-center justify-center text-[#2C2A28] shadow-sm active:bg-[#E3DFD5] transition-colors"><Users size={16} strokeWidth={2.5} /></button>
           </div>
         </header>
-
+{/* 在 header 下方、main 上方插入 */}
+{unboundLineUsers.length > 0 && (
+  <div className="bg-[#B87A45]/10 border-b border-[#E3DFD5] px-6 py-3 flex items-center justify-between animate-in slide-in-from-top duration-300">
+    <div className="flex items-center gap-2.5">
+      <div className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A84C3D] opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-[#A84C3D]"></span>
+      </div>
+      <p className="text-[12px] font-bold text-[#2C2A28] m-0">
+        📢 偵測到 {unboundLineUsers.length} 位新夥伴已加入群組，正等待生活導航！
+      </p>
+    </div>
+    <button 
+      onClick={() => setIsMemberModalOpen(true)} 
+      className="text-[11px] font-bold bg-[#2C2A28] text-[#FBF9F6] px-3 py-1 rounded-md active:scale-95 transition-transform"
+    >
+      去指派
+    </button>
+  </div>
+)}
         <main className={`flex-1 overflow-y-auto overflow-x-hidden relative z-10 scroll-smooth ${hideScrollbar}`}>
           {activeTab === 'board' ? <BoardView /> : <RoutinesView />}
         </main>
