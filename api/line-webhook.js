@@ -60,10 +60,15 @@ function classifyMessage(message, userRole = "全家", allMembers = []) {
   return { type, content, date, member, mood };
 }
 
-// 🌟 升級：支援傳入動態的 targetGroupId，確保回覆到正確的群組
-async function pushNotification(text, targetGroupId = null) {
+// 🌟 升級：支援傳送純文字，或是原生的 LINE Template Message (按鈕卡片)
+async function pushNotification(messagePayload, targetGroupId = null) {
   const groupId = targetGroupId || process.env.FAIRYM_OPS_GROUP_ID;
   if (!groupId) return;
+
+  // 判斷傳入的是字串(純文字)還是物件(按鈕卡片)
+  const messages = typeof messagePayload === 'string'
+    ? [{ type: "text", text: messagePayload }]
+    : [messagePayload];
 
   const response = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
@@ -73,9 +78,14 @@ async function pushNotification(text, targetGroupId = null) {
     },
     body: JSON.stringify({
       to: groupId,
-      messages: [{ type: "text", text }],
+      messages: messages,
     }),
   });
+
+  if (!response.ok) {
+    console.error("LINE push error:", await response.text());
+  }
+}
 
   if (!response.ok) {
     console.error("LINE push error:", await response.text());
@@ -141,13 +151,57 @@ export default async function handler(req, res) {
       const groupId = event.source?.groupId || null;
       const userId = event.source?.userId || null;
 
-      // 🌟 第一階段：迎新廣播 (攔截新成員加入)
-      if (event.type === "memberJoined") {
-        const welcomeMsg = `🎉 歡迎加入共生公會 (Co-op Guild)！\n\n系統偵測到新成員進駐。請管理員先至 APP 設定您的專屬角色後，請您在此輸入：\n\n「@FairyM 綁定 [您的系統名稱]」\n\n以完成連線開通！`;
-        await pushNotification(welcomeMsg, groupId);
-        continue; // 處理完歡迎就跳過
+      // 🌟 情境 1：機器人被邀請加入群組 (Bot 本身加入)
+      if (event.type === "join") {
+        const welcomeTemplate = {
+          type: "template",
+          altText: "👋 大家好！我是 FairyM 生活導航助理。請點擊按鈕開啟生活導航。",
+          template: {
+            type: "buttons",
+            text: "👋 大家好！我是 FairyM 生活導航助理。\n\n請點擊下方按鈕開啟「生活導航」並綁定您的專屬角色，我們就可以開始自動記錄生活囉！",
+            actions: [{ type: "uri", label: "打開生活導航 APP", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
+          }
+        };
+        await pushNotification(welcomeTemplate, groupId);
+        continue;
       }
 
+      // 🌟 情境 2：群組裡有新夥伴加入 (其他人加入)
+      if (event.type === "memberJoined") {
+        for (const member of event.joined.members) {
+          const newUserId = member.userId;
+          await syncGroupName(groupId);
+          await syncUserProfile(groupId, newUserId);
+        }
+        const newbieTemplate = {
+          type: "template",
+          altText: "🎉 歡迎新夥伴加入！請點擊按鈕開啟生活導航。",
+          template: {
+            type: "buttons",
+            text: "🎉 歡迎新夥伴加入！\n\n系統已偵測到您的進駐。請直接點開下方的按鈕，綁定您的專屬身分喔！",
+            actions: [{ type: "uri", label: "打開生活導航 APP", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
+          }
+        };
+        await pushNotification(newbieTemplate, groupId);
+        continue;
+      }
+
+      // 🌟 情境 3：個人直接加機器人好友 (1對1對話)
+      if (event.type === "follow") {
+        const privateTemplate = {
+          type: "template",
+          altText: "🌸 歡迎加入 FairyM！請點擊按鈕開啟生活導航。",
+          template: {
+            type: "buttons",
+            text: "🌸 歡迎加入 FairyM！\n\n您可以把我邀請到您的「家庭 LINE 群組」裡。如果已在群組內，請點擊下方按鈕打開我們的專屬基地：",
+            actions: [{ type: "uri", label: "打開生活導航 APP", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
+          }
+        };
+        await pushNotification(privateTemplate, userId);
+        continue;
+      }
+
+      // --- 擋下非文字訊息 ---
       if (event.type !== "message") continue;
       if (event.message?.type !== "text") continue;
 
@@ -156,32 +210,6 @@ export default async function handler(req, res) {
 
       await syncGroupName(groupId);
       await syncUserProfile(groupId, userId);
-
-      // 🌟 第一階段：身份綁定指令攔截 (@FairyM 綁定 老爸)
-      const bindMatch = messageText.match(/^@?Fairy\s?M\s*綁定\s*(.+)/i);
-      if (bindMatch && userId) {
-        const targetName = bindMatch[1].trim();
-        
-        // 去 members 表找有沒有這個名字
-        const { data: memberData } = await supabase
-          .from("members")
-          .select("*")
-          .eq("name", targetName)
-          .maybeSingle();
-
-        if (memberData) {
-          // 找到了，把 userId 寫進去
-          await supabase
-            .from("members")
-            .update({ line_user_id: userId })
-            .eq("id", memberData.id);
-
-          await pushNotification(`✅ 綁定成功！\n已將您的 LINE 帳號連線至『${targetName}』。\n未來您輸入的事項將自動標記為您負責。`, groupId);
-        } else {
-          await pushNotification(`⚠️ 找不到『${targetName}』這個角色。\n請確認管理員是否已在 APP 的「動態成員設定」中建立該名稱。`, groupId);
-        }
-        continue; 
-      }
 
       // --- 一般事項處理邏輯 ---
 
