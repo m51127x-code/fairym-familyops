@@ -474,9 +474,9 @@ export default function FamilyHub() {
                             alert("綁定發生異常，請重整頁面。");
                           }
                         }}
-                        className={`text-[11px] px-3 py-1.5 rounded-lg active:scale-95 transition-all font-bold ${m.line_user_id === currentUserLineId ? 'bg-[#566B56] text-[#FBF9F6]' : 'bg-[#2C2A28] text-[#FBF9F6]'}`}
-                      >
-                        {m.line_user_id === currentUserLineId ? '已綁定' : '綁定我'}
+                        className={`text-[11px] px-3 py-1.5 rounded-lg active:scale-95 transition-all font-bold ${(m.line_user_id && m.line_user_id === currentUserLineId) ? 'bg-[#566B56] text-[#FBF9F6]' : 'bg-[#2C2A28] text-[#FBF9F6]'}`}
+>
+{(m.line_user_id && m.line_user_id === currentUserLineId) ? '已綁定' : '綁定我'}
                       </button>
                       <button 
                         onClick={() => handleDeleteMember(m.id)}
