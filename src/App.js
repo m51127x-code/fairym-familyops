@@ -57,12 +57,11 @@ export default function FamilyHub() {
   
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
-  const [isHideListOpen, setIsHideListOpen] = useState(false); // 🌟 新增：已隱藏名單的折疊開關状态
+  const [isHideListOpen, setIsHideListOpen] = useState(false); 
   const [editingEvent, setEditingEvent] = useState(null);
   const [currentUserLineId, setCurrentUserLineId] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false); 
 
-  // 🌟 過濾：純淨的待分配名單（排除已綁定、且排除已被忽略隱藏的成員）
   const unboundLineUsers = useMemo(() => {
     const unbound = lineUsers.filter(lu => !lu.is_ignored && !members.some(m => m.line_user_id === lu.user_id));
     const uniqueUnbound = [];
@@ -76,7 +75,6 @@ export default function FamilyHub() {
     return uniqueUnbound;
   }, [lineUsers, members]);
 
-  // 🌟 過濾：已被放進後悔藥箱的隱藏名單
   const ignoredLineUsers = useMemo(() => {
     const ignored = lineUsers.filter(lu => lu.is_ignored && !members.some(m => m.line_user_id === lu.user_id));
     const uniqueIgnored = [];
@@ -90,7 +88,6 @@ export default function FamilyHub() {
     return uniqueIgnored;
   }, [lineUsers, members]);
 
-  // 🌟 資料重新整理函式
   const fetchSupabaseData = async () => {
     setIsRefreshing(true);
     try {
@@ -147,7 +144,6 @@ export default function FamilyHub() {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  // --- 隱藏/忽略成員的控制核心函式 ---
   const handleIgnoreUser = async (userId, shouldIgnore) => {
     try {
       await supabase.from('line_users').update({ is_ignored: shouldIgnore }).eq('user_id', userId);
@@ -159,11 +155,15 @@ export default function FamilyHub() {
     }
   };
 
-  // --- API 操作 ---
   const handleAddMember = async (name, role) => {
     if (!name || !role) return;
     const { data, error } = await supabase.from('members').insert([{ name, role_name: role }]).select();
-    if (!error && data) { setMembers(prev => [...prev, data[0]]); showToast('✅ 角色已成功建立'); }
+    if (!error && data) { 
+      setMembers(prev => [...prev, data[0]]); 
+      showToast('✅ 角色已成功建立'); 
+      return true; // 回傳成功狀態供 UI 關閉表單
+    }
+    return false;
   };
 
   const handleDeleteMember = async (id) => {
@@ -435,6 +435,8 @@ export default function FamilyHub() {
   const MemberModal = () => {
     const [nameInput, setNameInput] = useState('');
     const [roleInput, setRoleInput] = useState('');
+    const [isAddingRole, setIsAddingRole] = useState(false); // 🌟 控制表單折疊的狀態
+
     if (!isMemberModalOpen) return null;
     return (
       <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
@@ -447,158 +449,176 @@ export default function FamilyHub() {
             </div>
             <p className="text-[13px] text-[#7D7973] mb-5 tracking-widest leading-relaxed border-b border-[#E3DFD5] border-dashed pb-4">建立專屬稱謂，以便自動分派任務。</p>
             
-            {/* 🌟 待安排名單（支援一鍵隱藏功能） */}
-            {unboundLineUsers.length > 0 && (
-              <div className="mb-4 p-3.5 bg-[#B87A45]/5 border border-[#B87A45]/20 rounded-xl">
-                <p className="text-[11px] font-bold text-[#A84C3D] mb-2.5 flex items-center gap-1.5">
-                  <Wind size={14} /> 待安排專屬角色的 LINE 成員：
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {unboundLineUsers.map(u => (
-                    <span key={u.user_id} className="text-[12px] bg-[#FBF9F6] pl-2.5 pr-1.5 py-1.5 rounded-lg border border-[#E3DFD5] shadow-sm flex items-center gap-2 font-medium text-[#2C2A28]">
-                      {u.picture_url ? (
-                        <img src={u.picture_url} className="w-5 h-5 rounded-full border border-[#E3DFD5]" alt="avatar" />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full bg-[#D1CFC7] flex items-center justify-center text-[10px] text-white">?</div>
-                      )}
-                      <span className="truncate max-w-[70px]">{u.display_name}</span>
-                      
-                      {/* 🌟 隱藏小按鈕（點擊後移到後悔藥箱） */}
-                      <button 
-                        onClick={() => handleIgnoreUser(u.user_id, true)}
-                        className="text-[#7D7973] hover:text-[#A84C3D] p-0.5 rounded transition-colors active:bg-[#E3DFD5]"
-                        title="先不理他"
-                      >
-                        <X size={12} strokeWidth={2.5} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex-1 overflow-y-auto space-y-2.5 mb-5 pr-1">
-              {members.length === 0 ? (
-                <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-xl">尚無建立任何角色</div>
-              ) : (
-                members.map(m => (
-                  <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
-                    <div>
-                      <span className="block text-[15px] font-bold text-[#2C2A28]">{m.name}</span>
-                      <span className="text-[11px] font-medium text-[#566B56] bg-[#FBF9F6] px-1.5 py-0.5 mt-1 rounded-md border border-[#E3DFD5] inline-block">{m.role_name}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={async () => {
-                          if (!currentUserLineId) {
-                            alert("授權準備中，請確認已透過 LINE 內部開啟並稍後重試。");
-                            return;
-                          }
-
-                          // 解除個人綁定
-                          if (m.line_user_id === currentUserLineId) {
-                            if (window.confirm(`確定要解除您與「${m.name}」的綁定關係嗎？\n解除後系統將無法自動指派任務給您。`)) {
-                              try {
-                                await supabase.from("members").update({ line_user_id: null }).eq("id", m.id);
-                                setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, line_user_id: null } : mem));
-                                showToast(`🔓 已解除「${m.name}」的綁定關係`);
-                              } catch (err) {
-                                alert("解除綁定時發生異常，請重整頁面後重試。");
-                              }
-                            }
-                            return;
-                          }
-
-                          // 防呆 1：已被他人綁定
-                          if (m.line_user_id && m.line_user_id !== currentUserLineId) {
-                            alert("這個角色已經被其他家人綁定囉！");
-                            return;
-                          }
-
-                          // 防呆 2：操作者已綁定過其他角色
-                          const myCurrentRole = members.find(mem => mem.line_user_id === currentUserLineId);
-                          if (myCurrentRole && myCurrentRole.id !== m.id) {
-                            alert(`您已經綁定為「${myCurrentRole.name}」了，無法再綁定其他身分喔！`);
-                            return;
-                          }
-
-                          // 執行連線
-                          try {
-                            await supabase.from("members").update({ line_user_id: currentUserLineId }).eq("id", m.id);
-                            setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, line_user_id: currentUserLineId } : mem));
-                            showToast(`✅ 綁定成功！您現在是：${m.name}`);
-                          } catch (err) {
-                            alert("綁定發生異常，請重整頁面。");
-                          }
-                        }}
-                        disabled={m.line_user_id && m.line_user_id !== currentUserLineId}
-                        className={`text-[11px] px-3 py-1.5 rounded-lg font-bold transition-all
-                          ${m.line_user_id === currentUserLineId 
-                            ? 'bg-[#566B56] text-[#FBF9F6] active:scale-95' 
-                            : m.line_user_id 
-                              ? 'bg-[#E3DFD5] text-[#7D7973] cursor-not-allowed opacity-70' 
-                              : 'bg-[#2C2A28] text-[#FBF9F6] active:scale-95' 
-                          }`}
-                      >
-                        {m.line_user_id === currentUserLineId 
-                          ? '✅ 我的身分' 
-                          : m.line_user_id 
-                            ? '已被綁定' 
-                            : '綁定我'}
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteMember(m.id)}
-                        className="text-[11px] bg-[#FBF9F6] text-[#A84C3D] px-2.5 py-1.5 rounded-lg active:scale-95 border border-[#E3DFD5] transition-all flex items-center justify-center"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* 🌟 方案一後悔藥：已隱藏的潛水員折疊清單 */}
-            {ignoredLineUsers.length > 0 && (
-              <div className="mb-4 pt-3 border-t border-[#E3DFD5] border-dashed">
-                <button 
-                  onClick={() => setIsHideListOpen(!isHideListOpen)}
-                  className="w-full flex items-center justify-between text-[11px] font-bold text-[#7D7973] uppercase tracking-widest py-1 hover:text-[#2C2A28] focus:outline-none"
-                >
-                  <span>🙈 已隱藏的成員 ({ignoredLineUsers.length})</span>
-                  <ChevronDown size={14} className={`transform transition-transform duration-200 ${isHideListOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isHideListOpen && (
-                  <div className="flex flex-wrap gap-2 mt-2.5 p-2.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
-                    {ignoredLineUsers.map(u => (
-                      <span key={u.user_id} className="text-[11px] bg-[#FBF9F6] pl-2.5 pr-1.5 py-1 rounded-md border border-[#E3DFD5] flex items-center gap-1.5 text-[#7D7973] font-medium shadow-sm">
-                        {u.display_name}
+            {/* 🌟 滾動內容區（包含名單與新增表單） */}
+            <div className="flex-1 overflow-y-auto pr-1">
+              {unboundLineUsers.length > 0 && (
+                <div className="mb-4 p-3.5 bg-[#B87A45]/5 border border-[#B87A45]/20 rounded-xl">
+                  <p className="text-[11px] font-bold text-[#A84C3D] mb-2.5 flex items-center gap-1.5">
+                    <Wind size={14} /> 待安排專屬角色的 LINE 成員：
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {unboundLineUsers.map(u => (
+                      <span key={u.user_id} className="text-[12px] bg-[#FBF9F6] pl-2.5 pr-1.5 py-1.5 rounded-lg border border-[#E3DFD5] shadow-sm flex items-center gap-2 font-medium text-[#2C2A28]">
+                        {u.picture_url ? (
+                          <img src={u.picture_url} className="w-5 h-5 rounded-full border border-[#E3DFD5]" alt="avatar" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-[#D1CFC7] flex items-center justify-center text-[10px] text-white">?</div>
+                        )}
+                        <span className="truncate max-w-[70px]">{u.display_name}</span>
                         <button 
-                          onClick={() => handleIgnoreUser(u.user_id, false)}
-                          className="text-[#566B56] hover:text-[#2C2A28] p-0.5 rounded transition-colors"
-                          title="恢復顯示"
+                          onClick={() => handleIgnoreUser(u.user_id, true)}
+                          className="text-[#7D7973] hover:text-[#A84C3D] p-0.5 rounded transition-colors active:bg-[#E3DFD5]"
+                          title="先不理他"
                         >
-                          <RotateCw size={10} strokeWidth={3} />
+                          <X size={12} strokeWidth={2.5} />
                         </button>
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              <div className="space-y-2.5 mb-2">
+                {members.length === 0 ? (
+                  <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-xl">尚無建立任何角色</div>
+                ) : (
+                  members.map(m => (
+                    <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
+                      <div>
+                        <span className="block text-[15px] font-bold text-[#2C2A28]">{m.name}</span>
+                        <span className="text-[11px] font-medium text-[#566B56] bg-[#FBF9F6] px-1.5 py-0.5 mt-1 rounded-md border border-[#E3DFD5] inline-block">{m.role_name}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={async () => {
+                            if (!currentUserLineId) {
+                              alert("授權準備中，請確認已透過 LINE 內部開啟並稍後重試。");
+                              return;
+                            }
+
+                            if (m.line_user_id === currentUserLineId) {
+                              if (window.confirm(`確定要解除您與「${m.name}」的綁定關係嗎？\n解除後系統將無法自動指派任務給您。`)) {
+                                try {
+                                  await supabase.from("members").update({ line_user_id: null }).eq("id", m.id);
+                                  setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, line_user_id: null } : mem));
+                                  showToast(`🔓 已解除「${m.name}」的綁定關係`);
+                                } catch (err) {
+                                  alert("解除綁定時發生異常，請重整頁面後重試。");
+                                }
+                              }
+                              return;
+                            }
+
+                            if (m.line_user_id && m.line_user_id !== currentUserLineId) {
+                              alert("這個角色已經被其他家人綁定囉！");
+                              return;
+                            }
+
+                            const myCurrentRole = members.find(mem => mem.line_user_id === currentUserLineId);
+                            if (myCurrentRole && myCurrentRole.id !== m.id) {
+                              alert(`您已經綁定為「${myCurrentRole.name}」了，無法再綁定其他身分喔！`);
+                              return;
+                            }
+
+                            try {
+                              await supabase.from("members").update({ line_user_id: currentUserLineId }).eq("id", m.id);
+                              setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, line_user_id: currentUserLineId } : mem));
+                              showToast(`✅ 綁定成功！您現在是：${m.name}`);
+                            } catch (err) {
+                              alert("綁定發生異常，請重整頁面。");
+                            }
+                          }}
+                          disabled={m.line_user_id && m.line_user_id !== currentUserLineId}
+                          className={`text-[11px] px-3 py-1.5 rounded-lg font-bold transition-all
+                            ${m.line_user_id === currentUserLineId 
+                              ? 'bg-[#566B56] text-[#FBF9F6] active:scale-95' 
+                              : m.line_user_id 
+                                ? 'bg-[#E3DFD5] text-[#7D7973] cursor-not-allowed opacity-70' 
+                                : 'bg-[#2C2A28] text-[#FBF9F6] active:scale-95' 
+                            }`}
+                        >
+                          {m.line_user_id === currentUserLineId ? '✅ 我的身分' : m.line_user_id ? '已被綁定' : '綁定我'}
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteMember(m.id)}
+                          className="text-[11px] bg-[#FBF9F6] text-[#A84C3D] px-2.5 py-1.5 rounded-lg active:scale-95 border border-[#E3DFD5] transition-all flex items-center justify-center"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
-            )}
-            
-            <div className="bg-[#F2EFE9] p-4 rounded-xl border border-[#E3DFD5] space-y-3 mb-2">
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">名字/暱稱</label>
-                  <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="例：林老杯" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3.5 py-3 text-[16px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
+
+              {/* 🌟 內嵌式折疊新增表單 */}
+              {!isAddingRole ? (
+                <button 
+                  onClick={() => setIsAddingRole(true)} 
+                  className="w-full py-3 border-2 border-dashed border-[#E3DFD5] text-[#7D7973] rounded-xl flex items-center justify-center gap-2 font-bold text-[13px] hover:bg-[#F2EFE9] transition-colors mt-3 mb-6 tracking-widest active:scale-[0.99]"
+                >
+                  <Plus size={16} strokeWidth={2.5} /> 建立新角色
+                </button>
+              ) : (
+                <div className="bg-[#F2EFE9] p-4 rounded-xl border border-[#E3DFD5] space-y-3 mt-3 mb-6 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">名字/暱稱</label>
+                      <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="例：林老杯" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3.5 py-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">擔任身分</label>
+                      <input value={roleInput} onChange={(e) => setRoleInput(e.target.value)} placeholder="例：採買總監" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3.5 py-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button 
+                      onClick={() => { setIsAddingRole(false); setNameInput(''); setRoleInput(''); }} 
+                      className="flex-[1] h-[44px] bg-[#E3DFD5] text-[#7D7973] rounded-xl flex items-center justify-center text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest"
+                    >
+                      取消
+                    </button>
+                    <button 
+                      onClick={async () => { 
+                        const success = await handleAddMember(nameInput, roleInput); 
+                        if(success) { setNameInput(''); setRoleInput(''); setIsAddingRole(false); }
+                      }} 
+                      disabled={!nameInput.trim() || !roleInput.trim()} 
+                      className="flex-[2] h-[44px] bg-[#2C2A28] disabled:bg-[#D1CFC7] disabled:text-[#FBF9F6] text-[#FBF9F6] rounded-xl flex items-center justify-center gap-2 text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest"
+                    >
+                      <Check size={16} strokeWidth={3} /> 確認建立
+                    </button>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">擔任身分</label>
-                  <input value={roleInput} onChange={(e) => setRoleInput(e.target.value)} placeholder="例：採買總監" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3.5 py-3 text-[16px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
+              )}
+
+              {ignoredLineUsers.length > 0 && (
+                <div className="mb-4 pt-3 border-t border-[#E3DFD5] border-dashed">
+                  <button 
+                    onClick={() => setIsHideListOpen(!isHideListOpen)}
+                    className="w-full flex items-center justify-between text-[11px] font-bold text-[#7D7973] uppercase tracking-widest py-1 hover:text-[#2C2A28] focus:outline-none"
+                  >
+                    <span>🙈 已隱藏的成員 ({ignoredLineUsers.length})</span>
+                    <ChevronDown size={14} className={`transform transition-transform duration-200 ${isHideListOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isHideListOpen && (
+                    <div className="flex flex-wrap gap-2 mt-2.5 p-2.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
+                      {ignoredLineUsers.map(u => (
+                        <span key={u.user_id} className="text-[11px] bg-[#FBF9F6] pl-2.5 pr-1.5 py-1 rounded-md border border-[#E3DFD5] flex items-center gap-1.5 text-[#7D7973] font-medium shadow-sm">
+                          {u.display_name}
+                          <button 
+                            onClick={() => handleIgnoreUser(u.user_id, false)}
+                            className="text-[#566B56] hover:text-[#2C2A28] p-0.5 rounded transition-colors"
+                            title="恢復顯示"
+                          >
+                            <RotateCw size={10} strokeWidth={3} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-              <button onClick={() => { handleAddMember(nameInput, roleInput); setNameInput(''); setRoleInput(''); }} disabled={!nameInput.trim() || !roleInput.trim()} className="w-full h-[48px] bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold active:scale-[0.98] transition-transform tracking-widest"><UserPlus size={16} /> 新增角色</button>
+              )}
             </div>
           </div>
         </div>
@@ -606,12 +626,10 @@ export default function FamilyHub() {
     );
   };
 
-  // --- 根佈局 ---
   return (
     <div className={`min-h-screen bg-[#DFDCD4] flex justify-center selection:bg-[#E3DFD5] ${hideScrollbar}`} style={{ fontFamily: 'PingFang TC, PingFang SC, sans-serif', fontStyle: 'normal' }}>
       <div className="w-full max-w-[480px] h-dvh bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
         
-        {/* 🌟 頂部導航列 */}
         <header className="flex-none pt-12 pb-3 px-6 flex justify-between items-center z-30 bg-[#F2EFE9]/95 backdrop-blur-xl border-b border-[#E3DFD5] sticky top-0">
           <div>
             <h1 className="text-[24px] font-bold tracking-wider text-[#2C2A28]">Family Hub</h1>
@@ -634,8 +652,6 @@ export default function FamilyHub() {
               className="relative w-9 h-9 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-lg flex items-center justify-center text-[#2C2A28] shadow-sm active:bg-[#E3DFD5] transition-colors"
             >
               <Users size={16} strokeWidth={2.5} />
-              
-              {/* 呼吸燈效果：僅在【未綁定且未被隱藏】的成員存在時亮起 */}
               {unboundLineUsers.length > 0 && (
                 <span className="absolute -top-[5px] -right-[5px] flex h-[10px] w-[10px]">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A84C3D] opacity-60"></span>
@@ -646,11 +662,10 @@ export default function FamilyHub() {
           </div>
         </header>
 
-        {/* 🌟 溫馨通知橫幅 (拔除多餘呼吸燈，純文字引導) */}
         {unboundLineUsers.length > 0 && (
           <div className="bg-[#B87A45]/10 border-b border-[#E3DFD5] px-6 py-3 flex justify-center animate-in slide-in-from-top duration-300">
             <p className="text-[12px] font-bold text-[#2C2A28] m-0 tracking-wide text-center">
-              📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角按鈕進行綁定。
+              📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角角色按鈕進行綁定。
             </p>
           </div>
         )}
@@ -690,3 +705,4 @@ export default function FamilyHub() {
     </div>
   );
 }
+                            
