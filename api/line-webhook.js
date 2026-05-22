@@ -20,13 +20,12 @@ function extractContent(text) {
   return text.replace(/^@?fairy\s?m\s*/gi, "").trim();
 }
 
-// 🌟 升級：傳入 allMembers 動態名單進行比對，不再寫死角色
 function classifyMessage(message, userRole = "全家", allMembers = []) {
   const text = (message || "").trim();
   const content = extractContent(text);
 
   let type = "todo";
-  let member = userRole; // 預設使用已綁定的發言者身分
+  let member = userRole;
   let date = getTodayString(0);
   let mood = null;
 
@@ -49,7 +48,6 @@ function classifyMessage(message, userRole = "全家", allMembers = []) {
     type = "todo";
   }
 
-  // 🌟 動態文字覆蓋：如果內容特別提到 APP 裡建立好的某位家人，才覆蓋掉原本的發言者
   for (const m of allMembers) {
     if (content.includes(m.name) || content.includes(m.role_name)) {
       member = m.name;
@@ -60,12 +58,10 @@ function classifyMessage(message, userRole = "全家", allMembers = []) {
   return { type, content, date, member, mood };
 }
 
-// 🌟 升級：支援傳送純文字，或是原生的 LINE Template Message (按鈕卡片)
 async function pushNotification(messagePayload, targetGroupId = null) {
   const groupId = targetGroupId || process.env.FAIRYM_OPS_GROUP_ID;
   if (!groupId) return;
 
-  // 判斷傳入的是字串(純文字)還是物件(按鈕卡片)
   const messages = typeof messagePayload === 'string'
     ? [{ type: "text", text: messagePayload }]
     : [messagePayload];
@@ -87,11 +83,6 @@ async function pushNotification(messagePayload, targetGroupId = null) {
   }
 }
 
-  if (!response.ok) {
-    console.error("LINE push error:", await response.text());
-  }
-}
-// 🌟 新增：針對事件立即精準回覆的專用函式 (確保訊息絕對不會傳錯群組)
 async function replyMessage(replyToken, messagePayload) {
   if (!replyToken) return;
 
@@ -115,6 +106,7 @@ async function replyMessage(replyToken, messagePayload) {
     console.error("LINE reply error:", await response.text());
   }
 }
+
 async function syncGroupName(groupId) {
   if (!groupId) return null;
   const { data: existing } = await supabase.from("group_aliases").select("group_name").eq("group_id", groupId).maybeSingle();
@@ -173,9 +165,8 @@ export default async function handler(req, res) {
     for (const event of events) {
       const groupId = event.source?.groupId || null;
       const userId = event.source?.userId || null;
-      const replyToken = event.replyToken || null; // 🌟 抓取專屬回覆金鑰
+      const replyToken = event.replyToken || null;
 
-      // 🌟 情境 1：機器人被邀請加入群組 (Bot 本身加入)
       if (event.type === "join") {
         const welcomeTemplate = {
           type: "template",
@@ -186,11 +177,10 @@ export default async function handler(req, res) {
             actions: [{ type: "uri", label: "打開生活導航", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
           }
         };
-        await replyMessage(replyToken, welcomeTemplate); // 改用精準回覆
+        await replyMessage(replyToken, welcomeTemplate);
         continue;
       }
 
-      // 🌟 情境 2：群組裡有新夥伴加入 (其他人加入)
       if (event.type === "memberJoined") {
         for (const member of event.joined.members) {
           const newUserId = member.userId;
@@ -206,11 +196,10 @@ export default async function handler(req, res) {
             actions: [{ type: "uri", label: "打開生活導航", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
           }
         };
-        await replyMessage(replyToken, newbieTemplate); // 改用精準回覆
+        await replyMessage(replyToken, newbieTemplate);
         continue;
       }
 
-      // 🌟 情境 3：個人直接加機器人好友 (1對1對話)
       if (event.type === "follow") {
         const privateTemplate = {
           type: "template",
@@ -221,18 +210,9 @@ export default async function handler(req, res) {
             actions: [{ type: "uri", label: "打開生活導航", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
           }
         };
-        await replyMessage(replyToken, privateTemplate); // 改用精準回覆
+        await replyMessage(replyToken, privateTemplate);
         continue;
       }
-
-      // --- 擋下非文字訊息 ---
-      if (event.type !== "message") continue;
-      if (event.message?.type !== "text") continue;
-
-      const messageText = event.message.text;
-      if (!isFairyMMessage(messageText)) continue;
-
-      // ...(後續原本的程式碼維持不動)
 
       // --- 擋下非文字訊息 ---
       if (event.type !== "message") continue;
@@ -244,13 +224,9 @@ export default async function handler(req, res) {
       await syncGroupName(groupId);
       await syncUserProfile(groupId, userId);
 
-      // --- 一般事項處理邏輯 ---
-
-      // 1. 去 Supabase 撈出系統目前所有的動態成員
       const { data: allMembersData } = await supabase.from("members").select("name, role_name");
       const allMembers = allMembersData || [];
 
-      // 2. 判斷發言者的身分 (用 userId 去 members 表找對應的名字)
       let userRole = "全家";
       if (userId) {
         const { data: boundMember } = await supabase
@@ -264,7 +240,6 @@ export default async function handler(req, res) {
         }
       }
 
-      // 3. 傳入動態成員與發言者進行 AI 分類
       const classified = classifyMessage(messageText, userRole, allMembers);
 
       await supabase.from("line_messages").insert([{ group_id: groupId, user_id: userId, message_text: messageText, message_type: "text" }]);
