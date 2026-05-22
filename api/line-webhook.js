@@ -20,7 +20,7 @@ function extractContent(text) {
   return text.replace(/^@?fairy\s?m|幫我記|記一下\s*/gi, "").trim();
 }
 
-// 🌟 第二層：Gemini AI 降落傘引擎
+// 🌟 第二層：Gemini AI 降落傘引擎 (已強化防呆與時間擷取)
 async function callGeminiAI(text, userRole, allMembers) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -40,13 +40,14 @@ async function callGeminiAI(text, userRole, allMembers) {
   可選家庭成員：${membersList}
   
   規則：
-  1. content: 拔除所有「相對日期」字眼（如：這週六、下週二、明天），但**必須保留具體時間**（如：10:30、下午三點），剩下的作為純粹動作描述（例如：「這週六10:30去美甲」必須變成「10:30去美甲」）。  2. date: 將訊息中的時間詞彙轉換為 YYYY-MM-DD 的絕對日期格式。如果沒有提到日期，預設為 ${today}。如果提到這週幾，請根據今天是 ${today} 正確推算。
+  1. content: 拔除所有「相對日期」字眼（如：這週六、下週二、明天），但必須保留具體時間（如：10:30、下午三點），剩下的作為純粹動作描述（例如：「這週六10:30去美甲」必須變成「10:30去美甲」）。
+  2. date: 將訊息中的時間詞彙轉換為 YYYY-MM-DD 的絕對日期格式。如果沒有提到日期，預設為 ${today}。如果提到這週幾，請根據今天是 ${today} 正確推算。
   3. member: 負責此任務的成員。如果沒提到名字，預設為「${userRole}」。
   4. type: 嚴格從以下選擇：todo (待辦), shop (採買), health (健康), routine (週期), mood (心情)。
   5. mood: 如果 type 是 mood，請給一個最適合的 Emoji（如：😊, 😢, 😰, 🤯），否則為 null。
   
   回傳格式範例（必須是合法 JSON）：
-  {"content": "去美甲", "date": "2026-05-23", "member": "米雪", "type": "todo", "mood": null}
+  {"content": "10:30去美甲", "date": "2026-05-23", "member": "米雪", "type": "todo", "mood": null}
   `;
 
   try {
@@ -58,11 +59,19 @@ async function callGeminiAI(text, userRole, allMembers) {
         generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
       })
     });
+    
     const data = await response.json();
+    
+    // 🛡️ 防呆機制：如果回傳的資料裡面沒有 candidates，直接記錄錯誤並退回本地處理
+    if (!data.candidates || data.candidates.length === 0) {
+      console.error("Gemini API 回傳異常，可能是 Key 錯誤或權限問題:", JSON.stringify(data));
+      return null;
+    }
+    
     const resultText = data.candidates[0].content.parts[0].text;
     return JSON.parse(resultText);
   } catch (e) {
-    console.error("Gemini Parsing Error:", e);
+    console.error("Gemini 解析過程發生重大異常:", e);
     return null;
   }
 }
