@@ -6,10 +6,12 @@ const supabase = createClient(
 );
 
 function getTodayString(offsetDays = 0) {
-  const date = new Date();
-  date.setHours(date.getHours() + 8); // 台灣時間 UTC+8
-  date.setDate(date.getDate() + offsetDays);
-  return date.toISOString().slice(0, 10);
+  onst twDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+  twDate.setDate(twDate.getDate() + offsetDays);
+  const y = twDate.getFullYear();
+  const m = String(twDate.getMonth() + 1).padStart(2, '0');
+  const d = String(twDate.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function isFairyMMessage(text) {
@@ -30,9 +32,12 @@ async function callGeminiAI(text, userRole, allMembers) {
 
   const membersList = allMembers.map(m => m.name).join(", ");
   const today = getTodayString(0);
+  const todayDate = new Date(today);
+const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+const todayWeekday = weekdays[todayDate.getDay()];
   
   const prompt = `
-  你是一個家庭管家語意解析器。今天是 ${today}。
+  你是一個家庭管家語意解析器。今天是 ${today}（星期${todayWeekday}）。
   請將以下使用者的訊息轉換為 JSON 格式。
   
   原始訊息：「${text}」
