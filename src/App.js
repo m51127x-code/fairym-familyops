@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import liff from '@line/liff';
 import { 
   CalendarDays, RotateCw, Plus, ChevronLeft, ChevronRight, Check, Droplets,
   Wind, Leaf, Car, Sparkles, Bell, X, Activity, ShoppingCart, HeartPulse,
@@ -112,15 +113,11 @@ export default function FamilyHub() {
 
     async function initLiff() {
       try {
-        if (!window.liff) {
-          console.warn('LIFF SDK 尚未載入');
-          return;
-        }
-        await window.liff.init({ liffId: '2010165775-xmYZj7n4' });
-        if (!window.liff.isLoggedIn()) {
-          window.liff.login();
+        await liff.init({ liffId: '2010165775-xmYZj7n4' });
+        if (!liff.isLoggedIn()) {
+          liff.login();
         } else {
-          const profile = await window.liff.getProfile();
+          const profile = await liff.getProfile();
           setCurrentUserLineId(profile.userId);
         }
       } catch (err) {
