@@ -63,9 +63,21 @@ export default function FamilyHub() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [currentUserLineId, setCurrentUserLineId] = useState(null); // 新增：記錄當下操作者的 LINE ID
 
-  // 🌟 自動計算未綁定人數
+ // 🌟 自動計算未綁定人數 (過濾掉同一個人在不同群組的重複紀錄)
   const unboundLineUsers = useMemo(() => {
-    return lineUsers.filter(lu => !members.some(m => m.line_user_id === lu.user_id));
+    // 1. 先找出所有沒綁定的人
+    const unbound = lineUsers.filter(lu => !members.some(m => m.line_user_id === lu.user_id));
+    
+    // 2. 利用 user_id 進行去重複
+    const uniqueUnbound = [];
+    const seenIds = new Set();
+    for (const user of unbound) {
+      if (!seenIds.has(user.user_id)) {
+        seenIds.add(user.user_id);
+        uniqueUnbound.push(user);
+      }
+    }
+    return uniqueUnbound;
   }, [lineUsers, members]);
 
   useEffect(() => {
@@ -418,7 +430,25 @@ export default function FamilyHub() {
               <span className="text-[20px] font-bold text-[#2C2A28] tracking-wide">群體角色設定</span>
             </div>
             <p className="text-[13px] text-[#7D7973] mb-5 tracking-widest leading-relaxed border-b border-[#E3DFD5] border-dashed pb-4">建立專屬稱謂，以便自動分派任務。</p>
-            
+            {unboundLineUsers.length > 0 && (
+              <div className="mb-4 p-3.5 bg-[#B87A45]/5 border border-[#B87A45]/20 rounded-xl">
+                <p className="text-[11px] font-bold text-[#A84C3D] mb-2.5 flex items-center gap-1.5">
+                  <Wind size={14} /> 待安排專屬角色的 LINE 成員：
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {unboundLineUsers.map(u => (
+                    <span key={u.user_id} className="text-[12px] bg-[#FBF9F6] px-2.5 py-1.5 rounded-lg border border-[#E3DFD5] shadow-sm flex items-center gap-2 font-medium text-[#2C2A28]">
+                      {u.picture_url ? (
+                        <img src={u.picture_url} className="w-5 h-5 rounded-full border border-[#E3DFD5]" alt="avatar" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-[#D1CFC7] flex items-center justify-center text-[10px] text-white">?</div>
+                      )}
+                      {u.display_name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto space-y-2.5 mb-5 pr-1">
               {members.length === 0 ? (
                 <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-xl">尚無建立任何角色</div>
