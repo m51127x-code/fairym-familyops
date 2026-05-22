@@ -646,18 +646,12 @@ export default function FamilyHub() {
           </div>
         </header>
 
-        {/* 🌟 溫馨通知橫幅 */}
+        {/* 🌟 溫馨通知橫幅 (拔除多餘呼吸燈，純文字引導) */}
         {unboundLineUsers.length > 0 && (
-          <div className="bg-[#B87A45]/10 border-b border-[#E3DFD5] px-6 py-3 flex items-center justify-between animate-in slide-in-from-top duration-300">
-            <div className="flex items-center gap-2.5">
-              <div className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-md bg-[#A84C3D] opacity-75"></span>
-                <span className="relative inline-flex rounded-md h-2 w-2 bg-[#A84C3D]"></span>
-              </div>
-              <p className="text-[12px] font-bold text-[#2C2A28] m-0 tracking-wide">
-                📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角按鈕進行綁定。
-              </p>
-            </div>
+          <div className="bg-[#B87A45]/10 border-b border-[#E3DFD5] px-6 py-3 flex justify-center animate-in slide-in-from-top duration-300">
+            <p className="text-[12px] font-bold text-[#2C2A28] m-0 tracking-wide text-center">
+              📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角按鈕進行綁定。
+            </p>
           </div>
         )}
 
