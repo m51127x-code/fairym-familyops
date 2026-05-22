@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "src/index.tsx",
   "dependencies": {
+    "@line/liff": "^2.23.0",
     "@supabase/supabase-js": "^2.49.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
