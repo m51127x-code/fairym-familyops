@@ -214,7 +214,7 @@ export default async function handler(req, res) {
         continue;
       }
 
-     // --- 擋下非文字訊息 ---
+      // --- 擋下非文字訊息 ---
       if (event.type !== "message") continue;
       if (event.message?.type !== "text") continue;
 
@@ -242,7 +242,8 @@ export default async function handler(req, res) {
           userRole = boundMember.name;
         }
       }
-// 🌟 攔截機制：如果發現發言者還沒綁定角色，拒絕新增任務並要求綁定
+
+      // 🌟 攔截機制：如果發現發言者還沒綁定角色，拒絕新增任務並要求綁定
       if (userRole === "全家") {
         const unboundTemplate = {
           type: "template",
@@ -257,8 +258,7 @@ export default async function handler(req, res) {
         continue; // 攔截！不往下執行分類與寫入資料庫
       }
       
-      // 3. 如果已經綁定，才傳入動態成員與發言者進行 AI 分類 (維持原本的程式碼)
-      const classified = classifyMessage(messageText, userRole, allMembers);
+      // 🌟 執行 AI 分類 (已修正重複宣告的問題)
       const classified = classifyMessage(messageText, userRole, allMembers);
 
       await supabase.from("line_messages").insert([{ group_id: groupId, user_id: userId, message_text: messageText, message_type: "text" }]);
@@ -266,32 +266,24 @@ export default async function handler(req, res) {
       // 🌟 定義您的專屬後台通知群組 (FairyM Ops)
       const OPS_GROUP_ID = "C4f6db0e27ad7103cef2a8d00be1bcf5a";
 
+      // 🌟 通知雙向分流處理
       if (classified.type === "routine") {
         await insertRoutine(classified);
         
-        // 1. 原群組：簡單回覆 (不打擾對話)
         await replyMessage(replyToken, "✅ 已記錄");
-        
-        // 2. Ops 群組：發送詳細推播
         await pushNotification(`🔁 FairyM 記下週期事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 記錄日期：${classified.date}`, OPS_GROUP_ID);
         
       } else if (classified.type === "mood") {
         await insertEvent(classified);
         
-        // 1. 原群組：簡單回覆 (不打擾對話)
         await replyMessage(replyToken, "✅ 已記錄");
-        
-        // 2. Ops 群組：發送詳細推播
         await pushNotification(`${classified.mood || "💬"} FairyM 收到心情分享\n\n${classified.member}說：「${classified.content}」\n\n📅 日期：${classified.date}`, OPS_GROUP_ID);
         
       } else {
         await insertEvent(classified);
         const typeLabel = { todo:"待辦", shop:"採買", health:"健康", remind:"提醒" };
         
-        // 1. 原群組：簡單回覆 (不打擾對話)
         await replyMessage(replyToken, "✅ 已記錄");
-        
-        // 2. Ops 群組：發送詳細推播
         await pushNotification(`🏠 FairyM 新增共生事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 日期：${classified.date}\n🏷 分類：${typeLabel[classified.type] || "待辦"}`, OPS_GROUP_ID);
       }
     }
