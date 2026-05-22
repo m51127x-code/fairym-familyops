@@ -244,16 +244,36 @@ export default async function handler(req, res) {
 
       await supabase.from("line_messages").insert([{ group_id: groupId, user_id: userId, message_text: messageText, message_type: "text" }]);
 
+      // 🌟 定義您的專屬後台通知群組 (FairyM Ops)
+      const OPS_GROUP_ID = "C4f6db0e27ad7103cef2a8d00be1bcf5a";
+
       if (classified.type === "routine") {
         await insertRoutine(classified);
-        await pushNotification(`🔁 FairyM 記下週期事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 記錄日期：${classified.date}`, groupId);
+        
+        // 1. 原群組：簡單回覆 (不打擾對話)
+        await replyMessage(replyToken, "✅ 已記錄");
+        
+        // 2. Ops 群組：發送詳細推播
+        await pushNotification(`🔁 FairyM 記下週期事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 記錄日期：${classified.date}`, OPS_GROUP_ID);
+        
       } else if (classified.type === "mood") {
         await insertEvent(classified);
-        await pushNotification(`${classified.mood || "💬"} FairyM 收到心情分享\n\n${classified.member}說：「${classified.content}」\n\n📅 日期：${classified.date}`, groupId);
+        
+        // 1. 原群組：簡單回覆 (不打擾對話)
+        await replyMessage(replyToken, "✅ 已記錄");
+        
+        // 2. Ops 群組：發送詳細推播
+        await pushNotification(`${classified.mood || "💬"} FairyM 收到心情分享\n\n${classified.member}說：「${classified.content}」\n\n📅 日期：${classified.date}`, OPS_GROUP_ID);
+        
       } else {
         await insertEvent(classified);
         const typeLabel = { todo:"待辦", shop:"採買", health:"健康", remind:"提醒" };
-        await pushNotification(`🏠 FairyM 新增共生事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 日期：${classified.date}\n🏷 分類：${typeLabel[classified.type] || "待辦"}`, groupId);
+        
+        // 1. 原群組：簡單回覆 (不打擾對話)
+        await replyMessage(replyToken, "✅ 已記錄");
+        
+        // 2. Ops 群組：發送詳細推播
+        await pushNotification(`🏠 FairyM 新增共生事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 日期：${classified.date}\n🏷 分類：${typeLabel[classified.type] || "待辦"}`, OPS_GROUP_ID);
       }
     }
 
