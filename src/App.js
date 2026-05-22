@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import liff from '@line/liff';
 import { 
   CalendarDays, RotateCw, Plus, ChevronLeft, ChevronRight, Check, Droplets,
   Wind, Leaf, Car, Sparkles, Bell, X, Activity, ShoppingCart, HeartPulse,
@@ -12,6 +11,7 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtaHVkbWhkeGZjdG15Zm1teGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjQ5MDQsImV4cCI6MjA5NDY0MDkwNH0.ymAzLChmVVvtkKCw2AIQLfhfodo8vJTONihzufw9CY0'
 );
 
+// --- 工具函數與常數 ---
 const TODAY = new Date();
 const fmtDate = (date) => {
   const d = new Date(date);
@@ -22,6 +22,8 @@ const shiftDays = (date, days) => {
   d.setDate(d.getDate() + days);
   return fmtDate(d);
 };
+const daysSince = (dateStr) => Math.ceil(Math.abs(new Date(fmtDate(TODAY)) - new Date(dateStr)) / (1000 * 60 * 60 * 24));
+const daysUntil = (lastDate, interval) => interval - daysSince(lastDate);
 
 const PALETTE = {
   paper: '#F2EFE9', card: '#FBF9F6', ink: '#2C2A28', inkMuted: '#7D7973', border: '#E3DFD5', accent: '#A84C3D',
@@ -42,70 +44,81 @@ const MOOD_MAP = { '開心':'😊', '快樂':'😄', '累':'😴', '煩':'😤',
 
 const hideScrollbar = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']";
 
-const [lineUsers, setLineUsers] = useState([]);
+// 🌟 這是我們的大房子起點，所有的 Hook 都在這裡面
 export default function FamilyHub() {
   const [activeTab, setActiveTab] = useState('board');
   const [events, setEvents] = useState([]);
   const [routines, setRoutines] = useState([]);
   const [members, setMembers] = useState([]);
+  const [lineUsers, setLineUsers] = useState([]); // 新增：LINE 真實名單
   const [currentMonth, setCurrentMonth] = useState(new Date(TODAY.getFullYear(), TODAY.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(fmtDate(TODAY));
   const [filter, setFilter] = useState('all');
   const [toast, setToast] = useState(null);
   
-  // 🌟 新增：集中管理目前的 LINE 用戶 ID，避免按鈕點擊時讀取不到
-  const [currentUserLineId, setCurrentUserLineId] = useState(null);
-
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [expandedRoutineId, setExpandedRoutineId] = useState(null);
+  const [logModalRoutine, setLogModalRoutine] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
+  const [currentUserLineId, setCurrentUserLineId] = useState(null); // 新增：記錄當下操作者的 LINE ID
 
-  // 1. 先在 function FamilyHub() 內部的最上方，多加這個狀態變數
-const [lineUsers, setLineUsers] = useState([]);
+  // 🌟 自動計算未綁定人數
+  const unboundLineUsers = useMemo(() => {
+    return lineUsers.filter(lu => !members.some(m => m.line_user_id === lu.user_id));
+  }, [lineUsers, members]);
 
-// 2. 找到你的 useEffect，修改成以下這樣（同時撈取兩張表）
-useEffect(() => {
-  async function fetchSupabaseData() {
-    const { data: eventsData } = await supabase.from('events').select('*').gte('date', '2026-05-22').order('date', { ascending: true });
-    if (eventsData) setEvents(eventsData);
+  useEffect(() => {
+    async function fetchSupabaseData() {
+      const { data: eventsData } = await supabase.from('events').select('*').gte('date', '2026-05-22').order('date', { ascending: true });
+      if (eventsData) setEvents(eventsData);
 
-    const { data: routinesData } = await supabase.from('routines').select('*').gte('created_at', '2026-05-22T00:00:00Z');
-    const { data: logsData } = await supabase.from('routine_logs').select('*');
-    if (routinesData) {
-      setRoutines(routinesData.map(r => {
-        const myLogs = logsData ? logsData.filter(log => log.routine_name === r.name) : [];
-        return {
-          ...r,
-          icon: r.icon || 'activity', color: r.color || '#425C73',
-          logs: myLogs.map(l => ({ id: l.id, date: l.last_done_at, note: l.note })).sort((a, b) => new Date(b.date) - new Date(a.date))
-        };
-      }));
+      const { data: routinesData } = await supabase.from('routines').select('*').gte('created_at', '2026-05-22T00:00:00Z');
+      const { data: logsData } = await supabase.from('routine_logs').select('*');
+
+      if (routinesData) {
+        setRoutines(
+          routinesData.map(r => {
+            const myLogs = logsData ? logsData.filter(log => log.routine_name === r.name) : [];
+            return {
+              ...r,
+              icon: r.icon || 'activity',
+              color: r.color || '#425C73',
+              logs: myLogs.map(l => ({ id: l.id, date: l.last_done_at, note: l.note })).sort((a, b) => new Date(b.date) - new Date(a.date)),
+            };
+          })
+        );
+      }
+
+      const { data: membersData } = await supabase.from('members').select('*');
+      if (membersData) setMembers(membersData);
+
+      // 新增：把群組裡的 LINE 用戶也撈出來
+      const { data: lineUsersData } = await supabase.from('line_users').select('*');
+      if (lineUsersData) setLineUsers(lineUsersData);
     }
 
-    // 👉 這裡同時撈取「系統角色」與「LINE 群組真實成員」
-    const { data: membersData } = await supabase.from('members').select('*');
-    if (membersData) setMembers(membersData);
-
-    const { data: lineUsersData } = await supabase.from('line_users').select('*');
-    if (lineUsersData) setLineUsers(lineUsersData);
-  }
-
-  async function initLiff() {
-    try {
-      if (!window.liff) return;
-      await window.liff.init({ liffId: '2010165775-xmYZj7n4' });
-      if (!window.liff.isLoggedIn()) {
-        window.liff.login();
-      } else {
-        const profile = await window.liff.getProfile();
-        setCurrentUserLineId(profile.userId);
+    async function initLiff() {
+      try {
+        if (!window.liff) {
+          console.warn('LIFF SDK 尚未載入');
+          return;
+        }
+        await window.liff.init({ liffId: '2010165775-xmYZj7n4' });
+        if (!window.liff.isLoggedIn()) {
+          window.liff.login();
+        } else {
+          const profile = await window.liff.getProfile();
+          setCurrentUserLineId(profile.userId);
+        }
+      } catch (err) {
+        console.error('LIFF 初始化失敗:', err);
       }
-    } catch (err) { console.error('LIFF 初始化失敗:', err); }
-  }
+    }
 
-  fetchSupabaseData();
-  initLiff();
-}, []);
+    fetchSupabaseData();
+    initLiff();
+  }, []);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -152,6 +165,15 @@ useEffect(() => {
     }
   };
 
+  const handleAddLog = async (routineId, routineName, noteText) => {
+    const { data, error } = await supabase.from('routine_logs').insert([{ routine_name: routineName, note: noteText, last_done_at: fmtDate(TODAY) }]).select();
+    if (!error && data) {
+      setRoutines(prev => prev.map(r => r.id === routineId ? { ...r, logs: [{ id: data[0].id, date: data[0].last_done_at, note: data[0].note }, ...r.logs] } : r));
+      setLogModalRoutine(null);
+      showToast('歷史紀錄已更新');
+    }
+  };
+
   const handleUpdateEvent = async (updatedEvent) => {
     const { error } = await supabase.from('events').update(updatedEvent).eq('id', updatedEvent.id);
     if (!error) { setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e)); setEditingEvent(null); showToast('手札已更新'); }
@@ -164,7 +186,7 @@ useEffect(() => {
 
   const handleNotify = (e) => { e.stopPropagation(); showToast('已發送推播請求至 LINE'); };
 
-  // --- UI 元件：看板 ---
+  // --- UI 元件：手札看板 ---
   const BoardView = () => {
     const calendarDays = useMemo(() => {
       const days = [];
@@ -190,6 +212,7 @@ useEffect(() => {
     return (
       <div className="flex flex-col pb-32 pt-2 relative">
         <div className="px-5 space-y-4">
+          
           <div className="bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl p-4 shadow-sm relative overflow-hidden">
             <div className="flex justify-between items-center mb-4 relative z-10">
               <h2 className="text-[22px] font-bold text-[#2C2A28] leading-none m-0">
@@ -200,6 +223,7 @@ useEffect(() => {
                 <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))} className="p-1.5 border border-[#E3DFD5] rounded-lg text-[#7D7973] hover:bg-[#F2EFE9] active:scale-90 transition-all flex items-center justify-center"><ChevronRight size={16} strokeWidth={2}/></button>
               </div>
             </div>
+            
             <div className="grid grid-cols-5 gap-1.5 pt-3 border-t border-[#E3DFD5] border-dashed relative z-10">
               {Object.keys(TYPE_CONFIG).map(type => (
                 <div key={type} className="flex flex-col items-center justify-center py-2 rounded-lg hover:bg-[#F2EFE9] cursor-pointer transition-colors active:bg-[#E3DFD5]" onClick={() => setFilter(type)}>
@@ -319,6 +343,7 @@ useEffect(() => {
     );
   };
 
+  // --- 抽屜模組區 ---
   const EventEditModal = () => {
     if (!editingEvent) return null;
     return (
@@ -453,10 +478,8 @@ useEffect(() => {
       </div>
     );
   };
-// 自動算出：存在於 LINE 群組中，但還沒在系統 members 裡面完成綁定的人
-const unboundLineUsers = useMemo(() => {
-  return lineUsers.filter(lu => !members.some(m => m.line_user_id === lu.user_id));
-}, [lineUsers, members]);
+
+  // --- 根佈局 ---
   return (
     <div className={`min-h-screen bg-[#DFDCD4] flex justify-center selection:bg-[#E3DFD5] ${hideScrollbar}`} style={{ fontFamily: 'PingFang TC, PingFang SC, sans-serif', fontStyle: 'normal' }}>
       <div className="w-full max-w-[480px] h-dvh bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
@@ -473,26 +496,28 @@ const unboundLineUsers = useMemo(() => {
             <button onClick={() => setIsMemberModalOpen(true)} className="w-9 h-9 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-lg flex items-center justify-center text-[#2C2A28] shadow-sm active:bg-[#E3DFD5] transition-colors"><Users size={16} strokeWidth={2.5} /></button>
           </div>
         </header>
-{/* 在 header 下方、main 上方插入 */}
-{unboundLineUsers.length > 0 && (
-  <div className="bg-[#B87A45]/10 border-b border-[#E3DFD5] px-6 py-3 flex items-center justify-between animate-in slide-in-from-top duration-300">
-    <div className="flex items-center gap-2.5">
-      <div className="relative flex h-2 w-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#A84C3D] opacity-75"></span>
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-[#A84C3D]"></span>
-      </div>
-      <p className="text-[12px] font-bold text-[#2C2A28] m-0">
-        📢 偵測到 {unboundLineUsers.length} 位新夥伴已加入群組，正等待生活導航！
-      </p>
-    </div>
-    <button 
-      onClick={() => setIsMemberModalOpen(true)} 
-      className="text-[11px] font-bold bg-[#2C2A28] text-[#FBF9F6] px-3 py-1 rounded-md active:scale-95 transition-transform"
-    >
-      去指派
-    </button>
-  </div>
-)}
+
+        {/* 🌟 溫馨通知橫幅 */}
+        {unboundLineUsers.length > 0 && (
+          <div className="bg-[#B87A45]/10 border-b border-[#E3DFD5] px-6 py-3 flex items-center justify-between animate-in slide-in-from-top duration-300">
+            <div className="flex items-center gap-2.5">
+              <div className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-md bg-[#A84C3D] opacity-75"></span>
+                <span className="relative inline-flex rounded-md h-2 w-2 bg-[#A84C3D]"></span>
+              </div>
+              <p className="text-[12px] font-bold text-[#2C2A28] m-0">
+                📢 偵測到 {unboundLineUsers.length} 位新夥伴已加入，等待導航！
+              </p>
+            </div>
+            <button 
+              onClick={() => setIsMemberModalOpen(true)} 
+              className="text-[11px] font-bold bg-[#2C2A28] text-[#FBF9F6] px-3 py-1 rounded-md active:scale-95 transition-transform"
+            >
+              去指派
+            </button>
+          </div>
+        )}
+
         <main className={`flex-1 overflow-y-auto overflow-x-hidden relative z-10 scroll-smooth ${hideScrollbar}`}>
           {activeTab === 'board' ? <BoardView /> : <RoutinesView />}
         </main>
