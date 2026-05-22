@@ -369,8 +369,9 @@ export default function FamilyHub() {
     if (!editingEvent) return null;
     return (
       <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
-        <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-3xl rounded-b-none shadow-2xl flex flex-col pb-safe animate-in slide-in-from-bottom-full duration-300">
-          <div className="p-6 relative">
+        <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-3xl rounded-b-none shadow-2xl flex flex-col animate-in slide-in-from-bottom-full duration-300">
+          {/* 🌟 加入底部墊高空間，避開 Safari 導航列 */}
+          <div className="p-6 relative" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 32px)' }}>
             <button onClick={() => setEditingEvent(null)} className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
             <h3 className="text-[20px] font-bold text-[#2C2A28] tracking-wide mb-5 border-b border-[#E3DFD5] border-dashed pb-4">手札內容管理</h3>
             <div className="space-y-4 mb-6">
@@ -395,6 +396,162 @@ export default function FamilyHub() {
             <div className="flex gap-3 mb-2">
               <button onClick={() => handleDeleteEvent(editingEvent.id)} className="w-14 h-[52px] bg-[#F2EFE9] text-[#A84C3D] rounded-xl font-bold flex items-center justify-center active:bg-[#E3DFD5] transition-colors"><Trash2 size={20} strokeWidth={2} /></button>
               <button onClick={() => handleUpdateEvent(editingEvent)} className="flex-1 h-[52px] bg-[#2C2A28] text-[#FBF9F6] rounded-xl text-[15px] font-bold active:scale-[0.98] transition-transform flex items-center justify-center tracking-widest">儲存變更</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const AiModal = () => {
+    const [input, setInput] = useState('');
+    if (!isAiModalOpen) return null;
+    return (
+      <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
+        <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-3xl rounded-b-none shadow-2xl flex flex-col animate-in slide-in-from-bottom-full duration-300">
+          {/* 🌟 加入底部墊高空間，避開 Safari 導航列 */}
+          <div className="p-6 relative" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 32px)' }}>
+            <button onClick={() => setIsAiModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-9 h-9 rounded-lg bg-[#2C2A28] flex items-center justify-center shadow-md"><Sparkles size={16} className="text-[#FBF9F6]" strokeWidth={2} /></div>
+              <span className="text-[20px] font-bold text-[#2C2A28] tracking-wide">AI 手札助理</span>
+            </div>
+            <p className="text-[13px] text-[#7D7973] mb-6 tracking-widest leading-relaxed">寫下生活瑣事，自動蓋上時間與分類章。</p>
+            <div className="relative mb-2">
+              <textarea autoFocus value={input} onChange={(e) => setInput(e.target.value)} placeholder="「明天要去超市買鮮奶，爸爸負責」" className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-5 pb-16 text-[16px] font-medium text-[#2C2A28] placeholder:text-[#D1CFC7] focus:outline-none focus:border-[#7D7973] resize-none h-40"></textarea>
+              <button onClick={() => { if(input.trim()) handleAiSubmit(input); }} disabled={!input.trim()} className="absolute right-3 bottom-3 bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] py-2.5 px-6 rounded-lg shadow-sm flex items-center gap-2 text-[14px] font-bold transition-all active:scale-95 disabled:scale-100 tracking-widest">寫入</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const MemberModal = () => {
+    const [nameInput, setNameInput] = useState('');
+    const [roleInput, setRoleInput] = useState('');
+    const [isAddingRole, setIsAddingRole] = useState(false); 
+
+    if (!isMemberModalOpen) return null;
+    return (
+      <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
+        <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-3xl rounded-b-none shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-full duration-300">
+          {/* 🌟 加入底部墊高空間，避開 Safari 導航列 */}
+          <div className="p-6 relative flex flex-col h-full" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 32px)' }}>
+            <button onClick={() => setIsMemberModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-9 h-9 rounded-lg bg-[#566B56] flex items-center justify-center shadow-md"><Users size={16} className="text-[#FBF9F6]" strokeWidth={2} /></div>
+              <span className="text-[20px] font-bold text-[#2C2A28] tracking-wide">群體角色設定</span>
+            </div>
+            <p className="text-[13px] text-[#7D7973] mb-5 tracking-widest leading-relaxed border-b border-[#E3DFD5] border-dashed pb-4">建立專屬稱謂，以便自動分派任務。</p>
+            
+            <div className="flex-1 overflow-y-auto pr-1">
+              {/* --- 內容區域維持不變，省略以節省篇幅 --- */}
+              {unboundLineUsers.length > 0 && (
+                <div className="mb-4 p-3.5 bg-[#B87A45]/5 border border-[#B87A45]/20 rounded-xl">
+                  <p className="text-[11px] font-bold text-[#A84C3D] mb-2.5 flex items-center gap-1.5">
+                    <Wind size={14} /> 待安排專屬角色的 LINE 成員：
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {unboundLineUsers.map(u => (
+                      <span key={u.user_id} className="text-[12px] bg-[#FBF9F6] pl-2.5 pr-1.5 py-1.5 rounded-lg border border-[#E3DFD5] shadow-sm flex items-center gap-2 font-medium text-[#2C2A28]">
+                        {u.picture_url ? (
+                          <img src={u.picture_url} className="w-5 h-5 rounded-full border border-[#E3DFD5]" alt="avatar" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-[#D1CFC7] flex items-center justify-center text-[10px] text-white">?</div>
+                        )}
+                        <span className="truncate max-w-[70px]">{u.display_name}</span>
+                        <button onClick={() => handleIgnoreUser(u.user_id, true)} className="text-[#7D7973] hover:text-[#A84C3D] p-0.5 rounded transition-colors active:bg-[#E3DFD5]">
+                          <X size={12} strokeWidth={2.5} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2.5 mb-2">
+                {members.length === 0 ? (
+                  <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-xl">尚無建立任何角色</div>
+                ) : (
+                  members.map(m => (
+                    <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
+                      <div>
+                        <span className="block text-[15px] font-bold text-[#2C2A28]">{m.name}</span>
+                        <span className="text-[11px] font-medium text-[#566B56] bg-[#FBF9F6] px-1.5 py-0.5 mt-1 rounded-md border border-[#E3DFD5] inline-block">{m.role_name}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={async () => {
+                            if (!currentUserLineId) { alert("授權準備中，請稍後重試。"); return; }
+                            if (m.line_user_id === currentUserLineId) {
+                              if (window.confirm(`確定要解除您與「${m.name}」的綁定關係嗎？`)) {
+                                await supabase.from("members").update({ line_user_id: null }).eq("id", m.id);
+                                setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, line_user_id: null } : mem));
+                                showToast(`🔓 已解除綁定`);
+                              }
+                              return;
+                            }
+                            if (m.line_user_id && m.line_user_id !== currentUserLineId) { alert("此角色已被其他家人綁定！"); return; }
+                            
+                            const myRole = members.find(mem => mem.line_user_id === currentUserLineId);
+                            if (myRole && myRole.id !== m.id) { alert(`您已綁定為「${myRole.name}」，無法再綁定其他身分喔！`); return; }
+
+                            await supabase.from("members").update({ line_user_id: currentUserLineId }).eq("id", m.id);
+                            setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, line_user_id: currentUserLineId } : mem));
+                            showToast(`✅ 綁定成功！您現在是：${m.name}`);
+                          }}
+                          disabled={m.line_user_id && m.line_user_id !== currentUserLineId}
+                          className={`text-[11px] px-3 py-1.5 rounded-lg font-bold transition-all ${m.line_user_id === currentUserLineId ? 'bg-[#566B56] text-[#FBF9F6] active:scale-95' : m.line_user_id ? 'bg-[#E3DFD5] text-[#7D7973] cursor-not-allowed opacity-70' : 'bg-[#2C2A28] text-[#FBF9F6] active:scale-95' }`}
+                        >
+                          {m.line_user_id === currentUserLineId ? '✅ 我的身分' : m.line_user_id ? '已被綁定' : '綁定我'}
+                        </button>
+                        <button onClick={() => handleDeleteMember(m.id)} className="text-[11px] bg-[#FBF9F6] text-[#A84C3D] px-2.5 py-1.5 rounded-lg active:scale-95 border border-[#E3DFD5] transition-all flex items-center justify-center"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {!isAddingRole ? (
+                <button onClick={() => setIsAddingRole(true)} className="w-full py-3 border-2 border-dashed border-[#E3DFD5] text-[#7D7973] rounded-xl flex items-center justify-center gap-2 font-bold text-[13px] hover:bg-[#F2EFE9] transition-colors mt-3 mb-6 tracking-widest active:scale-[0.99]"><Plus size={16} strokeWidth={2.5} /> 建立新角色</button>
+              ) : (
+                <div className="bg-[#F2EFE9] p-4 rounded-xl border border-[#E3DFD5] space-y-3 mt-3 mb-6 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">名字/暱稱</label>
+                      <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="例：林老杯" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3.5 py-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">擔任身分</label>
+                      <input value={roleInput} onChange={(e) => setRoleInput(e.target.value)} placeholder="例：採買總監" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3.5 py-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => { setIsAddingRole(false); setNameInput(''); setRoleInput(''); }} className="flex-[1] h-[44px] bg-[#E3DFD5] text-[#7D7973] rounded-xl flex items-center justify-center text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest">取消</button>
+                    <button onClick={async () => { const ok = await handleAddMember(nameInput, roleInput); if(ok) { setNameInput(''); setRoleInput(''); setIsAddingRole(false); } }} disabled={!nameInput.trim() || !roleInput.trim()} className="flex-[2] h-[44px] bg-[#2C2A28] disabled:bg-[#D1CFC7] disabled:text-[#FBF9F6] text-[#FBF9F6] rounded-xl flex items-center justify-center gap-2 text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest"><Check size={16} strokeWidth={3} /> 確認建立</button>
+                  </div>
+                </div>
+              )}
+
+              {ignoredLineUsers.length > 0 && (
+                <div className="mb-4 pt-3 border-t border-[#E3DFD5] border-dashed">
+                  <button onClick={() => setIsHideListOpen(!isHideListOpen)} className="w-full flex items-center justify-between text-[11px] font-bold text-[#7D7973] uppercase tracking-widest py-1 hover:text-[#2C2A28] focus:outline-none">
+                    <span>🙈 已隱藏的成員 ({ignoredLineUsers.length})</span>
+                    <ChevronDown size={14} className={`transform transition-transform duration-200 ${isHideListOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isHideListOpen && (
+                    <div className="flex flex-wrap gap-2 mt-2.5 p-2.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
+                      {ignoredLineUsers.map(u => (
+                        <span key={u.user_id} className="text-[11px] bg-[#FBF9F6] pl-2.5 pr-1.5 py-1 rounded-md border border-[#E3DFD5] flex items-center gap-1.5 text-[#7D7973] font-medium shadow-sm">
+                          {u.display_name}
+                          <button onClick={() => handleIgnoreUser(u.user_id, false)} className="text-[#566B56] hover:text-[#2C2A28] p-0.5 rounded transition-colors"><RotateCw size={10} strokeWidth={3} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
