@@ -364,7 +364,7 @@ export default function FamilyHub() {
     );
   };
 
-  // 🌟 修復設計細節：移除膠囊設計，恢復方正、極簡俐落感
+  // 🌟 修復：全面恢復極簡雜誌風格，去除死板的膠囊按鈕，改回俐落的 rounded-xl
   const EventEditModal = () => {
     if (!editingEvent) return null;
     return (
@@ -376,16 +376,16 @@ export default function FamilyHub() {
             <div className="space-y-4 mb-6">
               <div>
                 <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">事項內容</label>
-                <textarea value={editingEvent.text} onChange={e => setEditingEvent({...editingEvent, text: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-md p-3.5 text-[15px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#7D7973] resize-none h-24" />
+                <textarea value={editingEvent.text} onChange={e => setEditingEvent({...editingEvent, text: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[15px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#7D7973] resize-none h-24" />
               </div>
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">日期</label>
-                  <input type="date" value={editingEvent.date} onChange={e => setEditingEvent({...editingEvent, date: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-md p-3.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973]" />
+                  <input type="date" value={editingEvent.date} onChange={e => setEditingEvent({...editingEvent, date: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973]" />
                 </div>
                 <div className="flex-1">
                   <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">負責人</label>
-                  <select value={editingEvent.member} onChange={e => setEditingEvent({...editingEvent, member: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-md p-3.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973] appearance-none">
+                  <select value={editingEvent.member} onChange={e => setEditingEvent({...editingEvent, member: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973] appearance-none">
                     <option value="全家">全家</option>
                     {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                   </select>
@@ -393,8 +393,8 @@ export default function FamilyHub() {
               </div>
             </div>
             <div className="flex gap-3 mb-2">
-              <button onClick={() => handleDeleteEvent(editingEvent.id)} className="w-14 h-[52px] bg-[#F2EFE9] text-[#A84C3D] rounded-md font-bold flex items-center justify-center active:bg-[#E3DFD5] transition-colors"><Trash2 size={20} strokeWidth={2} /></button>
-              <button onClick={() => handleUpdateEvent(editingEvent)} className="flex-1 h-[52px] bg-[#2C2A28] text-[#FBF9F6] rounded-md text-[15px] font-bold active:scale-[0.98] transition-transform flex items-center justify-center tracking-widest">儲存變更</button>
+              <button onClick={() => handleDeleteEvent(editingEvent.id)} className="w-14 h-[52px] bg-[#F2EFE9] text-[#A84C3D] rounded-xl font-bold flex items-center justify-center active:bg-[#E3DFD5] transition-colors"><Trash2 size={20} strokeWidth={2} /></button>
+              <button onClick={() => handleUpdateEvent(editingEvent)} className="flex-1 h-[52px] bg-[#2C2A28] text-[#FBF9F6] rounded-xl text-[15px] font-bold active:scale-[0.98] transition-transform flex items-center justify-center tracking-widest">儲存變更</button>
             </div>
           </div>
         </div>
@@ -416,8 +416,8 @@ export default function FamilyHub() {
             </div>
             <p className="text-[13px] text-[#7D7973] mb-6 tracking-widest leading-relaxed">寫下生活瑣事，自動蓋上時間與分類章。</p>
             <div className="relative mb-2">
-              <textarea autoFocus value={input} onChange={(e) => setInput(e.target.value)} placeholder="「明天要去超市買鮮奶，爸爸負責」" className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-md p-5 pb-16 text-[16px] font-medium text-[#2C2A28] placeholder:text-[#D1CFC7] focus:outline-none focus:border-[#7D7973] resize-none h-40"></textarea>
-              <button onClick={() => { if(input.trim()) handleAiSubmit(input); }} disabled={!input.trim()} className="absolute right-3 bottom-3 bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] py-2.5 px-6 rounded-md shadow-sm flex items-center gap-2 text-[14px] font-bold transition-all active:scale-95 disabled:scale-100 tracking-widest">寫入</button>
+              <textarea autoFocus value={input} onChange={(e) => setInput(e.target.value)} placeholder="「明天要去超市買鮮奶，爸爸負責」" className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-5 pb-16 text-[16px] font-medium text-[#2C2A28] placeholder:text-[#D1CFC7] focus:outline-none focus:border-[#7D7973] resize-none h-40"></textarea>
+              <button onClick={() => { if(input.trim()) handleAiSubmit(input); }} disabled={!input.trim()} className="absolute right-3 bottom-3 bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] py-2.5 px-6 rounded-lg shadow-sm flex items-center gap-2 text-[14px] font-bold transition-all active:scale-95 disabled:scale-100 tracking-widest">寫入</button>
             </div>
           </div>
         </div>
@@ -444,13 +444,13 @@ export default function FamilyHub() {
             
             <div className="flex-1 overflow-y-auto pr-1">
               {unboundLineUsers.length > 0 && (
-                <div className="mb-4 p-3.5 bg-[#B87A45]/5 border border-[#B87A45]/20 rounded-md">
+                <div className="mb-4 p-3.5 bg-[#B87A45]/5 border border-[#B87A45]/20 rounded-xl">
                   <p className="text-[11px] font-bold text-[#A84C3D] mb-2.5 flex items-center gap-1.5">
                     <Wind size={14} /> 待安排專屬角色的 LINE 成員：
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {unboundLineUsers.map(u => (
-                      <span key={u.user_id} className="text-[12px] bg-[#FBF9F6] pl-2.5 pr-1.5 py-1.5 rounded-md border border-[#E3DFD5] shadow-sm flex items-center gap-2 font-medium text-[#2C2A28]">
+                      <span key={u.user_id} className="text-[12px] bg-[#FBF9F6] pl-2.5 pr-1.5 py-1.5 rounded-lg border border-[#E3DFD5] shadow-sm flex items-center gap-2 font-medium text-[#2C2A28]">
                         {u.picture_url ? (
                           <img src={u.picture_url} className="w-5 h-5 rounded-full border border-[#E3DFD5]" alt="avatar" />
                         ) : (
@@ -468,10 +468,10 @@ export default function FamilyHub() {
 
               <div className="space-y-2.5 mb-2">
                 {members.length === 0 ? (
-                  <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-md">尚無建立任何角色</div>
+                  <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-xl">尚無建立任何角色</div>
                 ) : (
                   members.map(m => (
-                    <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-md border border-[#E3DFD5]">
+                    <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
                       <div>
                         <span className="block text-[15px] font-bold text-[#2C2A28]">{m.name}</span>
                         <span className="text-[11px] font-medium text-[#566B56] bg-[#FBF9F6] px-1.5 py-0.5 mt-1 rounded-md border border-[#E3DFD5] inline-block">{m.role_name}</span>
@@ -498,11 +498,11 @@ export default function FamilyHub() {
                             showToast(`✅ 綁定成功！您現在是：${m.name}`);
                           }}
                           disabled={m.line_user_id && m.line_user_id !== currentUserLineId}
-                          className={`text-[11px] px-3 py-1.5 rounded-md font-bold transition-all ${m.line_user_id === currentUserLineId ? 'bg-[#566B56] text-[#FBF9F6] active:scale-95' : m.line_user_id ? 'bg-[#E3DFD5] text-[#7D7973] cursor-not-allowed opacity-70' : 'bg-[#2C2A28] text-[#FBF9F6] active:scale-95' }`}
+                          className={`text-[11px] px-3 py-1.5 rounded-lg font-bold transition-all ${m.line_user_id === currentUserLineId ? 'bg-[#566B56] text-[#FBF9F6] active:scale-95' : m.line_user_id ? 'bg-[#E3DFD5] text-[#7D7973] cursor-not-allowed opacity-70' : 'bg-[#2C2A28] text-[#FBF9F6] active:scale-95' }`}
                         >
                           {m.line_user_id === currentUserLineId ? '✅ 我的身分' : m.line_user_id ? '已被綁定' : '綁定我'}
                         </button>
-                        <button onClick={() => handleDeleteMember(m.id)} className="text-[11px] bg-[#FBF9F6] text-[#A84C3D] px-2.5 py-1.5 rounded-md active:scale-95 border border-[#E3DFD5] transition-all flex items-center justify-center"><Trash2 size={14} /></button>
+                        <button onClick={() => handleDeleteMember(m.id)} className="text-[11px] bg-[#FBF9F6] text-[#A84C3D] px-2.5 py-1.5 rounded-lg active:scale-95 border border-[#E3DFD5] transition-all flex items-center justify-center"><Trash2 size={14} /></button>
                       </div>
                     </div>
                   ))
@@ -510,22 +510,22 @@ export default function FamilyHub() {
               </div>
 
               {!isAddingRole ? (
-                <button onClick={() => setIsAddingRole(true)} className="w-full py-3 border-2 border-dashed border-[#E3DFD5] text-[#7D7973] rounded-md flex items-center justify-center gap-2 font-bold text-[13px] hover:bg-[#F2EFE9] transition-colors mt-3 mb-6 tracking-widest active:scale-[0.99]"><Plus size={16} strokeWidth={2.5} /> 建立新角色</button>
+                <button onClick={() => setIsAddingRole(true)} className="w-full py-3 border-2 border-dashed border-[#E3DFD5] text-[#7D7973] rounded-xl flex items-center justify-center gap-2 font-bold text-[13px] hover:bg-[#F2EFE9] transition-colors mt-3 mb-6 tracking-widest active:scale-[0.99]"><Plus size={16} strokeWidth={2.5} /> 建立新角色</button>
               ) : (
-                <div className="bg-[#F2EFE9] p-4 rounded-md border border-[#E3DFD5] space-y-3 mt-3 mb-6 animate-in fade-in zoom-in-95 duration-200">
+                <div className="bg-[#F2EFE9] p-4 rounded-xl border border-[#E3DFD5] space-y-3 mt-3 mb-6 animate-in fade-in zoom-in-95 duration-200">
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">名字/暱稱</label>
-                      <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="例：林老杯" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-md px-3.5 py-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
+                      <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="例：林老杯" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3.5 py-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
                     </div>
                     <div className="flex-1">
                       <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">擔任身分</label>
-                      <input value={roleInput} onChange={(e) => setRoleInput(e.target.value)} placeholder="例：採買總監" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-md px-3.5 py-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
+                      <input value={roleInput} onChange={(e) => setRoleInput(e.target.value)} placeholder="例：採買總監" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3.5 py-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
                     </div>
                   </div>
                   <div className="flex gap-2 pt-1">
-                    <button onClick={() => { setIsAddingRole(false); setNameInput(''); setRoleInput(''); }} className="flex-[1] h-[44px] bg-[#E3DFD5] text-[#7D7973] rounded-md flex items-center justify-center text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest">取消</button>
-                    <button onClick={async () => { const ok = await handleAddMember(nameInput, roleInput); if(ok) { setNameInput(''); setRoleInput(''); setIsAddingRole(false); } }} disabled={!nameInput.trim() || !roleInput.trim()} className="flex-[2] h-[44px] bg-[#2C2A28] disabled:bg-[#D1CFC7] disabled:text-[#FBF9F6] text-[#FBF9F6] rounded-md flex items-center justify-center gap-2 text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest"><Check size={16} strokeWidth={3} /> 確認建立</button>
+                    <button onClick={() => { setIsAddingRole(false); setNameInput(''); setRoleInput(''); }} className="flex-[1] h-[44px] bg-[#E3DFD5] text-[#7D7973] rounded-xl flex items-center justify-center text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest">取消</button>
+                    <button onClick={async () => { const ok = await handleAddMember(nameInput, roleInput); if(ok) { setNameInput(''); setRoleInput(''); setIsAddingRole(false); } }} disabled={!nameInput.trim() || !roleInput.trim()} className="flex-[2] h-[44px] bg-[#2C2A28] disabled:bg-[#D1CFC7] disabled:text-[#FBF9F6] text-[#FBF9F6] rounded-xl flex items-center justify-center gap-2 text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest"><Check size={16} strokeWidth={3} /> 確認建立</button>
                   </div>
                 </div>
               )}
@@ -537,7 +537,7 @@ export default function FamilyHub() {
                     <ChevronDown size={14} className={`transform transition-transform duration-200 ${isHideListOpen ? 'rotate-180' : ''}`} />
                   </button>
                   {isHideListOpen && (
-                    <div className="flex flex-wrap gap-2 mt-2.5 p-2.5 bg-[#F2EFE9] rounded-md border border-[#E3DFD5]">
+                    <div className="flex flex-wrap gap-2 mt-2.5 p-2.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
                       {ignoredLineUsers.map(u => (
                         <span key={u.user_id} className="text-[11px] bg-[#FBF9F6] pl-2.5 pr-1.5 py-1 rounded-md border border-[#E3DFD5] flex items-center gap-1.5 text-[#7D7973] font-medium shadow-sm">
                           {u.display_name}
@@ -565,11 +565,11 @@ export default function FamilyHub() {
             <p className="text-[9px] text-[#7D7973] tracking-[0.3em] uppercase mt-1">生活導航 Life Navigator</p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={fetchSupabaseData} disabled={isRefreshing} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border-2 border-[#566B56]/70 bg-[#FBF9F6]/80 active:scale-95 transition-all disabled:opacity-70 shadow-sm">
+            <button onClick={fetchSupabaseData} disabled={isRefreshing} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 border-[#566B56]/70 bg-[#FBF9F6]/80 active:scale-95 transition-all disabled:opacity-70 shadow-sm">
               <RotateCw size={11} strokeWidth={3} className={`text-[#566B56] ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="text-[9px] font-bold text-[#566B56] uppercase tracking-widest mt-[1px]">{isRefreshing ? 'SYNCING' : 'SYNC'}</span>
             </button>
-            <button onClick={() => setIsMemberModalOpen(true)} className="relative w-9 h-9 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-md flex items-center justify-center text-[#2C2A28] shadow-sm active:bg-[#E3DFD5] transition-colors">
+            <button onClick={() => setIsMemberModalOpen(true)} className="relative w-9 h-9 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-lg flex items-center justify-center text-[#2C2A28] shadow-sm active:bg-[#E3DFD5] transition-colors">
               <Users size={16} strokeWidth={2.5} />
               {unboundLineUsers.length > 0 && (
                 <span className="absolute -top-[5px] -right-[5px] flex h-[10px] w-[10px]">
@@ -583,7 +583,7 @@ export default function FamilyHub() {
 
         {unboundLineUsers.length > 0 && (
           <div className="bg-[#B87A45]/10 border-b border-[#E3DFD5] px-6 py-3 flex items-start animate-in slide-in-from-top duration-300">
-            <p className="text-[12px] font-bold text-[#2C2A28] m-0 tracking-wide text-left">
+            <p className="text-[12px] font-bold text-[#2C2A28] m-0 tracking-wide text-left leading-relaxed">
               📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角按鈕進行綁定。
             </p>
           </div>
@@ -593,7 +593,12 @@ export default function FamilyHub() {
           {activeTab === 'board' ? <BoardView /> : <RoutinesView />}
         </main>
 
-        <button onClick={() => setIsAiModalOpen(true)} className="absolute bottom-[112px] right-6 w-14 h-14 rounded-md flex items-center justify-center z-20 active:scale-90 hover:scale-105 shadow-lg bg-[#2C2A28] text-[#FBF9F6] transition-transform">
+        {/* 🌟 修復設計細節：精準的 AI 按鈕懸浮定位，完美避開安全距離 */}
+        <button 
+          onClick={() => setIsAiModalOpen(true)} 
+          className="absolute right-6 w-14 h-14 rounded-xl flex items-center justify-center z-20 active:scale-90 hover:scale-105 shadow-lg bg-[#2C2A28] text-[#FBF9F6] transition-transform"
+          style={{ bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))' }}
+        >
           <Sparkles size={22} strokeWidth={1.5} />
         </button>
 
@@ -602,16 +607,16 @@ export default function FamilyHub() {
         <EventEditModal />
 
         {toast && (
-          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-[#2C2A28]/95 backdrop-blur-md text-[#FBF9F6] text-[13px] font-bold tracking-widest px-6 py-3.5 rounded-md shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-[#2C2A28]/95 backdrop-blur-md text-[#FBF9F6] text-[13px] font-bold tracking-widest px-6 py-3.5 rounded-lg shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
             <Check size={18} className="text-[#E3DFD5]" strokeWidth={2.5} />
             {toast}
           </div>
         )}
 
-        {/* 🌟 修復設計細節：確保 iOS 底部安全距離正確，圖示不再擠在一起 */}
+        {/* 🌟 修復設計細節：保留 70px 基礎固定高度 + 安全距離，讓導航列在任何裝置都完美貼合底部 */}
         <nav 
           className="absolute bottom-0 left-0 w-full bg-[#FBF9F6]/95 backdrop-blur-2xl border-t border-[#E3DFD5] z-10 flex justify-around items-start pt-3 px-2"
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+          style={{ height: 'calc(70px + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
           <button onClick={() => setActiveTab('board')} className={`flex flex-col items-center gap-1.5 w-20 transition-all duration-300 ${activeTab === 'board' ? 'text-[#2C2A28] -translate-y-1' : 'text-[#D1CFC7]'}`}>
             <CalendarDays size={24} strokeWidth={activeTab === 'board' ? 2 : 1.5} />
