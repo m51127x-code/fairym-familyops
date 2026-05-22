@@ -6,7 +6,8 @@ const supabase = createClient(
 );
 
 function getTodayString(offsetDays = 0) {
-  onst twDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+  const date = new Date();
+  const twDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
   twDate.setDate(twDate.getDate() + offsetDays);
   const y = twDate.getFullYear();
   const m = String(twDate.getMonth() + 1).padStart(2, '0');
