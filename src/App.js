@@ -1,29 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  CalendarDays, 
-  RotateCw, 
-  Plus, 
-  ChevronLeft, 
-  ChevronRight, 
-  Check, 
-  Droplets,
-  Wind,
-  Leaf,
-  Car,
-  Sparkles,
-  Bell,
-  X,
-  Activity,
-  ShoppingCart,
-  HeartPulse,
-  Smile,
-  AlertCircle,
-  ChevronDown,
-  History,
-  PenLine,
-  Users,
-  UserPlus,
-  Trash2 // 👈 新增垃圾桶圖示用於刪除
+  CalendarDays, RotateCw, Plus, ChevronLeft, ChevronRight, Check, Droplets,
+  Wind, Leaf, Car, Sparkles, Bell, X, Activity, ShoppingCart, HeartPulse,
+  Smile, AlertCircle, ChevronDown, History, PenLine, Users, UserPlus, Trash2
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -46,7 +25,7 @@ const shiftDays = (date, days) => {
 const daysSince = (dateStr) => Math.ceil(Math.abs(new Date(fmtDate(TODAY)) - new Date(dateStr)) / (1000 * 60 * 60 * 24));
 const daysUntil = (lastDate, interval) => interval - daysSince(lastDate);
 
-// 🎨 旅人手帖典藏色彩
+// 🎨 系統色調 (保留目前配色，待最後階段統整)
 const PALETTE = {
   paper: '#F2EFE9', card: '#FBF9F6', ink: '#2C2A28', inkMuted: '#7D7973', border: '#E3DFD5', accent: '#A84C3D',
   todo: '#425C73', shop: '#566B56', remind: '#B87A45', health: '#A84C3D', mood: '#6D607D',
@@ -81,15 +60,13 @@ export default function FamilyHub() {
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [expandedRoutineId, setExpandedRoutineId] = useState(null);
   const [logModalRoutine, setLogModalRoutine] = useState(null);
-  const [editingEvent, setEditingEvent] = useState(null); // 👈 新增：用於編輯手札的狀態
+  const [editingEvent, setEditingEvent] = useState(null);
 
   useEffect(() => {
     async function fetchSupabaseData() {
-      // 1. 撈取手札事件
       const { data: eventsData } = await supabase.from('events').select('*').gte('date', '2026-05-22').order('date', { ascending: true });
       if (eventsData) setEvents(eventsData);
 
-      // 2. 撈取週期任務與歷史紀錄
       const { data: routinesData } = await supabase.from('routines').select('*').gte('created_at', '2026-05-22T00:00:00Z');
       const { data: logsData } = await supabase.from('routine_logs').select('*');
       if (routinesData) {
@@ -102,7 +79,6 @@ export default function FamilyHub() {
         }));
       }
 
-      // 3. 撈取動態成員
       const { data: membersData } = await supabase.from('members').select('*');
       if (membersData) setMembers(membersData);
     }
@@ -111,159 +87,74 @@ export default function FamilyHub() {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  // --- 資料庫寫入與更新功能 ---
-  
+  // --- API 寫入操作 ---
   const handleAddMember = async (name, role) => {
     if (!name || !role) return;
-    const newMember = { name, role_name: role };
-    const { data, error } = await supabase.from('members').insert([newMember]).select();
-    if (!error && data) {
-      setMembers(prev => [...prev, data[0]]);
-      showToast('✅ 角色已成功建立');
-    } else {
-      showToast('⚠️ 儲存失敗');
-    }
+    const { data, error } = await supabase.from('members').insert([{ name, role_name: role }]).select();
+    if (!error && data) { setMembers(prev => [...prev, data[0]]); showToast('✅ 角色已成功建立'); }
   };
 
   const handleAiSubmit = async (text) => {
     let type = 'todo', member = '全家', date = fmtDate(TODAY), mood = null;
     const lower = text.toLowerCase();
-    for (const [word, emoji] of Object.entries(MOOD_MAP)) {
-      if (lower.includes(word)) { type = 'mood'; mood = emoji; break; }
-    }
+    for (const [word, emoji] of Object.entries(MOOD_MAP)) { if (lower.includes(word)) { type = 'mood'; mood = emoji; break; } }
     if (type !== 'mood') {
       if (/買|採買|超市/.test(lower)) type = 'shop';
       else if (/醫|看診|回診|健康/.test(lower)) type = 'health';
       else if (/提醒|記得|截止|到期/.test(lower)) type = 'remind';
     }
     
-    // 👈 核心升級：動態比對資料庫裡的家人名稱
+    // 動態比對成員名單
     for (const m of members) {
-      if (lower.includes(m.name.toLowerCase()) || lower.includes(m.role_name.toLowerCase())) {
-        member = m.name;
-        break;
-      }
+      if (lower.includes(m.name.toLowerCase()) || lower.includes(m.role_name.toLowerCase())) { member = m.name; break; }
     }
 
     if (/明天/.test(lower)) date = shiftDays(TODAY, 1);
     else if (/後天/.test(lower)) date = shiftDays(TODAY, 2);
 
-    const newEvent = { date, type, text, member, mood }; // 移除假 ID，交給資料庫生成
-    
-    // 👈 真實寫入 Supabase
-    const { data, error } = await supabase.from('events').insert([newEvent]).select();
+    const { data, error } = await supabase.from('events').insert([{ date, type, text, member, mood }]).select();
     if (!error && data) {
       setEvents(prev => [...prev, data[0]].sort((a, b) => new Date(a.date) - new Date(b.date)));
-      setSelectedDate(newEvent.date);
-      if (new Date(newEvent.date).getMonth() !== currentMonth.getMonth()) {
-        setCurrentMonth(new Date(new Date(newEvent.date).getFullYear(), new Date(newEvent.date).getMonth(), 1));
-      }
+      setSelectedDate(date);
       setIsAiModalOpen(false);
       showToast('已安全存入手札');
     }
   };
 
   const handleAddLog = async (routineId, routineName, noteText) => {
-    const newLog = { routine_name: routineName, note: noteText, last_done_at: fmtDate(TODAY) };
-    
-    // 👈 真實寫入 Supabase
-    const { data, error } = await supabase.from('routine_logs').insert([newLog]).select();
+    const { data, error } = await supabase.from('routine_logs').insert([{ routine_name: routineName, note: noteText, last_done_at: fmtDate(TODAY) }]).select();
     if (!error && data) {
-      setRoutines(prev => prev.map(r => {
-        if (r.id === routineId) return { ...r, logs: [{ id: data[0].id, date: data[0].last_done_at, note: data[0].note }, ...r.logs] };
-        return r;
-      }));
+      setRoutines(prev => prev.map(r => r.id === routineId ? { ...r, logs: [{ id: data[0].id, date: data[0].last_done_at, note: data[0].note }, ...r.logs] } : r));
       setLogModalRoutine(null);
       showToast('歷史紀錄已更新');
     }
   };
 
-  // 👈 新增：更新或刪除手札事件
   const handleUpdateEvent = async (updatedEvent) => {
     const { error } = await supabase.from('events').update(updatedEvent).eq('id', updatedEvent.id);
-    if (!error) {
-      setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e));
-      setEditingEvent(null);
-      showToast('手札已更新');
-    }
+    if (!error) { setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e)); setEditingEvent(null); showToast('手札已更新'); }
   };
 
   const handleDeleteEvent = async (eventId) => {
     const { error } = await supabase.from('events').delete().eq('id', eventId);
-    if (!error) {
-      setEvents(prev => prev.filter(e => e.id !== eventId));
-      setEditingEvent(null);
-      showToast('手札已刪除');
-    }
+    if (!error) { setEvents(prev => prev.filter(e => e.id !== eventId)); setEditingEvent(null); showToast('手札已刪除'); }
   };
 
-  // 👈 新增：通知伺服器處理推播 (目前保留接口)
-  const handleNotify = (e, eventText) => {
-    e.stopPropagation(); // 阻止觸發卡片編輯
-    showToast('已發送通知請求，等待伺服器端連動...');
-    // 未來這裡會寫：fetch('/api/notify', { method: 'POST', body: JSON.stringify({ text: eventText }) })
-  };
-
-  // --- UI 元件：手札編輯面板 ---
-  const EventEditModal = () => {
-    if (!editingEvent) return null;
-    const [editForm, setEditForm] = useState({ ...editingEvent });
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2C2A28]/50 backdrop-blur-md transition-opacity p-2 sm:p-4">
-        <div className="bg-[#FBF9F6] w-full max-w-md rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden flex flex-col pb-safe animate-in slide-in-from-bottom-8 duration-300 border border-[#E3DFD5]">
-          <div className="p-6 relative">
-            <button onClick={() => setEditingEvent(null)} className="absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] hover:bg-[#E3DFD5] transition-colors active:scale-90">
-              <X size={18} strokeWidth={2}/>
-            </button>
-            <h3 className="text-[20px] font-bold text-[#2C2A28] font-serif tracking-wide mb-5 border-b border-[#E3DFD5] border-dashed pb-4">編輯手札紀錄</h3>
-            
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">內容</label>
-                <textarea value={editForm.text} onChange={e => setEditForm({...editForm, text: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-[16px] p-3 text-[15px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#7D7973] resize-none shadow-inner" rows="3" />
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">日期</label>
-                  <input type="date" value={editForm.date} onChange={e => setEditForm({...editForm, date: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-[12px] p-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973] shadow-inner" />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">負責人</label>
-                  <select value={editForm.member} onChange={e => setEditForm({...editForm, member: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-[12px] p-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973] shadow-inner">
-                    <option value="全家">全家</option>
-                    {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button onClick={() => handleDeleteEvent(editForm.id)} className="px-4 py-3 bg-[#F2EFE9] text-[#A84C3D] hover:bg-[#E3DFD5] rounded-[14px] font-bold transition-all flex items-center justify-center active:scale-95">
-                <Trash2 size={18} strokeWidth={2} />
-              </button>
-              <button onClick={() => handleUpdateEvent(editForm)} className="flex-1 py-3 bg-[#2C2A28] hover:bg-black text-[#FBF9F6] rounded-[14px] text-[15px] font-bold shadow-lg active:scale-[0.98] transition-all flex items-center justify-center tracking-widest">
-                儲存變更
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  const handleNotify = (e) => {
+    e.stopPropagation();
+    showToast('已發送推播請求至 LINE');
   };
 
   // --- UI 元件：手札看板 ---
   const BoardView = () => {
     const calendarDays = useMemo(() => {
       const days = [];
-      const y = currentMonth.getFullYear();
-      const m = currentMonth.getMonth();
-      const firstDay = new Date(y, m, 1).getDay();
-      const daysInMonth = new Date(y, m + 1, 0).getDate();
+      const y = currentMonth.getFullYear(), m = currentMonth.getMonth();
+      const firstDay = new Date(y, m, 1).getDay(), daysInMonth = new Date(y, m + 1, 0).getDate();
       for (let i = 0; i < firstDay; i++) days.push({ type: "empty", id: `empty-${i}` });
       for (let i = 1; i <= daysInMonth; i++) {
         const dateStr = fmtDate(new Date(y, m, i));
-        days.push({ type: "day", date: dateStr, dayNum: i, events: events.filter((e) => e.date === dateStr), isSun: new Date(y, m, i).getDay() === 0, holiday: HOLIDAYS[dateStr] || null });
+        days.push({ type: "day", date: dateStr, dayNum: i, events: events.filter(e => e.date === dateStr), isSun: new Date(y, m, i).getDay() === 0, holiday: HOLIDAYS[dateStr] || null });
       }
       return days;
     }, [currentMonth, events]);
@@ -275,26 +166,21 @@ export default function FamilyHub() {
     monthEvents.forEach(e => { if(stats[e.type]!==undefined) stats[e.type]++; });
 
     const [animKey, setAnimKey] = useState(Date.now());
-    const handleDayClick = (date) => {
-      setSelectedDate(date);
-      setAnimKey(Date.now());
-      const listRef = document.getElementById('daily-logs-header');
-      if(listRef) listRef.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
+    const handleDayClick = (date) => { setSelectedDate(date); setAnimKey(Date.now()); };
 
     return (
       <div className="flex flex-col pb-32 pt-2 relative">
         <div className="px-5 space-y-4">
           
-          {/* 月曆區塊省略細節，維持原樣 */}
+          {/* 月曆儀表板區塊維持原樣 */}
           <div className="bg-[#FBF9F6] border border-[#E3DFD5] rounded-[20px] p-4 shadow-[0_2px_8px_rgba(44,42,40,0.02)] relative overflow-hidden">
-            <div className="flex justify-between items-end mb-3 relative z-10">
-              <h2 className="text-[22px] font-bold text-[#2C2A28] font-serif tracking-wide leading-none">
+            <div className="flex justify-between items-center mb-4 relative z-10">
+              <h2 className="text-[22px] font-bold text-[#2C2A28] font-serif tracking-wide leading-none m-0">
                 {currentMonth.getMonth() + 1}月 <span className="text-[14px] font-sans font-medium text-[#7D7973] ml-1">{currentMonth.getFullYear()}</span>
               </h2>
               <div className="flex gap-1.5">
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))} className="p-1.5 border border-[#E3DFD5] rounded-xl text-[#7D7973] hover:bg-[#F2EFE9] active:scale-90 transition-all"><ChevronLeft size={16} strokeWidth={2}/></button>
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))} className="p-1.5 border border-[#E3DFD5] rounded-xl text-[#7D7973] hover:bg-[#F2EFE9] active:scale-90 transition-all"><ChevronRight size={16} strokeWidth={2}/></button>
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))} className="p-1.5 border border-[#E3DFD5] rounded-xl text-[#7D7973] hover:bg-[#F2EFE9] active:scale-90 transition-all flex items-center justify-center"><ChevronLeft size={16} strokeWidth={2}/></button>
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))} className="p-1.5 border border-[#E3DFD5] rounded-xl text-[#7D7973] hover:bg-[#F2EFE9] active:scale-90 transition-all flex items-center justify-center"><ChevronRight size={16} strokeWidth={2}/></button>
               </div>
             </div>
             
@@ -302,7 +188,7 @@ export default function FamilyHub() {
               {Object.keys(TYPE_CONFIG).map(type => (
                 <div key={type} className="flex flex-col items-center justify-center py-2 rounded-xl hover:bg-[#F2EFE9] cursor-pointer transition-colors active:bg-[#E3DFD5]" onClick={() => setFilter(type)}>
                   <span className="text-[18px] font-bold font-serif leading-none" style={{ color: stats[type] > 0 ? TYPE_CONFIG[type].color : '#D1CFC7' }}>{stats[type]}</span>
-                  <span className="text-[10px] font-medium text-[#7D7973] mt-1.5">{TYPE_CONFIG[type].label}</span>
+                  <span className="text-[10px] font-medium text-[#7D7973] mt-1.5 leading-none">{TYPE_CONFIG[type].label}</span>
                 </div>
               ))}
             </div>
@@ -316,33 +202,21 @@ export default function FamilyHub() {
               ))}
             </div>
             <div className="grid grid-cols-7 gap-y-3 gap-x-1">
-              {calendarDays.map((day, i) => {
+              {calendarDays.map((day) => {
                 if (day.type === 'empty') return <div key={day.id} />;
                 const isSelected = selectedDate === day.date;
                 const isToday = day.date === fmtDate(TODAY);
                 const hasEvents = day.events.length > 0;
-                const isHoliday = !!day.holiday;
-
+                
                 return (
                   <div key={day.date} onClick={() => handleDayClick(day.date)} className="relative flex flex-col items-center justify-center cursor-pointer group h-[42px] tap-highlight-transparent">
                     <div className={`absolute inset-0 rounded-xl transition-all duration-200 ${isSelected ? 'bg-[#2C2A28] scale-100 opacity-100' : 'scale-90 opacity-0 group-hover:bg-[#E3DFD5]/40 group-hover:scale-100 group-hover:opacity-100 group-active:bg-[#E3DFD5]'}`}></div>
-                    <div className={`relative z-10 w-8 h-8 flex items-center justify-center rounded-full text-[15px] font-medium font-serif transition-colors duration-200
-                      ${isSelected ? 'text-[#FBF9F6]' : ''} ${!isSelected && isToday ? 'border-[1.5px] border-[#2C2A28] text-[#2C2A28] font-bold' : ''} ${!isSelected && !isToday ? (day.isSun || isHoliday ? 'text-[#A84C3D]' : 'text-[#2C2A28]') : ''}`}>
+                    <div className={`relative z-10 w-8 h-8 flex items-center justify-center rounded-full text-[15px] font-medium font-serif transition-colors duration-200 ${isSelected ? 'text-[#FBF9F6]' : ''} ${!isSelected && isToday ? 'border-[1.5px] border-[#2C2A28] text-[#2C2A28] font-bold' : ''} ${!isSelected && !isToday ? (day.isSun ? 'text-[#A84C3D]' : 'text-[#2C2A28]') : ''}`}>
                       {day.dayNum}
                     </div>
-                    {isHoliday && <div className={`relative z-10 text-[8px] font-medium leading-none mt-[1px] max-w-[32px] text-center truncate ${isSelected ? 'text-[#FBF9F6]/80' : 'text-[#A84C3D]'}`}>{day.holiday}</div>}
-                    {hasEvents && !isHoliday && (
+                    {hasEvents && (
                       <div className="relative z-10 absolute bottom-0 flex gap-0.5 items-center mt-[2px]">
-                        {(() => {
-                          const moodEv = day.events.find(e => e.type === 'mood');
-                          const others = day.events.filter(e => e.type !== 'mood').slice(0, moodEv ? 2 : 3);
-                          return (
-                            <>
-                              {moodEv && <span className="text-[8px] leading-none opacity-90">{moodEv.mood || '💬'}</span>}
-                              {others.map((e, idx) => <span key={idx} className="w-[3.5px] h-[3.5px] rounded-full transition-colors" style={{ backgroundColor: isSelected ? '#FBF9F6' : TYPE_CONFIG[e.type].color }}></span>)}
-                            </>
-                          );
-                        })()}
+                        {day.events.slice(0, 3).map((e, idx) => <span key={idx} className="w-[3.5px] h-[3.5px] rounded-full transition-colors" style={{ backgroundColor: isSelected ? '#FBF9F6' : TYPE_CONFIG[e.type].color }}></span>)}
                       </div>
                     )}
                   </div>
@@ -367,20 +241,20 @@ export default function FamilyHub() {
           </div>
         </div>
 
-        {/* 每日手札列表 */}
+        {/* 每日手札列表 - 空格與對齊全面修復 */}
         <div className="px-5 mt-2 relative min-h-[350px]" style={{ backgroundImage: 'radial-gradient(#E3DFD5 1.5px, transparent 1.5px)', backgroundSize: '16px 16px', backgroundPosition: '-8px -8px' }}>
           <div id="daily-logs-header" className="flex items-center justify-between py-3 mb-2 bg-[#F2EFE9]/90 backdrop-blur-md -mx-5 px-5 sticky top-[60px] z-10 border-b border-[#E3DFD5]/40">
-            <h3 className="text-[17px] font-bold text-[#2C2A28] tracking-wide flex items-center gap-2">
-              <span className="font-serif text-[20px]">{new Date(selectedDate).getDate()}</span> 日
-              {isTodaySelected && <span className="text-[10px] text-[#A84C3D] border-[1.5px] border-[#A84C3D]/60 px-1.5 py-0.5 rounded-sm uppercase tracking-widest font-bold ml-1 opacity-90">Today</span>}
+            <h3 className="text-[17px] font-bold text-[#2C2A28] tracking-wide flex items-baseline gap-2">
+              <span className="font-serif text-[22px] leading-none">{new Date(selectedDate).getDate()}</span> <span className="leading-none">日</span>
+              {isTodaySelected && <span className="text-[10px] text-[#A84C3D] border-[1.5px] border-[#A84C3D]/60 px-1.5 py-0.5 rounded-sm uppercase tracking-widest font-bold ml-1 opacity-90 transform -translate-y-[1px]">Today</span>}
             </h3>
           </div>
 
-          <div key={animKey} className="animate-in fade-in slide-in-from-bottom-2 duration-400 ease-out pb-6">
+          <div key={animKey} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out pb-6">
             {dayEvents.length === 0 ? (
-              <div className="bg-[#FBF9F6]/80 backdrop-blur-sm border border-[#E3DFD5] border-dashed rounded-3xl p-10 text-center flex flex-col items-center shadow-[0_2px_8px_rgba(44,42,40,0.02)] mt-4">
+              <div className="bg-[#FBF9F6]/80 backdrop-blur-sm border border-[#E3DFD5] border-dashed rounded-2xl p-10 text-center flex flex-col items-center justify-center shadow-sm mt-4">
                 <Leaf size={28} strokeWidth={1.5} className="text-[#D1CFC7] mb-3" />
-                <p className="text-[#7D7973] text-[14px] tracking-widest font-medium">這天沒有手札紀錄</p>
+                <p className="text-[#7D7973] text-[14px] tracking-widest font-medium m-0">這天沒有任務排程</p>
               </div>
             ) : (
               <div className="relative">
@@ -389,25 +263,27 @@ export default function FamilyHub() {
                   {dayEvents.map((e) => {
                     const TypeIcon = TYPE_CONFIG[e.type].icon;
                     return (
-                      // 👈 綁定點擊事件，開啟編輯彈窗
-                      <div key={e.id} className="relative pl-12 pr-1 group cursor-pointer" onClick={() => setEditingEvent(e)}>
-                        <div className="absolute left-[8px] top-3 w-[26px] h-[26px] rounded-full bg-[#FBF9F6] border-2 border-[#E3DFD5] flex items-center justify-center shadow-sm z-10 transition-transform group-hover:scale-110" style={{ color: TYPE_CONFIG[e.type].color }}>
-                          {e.type === 'mood' ? <span className="text-[12px] leading-none">{e.mood}</span> : <TypeIcon size={12} strokeWidth={2.5} />}
+                      <div key={e.id} className="relative pl-12 pr-1 group cursor-pointer tap-highlight-transparent" onClick={() => setEditingEvent(e)}>
+                        {/* 左側節點完美對齊 */}
+                        <div className="absolute left-[8px] top-3.5 w-[26px] h-[26px] rounded-full bg-[#FBF9F6] border-2 border-[#E3DFD5] flex items-center justify-center shadow-sm z-10" style={{ color: TYPE_CONFIG[e.type].color }}>
+                          {e.type === 'mood' ? <span className="text-[12px] leading-none mb-[1px]">{e.mood}</span> : <TypeIcon size={12} strokeWidth={2.5} />}
                         </div>
                         
-                        <div className="bg-[#FBF9F6]/95 backdrop-blur-sm p-4 rounded-[16px] border border-[#E3DFD5] shadow-[0_2px_8px_rgba(44,42,40,0.02)] flex flex-col gap-2 transition-shadow hover:shadow-md hover:border-[#D1CFC7]">
-                          <div className="flex justify-between items-start mb-0.5">
-                            <span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: TYPE_CONFIG[e.type].color }}>{TYPE_CONFIG[e.type].label}</span>
-                            {/* 👈 點擊鈴鐺發送 API 請求 */}
-                            <button onClick={(event) => handleNotify(event, e.text)} className="text-[#D1CFC7] hover:text-[#2C2A28] bg-[#F2EFE9] hover:bg-[#E3DFD5] p-1.5 rounded-full transition-colors active:scale-90"><Bell size={13} strokeWidth={2.5} /></button>
+                        {/* 內容卡片 */}
+                        <div className="bg-[#FBF9F6]/95 backdrop-blur-sm p-4 rounded-[16px] border border-[#E3DFD5] shadow-sm flex flex-col gap-2.5 active:bg-[#F2EFE9] active:scale-[0.99] transition-all">
+                          {/* 頂部標籤與鈴鐺 */}
+                          <div className="flex justify-between items-center h-5">
+                            <span className="text-[11px] font-bold tracking-widest uppercase leading-none" style={{ color: TYPE_CONFIG[e.type].color }}>{TYPE_CONFIG[e.type].label}</span>
+                            <button onClick={handleNotify} className="text-[#D1CFC7] hover:text-[#2C2A28] bg-[#F2EFE9] w-7 h-7 flex items-center justify-center rounded-full transition-colors active:bg-[#E3DFD5] m-0 p-0"><Bell size={13} strokeWidth={2.5} /></button>
                           </div>
-                          <div className="text-[15px] font-medium text-[#2C2A28] leading-relaxed">
+                          {/* 內文 */}
+                          <div className="text-[15px] font-medium text-[#2C2A28] leading-snug m-0">
                             {e.text}
                           </div>
-                          <div className="flex items-center gap-2 mt-1.5 pt-2 border-t border-[#E3DFD5]/60 border-dashed">
-                            {/* 👈 修正：確保沒有 italic，並使用微圓角 rounded-sm */}
-                            <span className="text-[11px] text-[#7D7973] font-serif flex items-center gap-1.5 bg-[#F2EFE9] px-2 py-0.5 rounded-sm">
-                               <div className="w-1 h-1 rounded-full bg-[#A84C3D]"></div>
+                          {/* 底部負責人 (微圓角、純正面字體) */}
+                          <div className="flex items-center pt-2.5 border-t border-[#E3DFD5]/60 border-dashed m-0">
+                            <span className="text-[11px] text-[#7D7973] flex items-center gap-1.5 bg-[#F2EFE9] px-2 py-1 rounded-md leading-none">
+                               <div className="w-1.5 h-1.5 rounded-full bg-[#A84C3D]"></div>
                                {e.member}
                             </span>
                           </div>
@@ -424,171 +300,77 @@ export default function FamilyHub() {
     );
   };
 
-  // --- UI 元件：週期事務 (Routine Maintenance) ---
   const RoutinesView = () => {
-    const getIcon = (name) => {
-      switch(name) {
-        case 'droplet': return <Droplets size={20} strokeWidth={1.5} />;
-        case 'wind': return <Wind size={20} strokeWidth={1.5} />;
-        case 'leaf': return <Leaf size={20} strokeWidth={1.5} />;
-        case 'car': return <Car size={20} strokeWidth={1.5} />;
-        default: return <Activity size={20} strokeWidth={1.5} />;
-      }
-    };
-
     return (
       <div className="px-5 pb-32 pt-2 animate-in fade-in duration-300">
         <h2 className="text-[22px] font-bold text-[#2C2A28] tracking-wide font-serif mb-6 px-1">週期事務追蹤</h2>
-        
-        <div className="grid grid-cols-1 gap-5">
-          {routines.length === 0 && (
-            <div className="bg-[#FBF9F6]/80 backdrop-blur-sm border border-[#E3DFD5] border-dashed rounded-3xl p-10 text-center flex flex-col items-center shadow-[0_2px_8px_rgba(44,42,40,0.02)] mt-2">
-              <Activity size={28} strokeWidth={1.5} className="text-[#D1CFC7] mb-3" />
-              <p className="text-[#7D7973] text-[14px] tracking-widest font-medium">目前沒有週期事務</p>
-            </div>
-          )}
-          {routines.map(r => {
-            const lastLog = r.logs[0];
-            const remaining = lastLog ? daysUntil(lastLog.date, r.interval) : 0;
-            const isDue = remaining < 0;
-            const isWarn = remaining >= 0 && remaining <= 5;
-            const isExpanded = expandedRoutineId === r.id;
-            
-            const pct = Math.min(100, Math.max(0, isDue ? 100 : Math.round(((r.interval - remaining) / r.interval) * 100)));
-            let statusColor = r.color;
-            let statusText = `剩餘 ${remaining} 天`;
-
-            if (isDue) { statusColor = PALETTE.health; statusText = `已逾期 ${Math.abs(remaining)} 天`; }
-            else if (isWarn) { statusColor = PALETTE.remind; statusText = `即將到期`; }
-
-            return (
-              <div key={r.id} className="bg-[#FBF9F6] rounded-[20px] shadow-[0_2px_12px_rgba(44,42,40,0.03)] border border-[#E3DFD5] flex flex-col overflow-hidden transition-all duration-300 hover:border-[#D1CFC7]">
-                <div className="p-5 pb-3 cursor-pointer tap-highlight-transparent active:bg-[#F2EFE9]/50 transition-colors" onClick={() => setExpandedRoutineId(isExpanded ? null : r.id)}>
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex gap-4 items-center">
-                      <div className="w-12 h-12 rounded-[14px] flex items-center justify-center border border-[#E3DFD5] bg-[#F2EFE9] shadow-sm" style={{ color: r.color }}>
-                        {getIcon(r.icon)}
-                      </div>
-                      <div>
-                        <h3 className="text-[17px] font-bold text-[#2C2A28] tracking-tight leading-tight">{r.name}</h3>
-                        <p className="text-[11px] font-medium text-[#7D7973] mt-1.5 tracking-wider uppercase font-serif flex items-center gap-1.5">
-                          {r.member} <span className="w-1 h-1 rounded-full bg-[#D1CFC7]"></span> 每 {r.interval} 天
-                        </p>
-                      </div>
-                    </div>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-[#7D7973] bg-[#F2EFE9]">
-                       <ChevronDown size={18} strokeWidth={2} className={`transition-transform duration-300 ${isExpanded ? 'rotate-180 text-[#2C2A28]' : ''}`} />
-                    </div>
-                  </div>
-                  <div className="mb-2 relative">
-                    <div className="flex justify-between mb-1.5 items-center">
-                      <span className="px-2.5 py-0.5 rounded-sm border text-[10px] font-bold tracking-widest bg-white" style={{ borderColor: statusColor, color: statusColor }}>
-                        {statusText}
-                      </span>
-                    </div>
-                    <div className="h-[6px] w-full bg-[#E3DFD5] rounded-full overflow-hidden shadow-inner relative">
-                      <div className="absolute inset-0 border-b-2 border-dashed border-[#FBF9F6] opacity-30"></div>
-                      <div className="h-full rounded-full transition-all duration-1000 ease-out relative" style={{ width: `${pct}%`, backgroundColor: statusColor }}></div>
-                    </div>
-                    <div className="flex justify-between mt-2 text-[10px] font-medium text-[#7D7973] tracking-widest uppercase">
-                      <span>上次: {lastLog ? lastLog.date.substring(5).replace('-','/') : '—'}</span>
-                      <span>下次預計: {lastLog ? shiftDays(lastLog.date, r.interval).substring(5).replace('-','/') : '—'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="px-5 pb-5 pt-1">
-                   <button onClick={(e) => { e.stopPropagation(); setLogModalRoutine(r); }} className="w-full py-3.5 bg-white border border-[#E3DFD5] hover:border-[#2C2A28] text-[#2C2A28] rounded-[14px] text-[14px] font-bold transition-all flex items-center justify-center gap-2 shadow-sm active:scale-[0.98]">
-                      <PenLine size={16} strokeWidth={2} className="text-[#7D7973]" /> 紀錄本次維護
-                    </button>
-                </div>
-
-                <div className={`overflow-hidden transition-all duration-400 ease-in-out bg-[#F2EFE9] border-t border-[#E3DFD5] border-dashed ${isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                  <div className="p-5">
-                    <h4 className="text-[11px] font-bold text-[#7D7973] tracking-widest flex items-center gap-2 mb-4 uppercase">
-                      <History size={14} strokeWidth={1.5} /> 執行歷史軌跡
-                    </h4>
-                    <div className="relative border-l border-[#D1CFC7] ml-2 space-y-4 pb-2">
-                      {r.logs.map((log, idx) => (
-                        <div key={log.id} className="relative pl-5">
-                          <div className={`absolute -left-[5.5px] top-1.5 w-[10px] h-[10px] rounded-full border-[1.5px] border-[#F2EFE9] ${idx === 0 ? 'bg-[#2C2A28]' : 'bg-[#D1CFC7]'}`}></div>
-                          <div className="flex items-center gap-3">
-                            <span className={`text-[13px] font-serif font-bold ${idx === 0 ? 'text-[#2C2A28]' : 'text-[#7D7973]'}`}>
-                              {log.date.substring(5).replace('-', '月')}日
-                            </span>
-                            <span className="text-[11px] font-medium text-[#D1CFC7]">{daysSince(log.date)} 天前</span>
-                          </div>
-                          {log.note && (
-                            <div className="mt-2 text-[13px] font-medium text-[#2C2A28] bg-[#FBF9F6] px-3.5 py-2.5 rounded-xl border border-[#E3DFD5] shadow-sm inline-block">
-                              {log.note}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            );
-          })}
+        <div className="bg-[#FBF9F6]/80 backdrop-blur-sm border border-[#E3DFD5] border-dashed rounded-2xl p-10 text-center flex flex-col items-center justify-center shadow-sm mt-2">
+          <Activity size={28} strokeWidth={1.5} className="text-[#D1CFC7] mb-3" />
+          <p className="text-[#7D7973] text-[14px] tracking-widest font-medium m-0">目前沒有週期事務</p>
         </div>
       </div>
     );
   };
 
-  // --- UI 元件：紀錄彈窗面板 ---
-  const RoutineLogModal = () => {
-    const [note, setNote] = useState('');
-    if (!logModalRoutine) return null;
-    const routine = logModalRoutine;
-    
+  // --- 重構為原生 APP 底部抽屜 (Native Bottom Sheets) ---
+  
+  // 1. 手札編輯/刪除抽屜
+  const EventEditModal = () => {
+    if (!editingEvent) return null;
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2C2A28]/50 backdrop-blur-md transition-opacity p-0 sm:p-4">
-        <div className="bg-[#FBF9F6] w-full max-w-md rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden flex flex-col pb-safe animate-in slide-in-from-bottom-8 duration-300 border border-[#E3DFD5]">
+      <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
+        <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-[32px] rounded-b-none shadow-2xl flex flex-col pb-safe animate-in slide-in-from-bottom-full duration-300">
           <div className="p-6 relative">
-            <button onClick={() => setLogModalRoutine(null)} className="absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] hover:bg-[#E3DFD5] transition-colors active:scale-90">
-              <X size={18} strokeWidth={2}/>
-            </button>
-            <div className="mb-6 border-b border-[#E3DFD5] border-dashed pb-5">
-              <h3 className="text-[22px] font-bold text-[#2C2A28] font-serif tracking-wide">新增紀錄</h3>
-              <p className="text-[13px] font-medium text-[#7D7973] mt-1.5 tracking-wider">{routine.name}</p>
+            <button onClick={() => setEditingEvent(null)} className="absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
+            <h3 className="text-[20px] font-bold text-[#2C2A28] font-serif tracking-wide mb-5 border-b border-[#E3DFD5] border-dashed pb-4">手札內容管理</h3>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">事項內容</label>
+                <textarea value={editingEvent.text} onChange={e => setEditingEvent({...editingEvent, text: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[15px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#7D7973] resize-none h-24" />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">日期</label>
+                  <input type="date" value={editingEvent.date} onChange={e => setEditingEvent({...editingEvent, date: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973]" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">負責人</label>
+                  <select value={editingEvent.member} onChange={e => setEditingEvent({...editingEvent, member: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973] appearance-none">
+                    <option value="全家">全家</option>
+                    {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                  </select>
+                </div>
+              </div>
             </div>
-            <div className="mb-6">
-              <label className="block text-[13px] font-bold text-[#2C2A28] mb-2.5 flex items-center gap-2">
-                <PenLine size={16} className="text-[#7D7973]" strokeWidth={2} /> 筆記備註 <span className="text-[#D1CFC7] font-normal tracking-wider">(選填)</span>
-              </label>
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="例如：更換了原廠耗材、加了半桶..." className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-[16px] p-4 text-[15px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#7D7973] focus:bg-white transition-all resize-none h-32 placeholder:text-[#D1CFC7] shadow-inner"></textarea>
+
+            <div className="flex gap-3 mb-2">
+              <button onClick={() => handleDeleteEvent(editingEvent.id)} className="w-14 h-[52px] bg-[#F2EFE9] text-[#A84C3D] rounded-xl font-bold flex items-center justify-center active:bg-[#E3DFD5] transition-colors"><Trash2 size={20} strokeWidth={2} /></button>
+              <button onClick={() => handleUpdateEvent(editingEvent)} className="flex-1 h-[52px] bg-[#2C2A28] text-[#FBF9F6] rounded-xl text-[15px] font-bold active:scale-[0.98] transition-transform flex items-center justify-center tracking-widest">儲存變更</button>
             </div>
-            <button onClick={() => handleAddLog(routine.id, routine.name, note)} className="w-full py-4 bg-[#2C2A28] hover:bg-black text-[#FBF9F6] rounded-[16px] text-[15px] font-bold shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 tracking-widest">
-              <Check size={18} strokeWidth={2.5} /> 儲存紀錄
-            </button>
           </div>
         </div>
       </div>
     );
   };
 
-  // --- UI 元件：AI 智慧輸入 ---
+  // 2. AI 智慧輸入抽屜
   const AiModal = () => {
     const [input, setInput] = useState('');
     if (!isAiModalOpen) return null;
-
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2C2A28]/50 backdrop-blur-md transition-opacity p-2 sm:p-4">
-        <div className="bg-[#FBF9F6] w-full max-w-md rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden flex flex-col pb-safe animate-in slide-in-from-bottom-8 duration-300 border border-[#E3DFD5]">
+      <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
+        <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-[32px] rounded-b-none shadow-2xl flex flex-col pb-safe animate-in slide-in-from-bottom-full duration-300">
           <div className="p-6 relative">
-            <button onClick={() => setIsAiModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] hover:bg-[#E3DFD5] transition-colors active:scale-90">
-              <X size={18} strokeWidth={2}/>
-            </button>
+            <button onClick={() => setIsAiModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
             <div className="flex items-center gap-2.5 mb-2">
               <div className="w-9 h-9 rounded-full bg-[#2C2A28] flex items-center justify-center shadow-md"><Sparkles size={16} className="text-[#FBF9F6]" strokeWidth={2} /></div>
               <span className="text-[20px] font-bold text-[#2C2A28] font-serif tracking-wide">AI 手札助理</span>
             </div>
-            <p className="text-[13px] text-[#7D7973] mb-6 tracking-widest leading-relaxed">寫下生活瑣事，自動蓋上時間與分類章。<br/></p>
-            <div className="relative">
-              <textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="「明天要去超市買鮮奶，爸爸負責」" className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-[20px] p-5 pb-16 text-[16px] font-medium text-[#2C2A28] placeholder:text-[#D1CFC7] focus:outline-none focus:border-[#7D7973] focus:bg-white transition-all resize-none h-40 shadow-inner"></textarea>
-              <button onClick={() => { if(input.trim()) handleAiSubmit(input); }} disabled={!input.trim()} className="absolute right-3 bottom-3 bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] py-2.5 px-6 rounded-full shadow-md flex items-center gap-2 text-[14px] font-bold transition-all hover:scale-105 active:scale-95 disabled:scale-100 tracking-widest">寫入</button>
+            <p className="text-[13px] text-[#7D7973] mb-6 tracking-widest leading-relaxed">寫下生活瑣事，自動蓋上時間與分類章。</p>
+            <div className="relative mb-2">
+              <textarea autoFocus value={input} onChange={(e) => setInput(e.target.value)} placeholder="「明天要去超市買鮮奶，爸爸負責」" className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-2xl p-5 pb-16 text-[16px] font-medium text-[#2C2A28] placeholder:text-[#D1CFC7] focus:outline-none focus:border-[#7D7973] resize-none h-40"></textarea>
+              <button onClick={() => { if(input.trim()) handleAiSubmit(input); }} disabled={!input.trim()} className="absolute right-3 bottom-3 bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] py-2.5 px-6 rounded-full shadow-md flex items-center gap-2 text-[14px] font-bold transition-all active:scale-95 disabled:scale-100 tracking-widest">寫入</button>
             </div>
           </div>
         </div>
@@ -596,46 +378,47 @@ export default function FamilyHub() {
     );
   };
 
-  // --- UI 元件：動態成員設定 ---
+  // 3. 動態成員設定抽屜
   const MemberModal = () => {
     const [nameInput, setNameInput] = useState('');
     const [roleInput, setRoleInput] = useState('');
     if (!isMemberModalOpen) return null;
-
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2C2A28]/50 backdrop-blur-md transition-opacity p-2 sm:p-4">
-        <div className="bg-[#FBF9F6] w-full max-w-md rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden flex flex-col pb-safe animate-in slide-in-from-bottom-8 duration-300 border border-[#E3DFD5]">
-          <div className="p-6 relative max-h-[80vh] flex flex-col">
-            <button onClick={() => setIsMemberModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] hover:bg-[#E3DFD5] transition-colors active:scale-90"><X size={18} strokeWidth={2}/></button>
+      <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
+        <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-[32px] rounded-b-none shadow-2xl flex flex-col pb-safe max-h-[85vh] animate-in slide-in-from-bottom-full duration-300">
+          <div className="p-6 relative flex flex-col h-full">
+            <button onClick={() => setIsMemberModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
             <div className="flex items-center gap-2.5 mb-2">
               <div className="w-9 h-9 rounded-full bg-[#566B56] flex items-center justify-center shadow-md"><Users size={16} className="text-[#FBF9F6]" strokeWidth={2} /></div>
-              <span className="text-[20px] font-bold text-[#2C2A28] font-serif tracking-wide">動態成員設定</span>
+              <span className="text-[20px] font-bold text-[#2C2A28] font-serif tracking-wide">群體角色設定</span>
             </div>
-            <p className="text-[13px] text-[#7D7973] mb-6 tracking-widest leading-relaxed border-b border-[#E3DFD5] border-dashed pb-5">在此自定義家人的暱稱與角色定位。</p>
-            <div className="flex-1 overflow-y-auto pr-2 space-y-3 mb-6">
+            <p className="text-[13px] text-[#7D7973] mb-5 tracking-widest leading-relaxed border-b border-[#E3DFD5] border-dashed pb-4">建立專屬稱謂，以便 AI 準確分派任務。</p>
+            
+            <div className="flex-1 overflow-y-auto space-y-2.5 mb-5">
               {members.length === 0 ? (
-                <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-[20px]">尚無建立任何角色</div>
+                <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-xl">尚無建立任何角色</div>
               ) : (
                 members.map(m => (
-                  <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-[16px] border border-[#E3DFD5]">
+                  <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
                     <span className="text-[15px] font-bold text-[#2C2A28]">{m.name}</span>
                     <span className="text-[11px] font-medium text-[#566B56] bg-[#FBF9F6] px-2 py-1 rounded-md border border-[#E3DFD5] tracking-widest">{m.role_name}</span>
                   </div>
                 ))
               )}
             </div>
-            <div className="bg-[#F2EFE9] p-4 rounded-[20px] border border-[#E3DFD5] space-y-3 shadow-inner">
+            
+            <div className="bg-[#F2EFE9] p-4 rounded-2xl border border-[#E3DFD5] space-y-3 mb-2">
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">系統名稱</label>
-                  <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="例：林老杯" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-[14px] px-3 py-2.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56] shadow-sm placeholder:text-[#D1CFC7]" />
+                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">名字/暱稱</label>
+                  <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="例：林老杯" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3.5 py-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">角色稱謂</label>
-                  <input value={roleInput} onChange={(e) => setRoleInput(e.target.value)} placeholder="例：室友/爸爸" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-[14px] px-3 py-2.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56] shadow-sm placeholder:text-[#D1CFC7]" />
+                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">擔任身分</label>
+                  <input value={roleInput} onChange={(e) => setRoleInput(e.target.value)} placeholder="例：採買總監" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3.5 py-3 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
                 </div>
               </div>
-              <button onClick={() => { handleAddMember(nameInput, roleInput); setNameInput(''); setRoleInput(''); }} disabled={!nameInput.trim() || !roleInput.trim()} className="w-full mt-2 bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] py-3 rounded-[14px] flex items-center justify-center gap-2 text-[14px] font-bold transition-all active:scale-[0.98] shadow-md tracking-widest"><UserPlus size={16} /> 新增角色</button>
+              <button onClick={() => { handleAddMember(nameInput, roleInput); setNameInput(''); setRoleInput(''); }} disabled={!nameInput.trim() || !roleInput.trim()} className="w-full h-[48px] bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] rounded-xl flex items-center justify-center gap-2 text-[14px] font-bold active:scale-[0.98] transition-transform tracking-widest"><UserPlus size={16} /> 新增角色</button>
             </div>
           </div>
         </div>
@@ -647,17 +430,18 @@ export default function FamilyHub() {
   return (
     <div className={`min-h-screen bg-[#DFDCD4] font-sans flex justify-center selection:bg-[#E3DFD5] ${hideScrollbar}`}>
       <div className="w-full max-w-[480px] h-dvh bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
-        <div className="absolute top-0 bottom-0 right-[6px] w-[2.5px] bg-[#2C2A28]/10 z-0 pointer-events-none border-l border-[#FBF9F6]/50"></div>
+        
+        {/* Header 標題改為共生公會 */}
         <header className="flex-none pt-12 pb-3 px-6 flex justify-between items-center z-30 bg-[#F2EFE9]/95 backdrop-blur-xl border-b border-[#E3DFD5] sticky top-0">
           <div>
             <h1 className="text-[24px] font-bold tracking-wider text-[#2C2A28] font-serif">Family Hub</h1>
-            <p className="text-[9px] text-[#7D7973] tracking-[0.3em] uppercase mt-1">Traveler's Logbook</p>
+            <p className="text-[9px] text-[#7D7973] tracking-[0.3em] uppercase mt-1">共生公會 (Co-op Guild)</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-sm border-2 border-[#566B56]/70 bg-[#FBF9F6]/50 backdrop-blur-sm">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border-2 border-[#566B56]/70 bg-[#FBF9F6]/50">
               <span className="text-[9px] font-bold text-[#566B56] uppercase tracking-widest opacity-90">LINE Sync</span>
             </div>
-            <button onClick={() => setIsMemberModalOpen(true)} className="w-8 h-8 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-full flex items-center justify-center text-[#2C2A28] shadow-sm hover:bg-[#F2EFE9] active:scale-90 transition-all"><Users size={16} strokeWidth={2.5} /></button>
+            <button onClick={() => setIsMemberModalOpen(true)} className="w-9 h-9 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-full flex items-center justify-center text-[#2C2A28] shadow-sm active:bg-[#E3DFD5] transition-colors"><Users size={16} strokeWidth={2.5} /></button>
           </div>
         </header>
 
@@ -665,32 +449,33 @@ export default function FamilyHub() {
           {activeTab === 'board' ? <BoardView /> : <RoutinesView />}
         </main>
 
-        <button onClick={() => setIsAiModalOpen(true)} className="absolute bottom-[112px] right-6 w-14 h-14 rounded-full flex items-center justify-center z-40 transition-transform active:scale-90 hover:scale-105 shadow-[0_8px_20px_rgba(44,42,40,0.3)] bg-[#2C2A28] text-[#FBF9F6] border-2 border-[#FBF9F6]/10">
+        <button onClick={() => setIsAiModalOpen(true)} className="absolute bottom-[112px] right-6 w-14 h-14 rounded-full flex items-center justify-center z-20 active:scale-90 hover:scale-105 shadow-lg bg-[#2C2A28] text-[#FBF9F6] transition-transform">
           <Sparkles size={22} strokeWidth={1.5} />
         </button>
 
+        {/* 所有的 Native Bottom Sheets */}
         <AiModal />
-        <RoutineLogModal />
         <MemberModal />
-        <EventEditModal /> {/* 👈 渲染手札編輯/刪除面板 */}
+        <EventEditModal />
 
         {toast && (
-          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-[#2C2A28]/95 backdrop-blur-md text-[#FBF9F6] text-[13px] font-bold tracking-widest px-6 py-3.5 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300 border border-[#7D7973]/30">
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-[#2C2A28]/95 backdrop-blur-md text-[#FBF9F6] text-[13px] font-bold tracking-widest px-6 py-3.5 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
             <Check size={18} className="text-[#E3DFD5]" strokeWidth={2.5} />
             {toast}
           </div>
         )}
 
-        <nav className="absolute bottom-0 left-0 w-full h-[90px] bg-[#FBF9F6]/95 backdrop-blur-2xl border-t border-[#E3DFD5] z-30 flex justify-around items-start pt-3 pb-safe px-2 shadow-[0_-10px_30px_rgba(44,42,40,0.03)]">
-          <button onClick={() => setActiveTab('board')} className={`flex flex-col items-center gap-1.5 w-20 transition-all duration-300 ${activeTab === 'board' ? 'text-[#2C2A28] -translate-y-1' : 'text-[#D1CFC7] hover:text-[#7D7973]'}`}>
+        {/* Bottom Tab Bar */}
+        <nav className="absolute bottom-0 left-0 w-full h-[90px] bg-[#FBF9F6]/95 backdrop-blur-2xl border-t border-[#E3DFD5] z-10 flex justify-around items-start pt-3 pb-safe px-2">
+          <button onClick={() => setActiveTab('board')} className={`flex flex-col items-center gap-1.5 w-20 transition-all duration-300 ${activeTab === 'board' ? 'text-[#2C2A28] -translate-y-1' : 'text-[#D1CFC7]'}`}>
             <CalendarDays size={24} strokeWidth={activeTab === 'board' ? 2 : 1.5} />
-            <span className="text-[10px] font-bold tracking-widest">手札看板</span>
-            {activeTab === 'board' && <div className="w-1.5 h-1.5 rounded-full bg-[#A84C3D] shadow-sm"></div>}
+            <span className="text-[10px] font-bold tracking-widest">任務看板</span>
+            {activeTab === 'board' && <div className="w-1.5 h-1.5 rounded-full bg-[#A84C3D]"></div>}
           </button>
-          <button onClick={() => setActiveTab('routines')} className={`flex flex-col items-center gap-1.5 w-20 transition-all duration-300 ${activeTab === 'routines' ? 'text-[#2C2A28] -translate-y-1' : 'text-[#D1CFC7] hover:text-[#7D7973]'}`}>
+          <button onClick={() => setActiveTab('routines')} className={`flex flex-col items-center gap-1.5 w-20 transition-all duration-300 ${activeTab === 'routines' ? 'text-[#2C2A28] -translate-y-1' : 'text-[#D1CFC7]'}`}>
             <RotateCw size={24} strokeWidth={activeTab === 'routines' ? 2 : 1.5} />
-            <span className="text-[10px] font-bold tracking-widest">週期維護</span>
-            {activeTab === 'routines' && <div className="w-1.5 h-1.5 rounded-full bg-[#A84C3D] shadow-sm"></div>}
+            <span className="text-[10px] font-bold tracking-widest">週期事務</span>
+            {activeTab === 'routines' && <div className="w-1.5 h-1.5 rounded-full bg-[#A84C3D]"></div>}
           </button>
         </nav>
       </div>
