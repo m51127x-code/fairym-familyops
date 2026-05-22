@@ -13,11 +13,11 @@ function getTodayString(offsetDays = 0) {
 }
 
 function isFairyMMessage(text) {
-  return /fairym|fairy m|@FairyM|FairyM|@fairym/i.test(text.trim());
+  return /fairym|fairy m|@FairyM|FairyM|@fairym|幫我記|記一下/i.test(text.trim());
 }
 
 function extractContent(text) {
-  return text.replace(/^@?fairy\s?m\s*/gi, "").trim();
+  return text.replace(/^@?fairy\s?m|幫我記|記一下\s*/gi, "").trim();
 }
 
 // 🌟 第二層：Gemini AI 降落傘引擎
@@ -337,7 +337,7 @@ export default async function handler(req, res) {
         await insertEvent(classified);
         const typeLabel = { todo:"待辦", shop:"採買", health:"健康", remind:"提醒" };
         await replyMessage(replyToken, "✅ 已記錄");
-        await pushNotification(`🏠 FairyM 新增共生事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 日期：${classified.date}\n🏷 分類：${typeLabel[classified.type] || "待辦"}`, OPS_GROUP_ID);
+        await pushNotification(`🏠 FairyM 新增事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 日期：${classified.date}\n🏷 分類：${typeLabel[classified.type] || "待辦"}`, OPS_GROUP_ID);
       }
     }
 
