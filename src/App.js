@@ -84,7 +84,23 @@ export default function FamilyHub() {
     }
     fetchSupabaseData();
   }, []);
-
+// 2. 新加入的 LIFF 初始化邏輯 (直接追加在後面)
+    async function initLiff() {
+      try {
+        await liff.init({ liffId: '2010165775-xmYZj7n4' });
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          const profile = await liff.getProfile();
+          console.log("當前使用者 LINE ID:", profile.userId);
+        }
+      } catch (err) {
+        console.error("LIFF 初始化失敗:", err);
+      }
+    }
+    
+    initLiff();
+  }, []);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   // --- API 寫入操作 ---
@@ -399,11 +415,28 @@ export default function FamilyHub() {
                 <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-xl">尚無建立任何角色</div>
               ) : (
                 members.map(m => (
-                  <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
-                    <span className="text-[15px] font-bold text-[#2C2A28]">{m.name}</span>
-                    <span className="text-[11px] font-medium text-[#566B56] bg-[#FBF9F6] px-2 py-1 rounded-md border border-[#E3DFD5] tracking-widest">{m.role_name}</span>
-                  </div>
-                ))
+  <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-[16px] border border-[#E3DFD5]">
+    <div>
+      <span className="block text-[15px] font-bold text-[#2C2A28]">{m.name}</span>
+      <span className="text-[11px] font-medium text-[#566B56]">{m.role_name}</span>
+    </div>
+    
+    <button 
+      onClick={async () => {
+        try {
+          const profile = await liff.getProfile(); 
+          await supabase.from("members").update({ line_user_id: profile.userId }).eq("id", m.id);
+          alert(`✅ 綁定成功！您現在是：${m.name}`);
+        } catch (err) {
+          alert("綁定失敗，請確保在 LINE 內開啟");
+        }
+      }}
+      className="text-[11px] bg-[#2C2A28] text-white px-3 py-1.5 rounded-lg active:scale-95"
+    >
+      綁定我
+    </button>
+  </div>
+))
               )}
             </div>
             
