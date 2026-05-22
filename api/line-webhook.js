@@ -214,15 +214,18 @@ export default async function handler(req, res) {
         continue;
       }
 
-      // --- 擋下非文字訊息 ---
+     // --- 擋下非文字訊息 ---
       if (event.type !== "message") continue;
       if (event.message?.type !== "text") continue;
 
       const messageText = event.message.text;
-      if (!isFairyMMessage(messageText)) continue;
 
+      // 🌟 第一步：無聲雷達！只要群組有人講話，無論有沒有叫機器人，都先默默記錄他的 LINE ID
       await syncGroupName(groupId);
       await syncUserProfile(groupId, userId);
+
+      // 🌟 第二步：確定有叫 @FairyM 才繼續往下執行，沒有就直接跳出
+      if (!isFairyMMessage(messageText)) continue;
 
       const { data: allMembersData } = await supabase.from("members").select("name, role_name");
       const allMembers = allMembersData || [];
@@ -239,7 +242,23 @@ export default async function handler(req, res) {
           userRole = boundMember.name;
         }
       }
-
+// 🌟 攔截機制：如果發現發言者還沒綁定角色，拒絕新增任務並要求綁定
+      if (userRole === "全家") {
+        const unboundTemplate = {
+          type: "template",
+          altText: "⚠️ 系統尚未認識您！請先綁定角色。",
+          template: {
+            type: "buttons",
+            text: "⚠️ 系統尚未認識您喔！\n\n為確保任務能正確指派，請先點擊下方按鈕綁定您的「專屬角色」後，再重新告訴我您要記錄什麼事項！",
+            actions: [{ type: "uri", label: "去綁定身分", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
+          }
+        };
+        await replyMessage(replyToken, unboundTemplate);
+        continue; // 攔截！不往下執行分類與寫入資料庫
+      }
+      
+      // 3. 如果已經綁定，才傳入動態成員與發言者進行 AI 分類 (維持原本的程式碼)
+      const classified = classifyMessage(messageText, userRole, allMembers);
       const classified = classifyMessage(messageText, userRole, allMembers);
 
       await supabase.from("line_messages").insert([{ group_id: groupId, user_id: userId, message_text: messageText, message_type: "text" }]);
