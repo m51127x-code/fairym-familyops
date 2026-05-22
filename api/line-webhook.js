@@ -7,7 +7,7 @@ const supabase = createClient(
 
 function getTodayString(offsetDays = 0) {
   const date = new Date();
-  date.setHours(date.getHours() + 8);
+  date.setHours(date.getHours() + 8); // 台灣時間 UTC+8
   date.setDate(date.getDate() + offsetDays);
   return date.toISOString().slice(0, 10);
 }
@@ -20,42 +20,110 @@ function extractContent(text) {
   return text.replace(/^@?fairy\s?m\s*/gi, "").trim();
 }
 
+// 🌟 第二層：Gemini AI 降落傘引擎
+async function callGeminiAI(text, userRole, allMembers) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn("⚠️ 尚未設定 GEMINI_API_KEY，略過 AI 解析");
+    return null; 
+  }
+
+  const membersList = allMembers.map(m => m.name).join(", ");
+  const today = getTodayString(0);
+  
+  const prompt = `
+  你是一個家庭管家語意解析器。今天是 ${today}。
+  請將以下使用者的訊息轉換為 JSON 格式。
+  
+  原始訊息：「${text}」
+  預設發言者：「${userRole}」
+  可選家庭成員：${membersList}
+  
+  規則：
+  1. content: 拔除所有「時間」、「日期」等字眼後，剩下的純粹動作描述（例如：「這週六10:30去美甲」變成「去美甲」）。
+  2. date: 將訊息中的時間詞彙轉換為 YYYY-MM-DD 的絕對日期格式。如果沒有提到日期，預設為 ${today}。如果提到這週幾，請根據今天是 ${today} 正確推算。
+  3. member: 負責此任務的成員。如果沒提到名字，預設為「${userRole}」。
+  4. type: 嚴格從以下選擇：todo (待辦), shop (採買), health (健康), routine (週期), mood (心情)。
+  5. mood: 如果 type 是 mood，請給一個最適合的 Emoji（如：😊, 😢, 😰, 🤯），否則為 null。
+  
+  回傳格式範例（必須是合法 JSON）：
+  {"content": "去美甲", "date": "2026-05-23", "member": "米雪", "type": "todo", "mood": null}
+  `;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
+      })
+    });
+    const data = await response.json();
+    const resultText = data.candidates[0].content.parts[0].text;
+    return JSON.parse(resultText);
+  } catch (e) {
+    console.error("Gemini Parsing Error:", e);
+    return null;
+  }
+}
+
+// 🌟 第一層：本地正則分類與清理引擎
 function classifyMessage(message, userRole = "全家", allMembers = []) {
   const text = (message || "").trim();
-  const content = extractContent(text);
-
+  let content = extractContent(text);
+  
   let type = "todo";
   let member = userRole;
   let date = getTodayString(0);
   let mood = null;
+  let needAI = false;
 
-  if (/明天/.test(content)) date = getTodayString(1);
-  else if (/後天/.test(content)) date = getTodayString(2);
+  // 1. 基礎日期推算與「字眼徹底移除」
+  const dateMapping = {
+    "大後天": 3,
+    "後天": 2,
+    "明天": 1,
+    "今天": 0,
+    "昨天": -1,
+    "前天": -2
+  };
+  
+  for (const [key, offset] of Object.entries(dateMapping)) {
+    if (content.includes(key)) {
+      date = getTodayString(offset);
+      content = content.replace(key, "").trim(); // 拔除「昨天」、「明天」等字眼
+      break; 
+    }
+  }
 
-  if (/買|採買|超市|補|衛生紙|洗碗精|菜|牛奶|米/.test(content)) {
-    type = "shop";
-  } else if (/回診|看醫生|牙醫|吃藥|健康|檢查|診所|醫院/.test(content)) {
-    type = "health";
-  } else if (/濾網|加鹽|機油|保養|清潔|換|澆花|倒垃圾/.test(content)) {
-    type = "routine";
-  } else if (/心情|今天覺得|好累|開心|難過|煩|不錯|累|焦慮|壓力|緊張|興奮|感動|委屈|生氣|煩躁|疲憊|滿足/.test(content)) {
+  // 2. 判斷是否需要召喚 AI (若包含複雜時間特徵)
+  if (/週|星期|禮拜|號|日|月|\/|:|點|早上|下午|晚上/.test(content)) {
+    needAI = true;
+  }
+
+  // 3. 基礎分類
+  if (/買|採買|超市|補|衛生紙|洗碗精|菜|牛奶|米/.test(content)) type = "shop";
+  else if (/回診|看醫生|牙醫|吃藥|健康|檢查|診所|醫院/.test(content)) type = "health";
+  else if (/濾網|加鹽|機油|保養|清潔|換|澆花|倒垃圾/.test(content)) type = "routine";
+  else if (/心情|今天覺得|好累|開心|難過|煩|不錯|累|焦慮|壓力|緊張|興奮|感動|委屈|生氣|煩躁|疲憊|滿足/.test(content)) {
     type = "mood";
-    const moodMap = { "開心":"😊","快樂":"😄","累":"😴","好累":"😴","煩":"😤","難過":"😢","不錯":"🙂","放鬆":"😌" };
+    const moodMap = { "開心":"😊","快樂":"😄","累":"😴","好累":"😴","煩":"😤","難過":"😢","不錯":"🙂","放鬆":"😌", "焦慮":"😰", "壓力":"🤯" };
     for (const [word, emoji] of Object.entries(moodMap)) {
       if (content.includes(word)) { mood = emoji; break; }
     }
-  } else {
-    type = "todo";
   }
 
+  // 4. 指派人員清理 (把提到的人名也從任務文字中拔除)
   for (const m of allMembers) {
     if (content.includes(m.name) || content.includes(m.role_name)) {
       member = m.name;
+      content = content.replace(m.name, "").replace(m.role_name, "").trim();
       break;
     }
   }
 
-  return { type, content, date, member, mood };
+  return { type, content, date, member, mood, needAI };
 }
 
 async function pushNotification(messagePayload, targetGroupId = null) {
@@ -72,15 +140,10 @@ async function pushNotification(messagePayload, targetGroupId = null) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
     },
-    body: JSON.stringify({
-      to: groupId,
-      messages: messages,
-    }),
+    body: JSON.stringify({ to: groupId, messages: messages }),
   });
 
-  if (!response.ok) {
-    console.error("LINE push error:", await response.text());
-  }
+  if (!response.ok) console.error("LINE push error:", await response.text());
 }
 
 async function replyMessage(replyToken, messagePayload) {
@@ -96,15 +159,10 @@ async function replyMessage(replyToken, messagePayload) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
     },
-    body: JSON.stringify({
-      replyToken: replyToken,
-      messages: messages,
-    }),
+    body: JSON.stringify({ replyToken: replyToken, messages: messages }),
   });
 
-  if (!response.ok) {
-    console.error("LINE reply error:", await response.text());
-  }
+  if (!response.ok) console.error("LINE reply error:", await response.text());
 }
 
 async function syncGroupName(groupId) {
@@ -124,14 +182,13 @@ async function syncGroupName(groupId) {
 async function syncUserProfile(groupId, userId) {
   if (!groupId || !userId) return null;
   const { data: existing } = await supabase.from("line_users").select("display_name").eq("group_id", groupId).eq("user_id", userId).maybeSingle();
-  if (existing) return existing;
+  if (existing) return;
 
   try {
     const response = await fetch(`https://api.line.me/v2/bot/group/${groupId}/member/${userId}`, { headers: { Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}` } });
     if (!response.ok) return null;
     const profile = await response.json();
     await supabase.from("line_users").upsert([{ group_id: groupId, user_id: userId, display_name: profile.displayName || null, picture_url: profile.pictureUrl || null }], { onConflict: "group_id,user_id" });
-    return profile;
   } catch (error) { return null; }
 }
 
@@ -147,7 +204,6 @@ async function insertRoutine(classified) {
 
   await supabase.from("routine_logs").insert([{ routine_name: routine.name, member: classified.member, interval_days: routine.interval_days || 30, last_done_at: classified.date, note: "LINE 記錄" }]);
   await supabase.from("events").insert([{ title: classified.content, text: classified.content, date: classified.date, type: classified.type, member: classified.member, mood: classified.mood || null, is_done: false }]);
-  return routine;
 }
 
 async function insertEvent(classified) {
@@ -183,9 +239,8 @@ export default async function handler(req, res) {
 
       if (event.type === "memberJoined") {
         for (const member of event.joined.members) {
-          const newUserId = member.userId;
           await syncGroupName(groupId);
-          await syncUserProfile(groupId, newUserId);
+          await syncUserProfile(groupId, member.userId);
         }
         const newbieTemplate = {
           type: "template",
@@ -214,17 +269,13 @@ export default async function handler(req, res) {
         continue;
       }
 
-      // --- 擋下非文字訊息 ---
-      if (event.type !== "message") continue;
-      if (event.message?.type !== "text") continue;
+      if (event.type !== "message" || event.message?.type !== "text") continue;
 
       const messageText = event.message.text;
 
-      // 🌟 第一步：無聲雷達！只要群組有人講話，無論有沒有叫機器人，都先默默記錄他的 LINE ID
       await syncGroupName(groupId);
       await syncUserProfile(groupId, userId);
 
-      // 🌟 第二步：確定有叫 @FairyM 才繼續往下執行，沒有就直接跳出
       if (!isFairyMMessage(messageText)) continue;
 
       const { data: allMembersData } = await supabase.from("members").select("name, role_name");
@@ -232,18 +283,10 @@ export default async function handler(req, res) {
 
       let userRole = "全家";
       if (userId) {
-        const { data: boundMember } = await supabase
-          .from("members")
-          .select("name")
-          .eq("line_user_id", userId)
-          .maybeSingle();
-          
-        if (boundMember && boundMember.name) {
-          userRole = boundMember.name;
-        }
+        const { data: boundMember } = await supabase.from("members").select("name").eq("line_user_id", userId).maybeSingle();
+        if (boundMember && boundMember.name) userRole = boundMember.name;
       }
 
-      // 🌟 攔截機制：如果發現發言者還沒綁定角色，拒絕新增任務並要求綁定
       if (userRole === "全家") {
         const unboundTemplate = {
           type: "template",
@@ -255,34 +298,44 @@ export default async function handler(req, res) {
           }
         };
         await replyMessage(replyToken, unboundTemplate);
-        continue; // 攔截！不往下執行分類與寫入資料庫
+        continue; 
       }
       
-      // 🌟 執行 AI 分類 (已修正重複宣告的問題)
-      const classified = classifyMessage(messageText, userRole, allMembers);
+      // 🌟 核心分流：先用本地引擎解析
+      let classified = classifyMessage(messageText, userRole, allMembers);
+
+      // 🌟 AI 降落傘啟動：如果本地引擎發現複雜日期，請 Gemini 接手
+      if (classified.needAI) {
+        const aiResult = await callGeminiAI(extractContent(messageText), userRole, allMembers);
+        if (aiResult) {
+          classified = {
+            ...classified,
+            content: aiResult.content || classified.content,
+            date: aiResult.date || classified.date,
+            member: aiResult.member || classified.member,
+            type: aiResult.type || classified.type,
+            mood: aiResult.mood || classified.mood
+          };
+        }
+      }
 
       await supabase.from("line_messages").insert([{ group_id: groupId, user_id: userId, message_text: messageText, message_type: "text" }]);
 
-      // 🌟 定義您的專屬後台通知群組 (FairyM Ops)
-      const OPS_GROUP_ID = "C4f6db0e27ad7103cef2a8d00be1bcf5a";
+      const OPS_GROUP_ID = process.env.FAIRYM_OPS_GROUP_ID || "C4f6db0e27ad7103cef2a8d00be1bcf5a";
 
-      // 🌟 通知雙向分流處理
       if (classified.type === "routine") {
         await insertRoutine(classified);
-        
         await replyMessage(replyToken, "✅ 已記錄");
         await pushNotification(`🔁 FairyM 記下週期事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 記錄日期：${classified.date}`, OPS_GROUP_ID);
         
       } else if (classified.type === "mood") {
         await insertEvent(classified);
-        
         await replyMessage(replyToken, "✅ 已記錄");
         await pushNotification(`${classified.mood || "💬"} FairyM 收到心情分享\n\n${classified.member}說：「${classified.content}」\n\n📅 日期：${classified.date}`, OPS_GROUP_ID);
         
       } else {
         await insertEvent(classified);
         const typeLabel = { todo:"待辦", shop:"採買", health:"健康", remind:"提醒" };
-        
         await replyMessage(replyToken, "✅ 已記錄");
         await pushNotification(`🏠 FairyM 新增共生事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 日期：${classified.date}\n🏷 分類：${typeLabel[classified.type] || "待辦"}`, OPS_GROUP_ID);
       }
