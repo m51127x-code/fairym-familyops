@@ -20,7 +20,9 @@ import {
   AlertCircle,
   ChevronDown,
   History,
-  PenLine
+  PenLine,
+  Users,     // 👈 新增：使用者圖示
+  UserPlus   // 👈 新增：新增使用者圖示
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
@@ -85,14 +87,17 @@ export default function FamilyHub() {
   const [activeTab, setActiveTab] = useState('board');
   const [events, setEvents] = useState(MOCK_EVENTS);
   const [routines, setRoutines] = useState(MOCK_ROUTINES);
+  const [members, setMembers] = useState([]); // 👈 新增：用來裝載動態成員的容器
   const [currentMonth, setCurrentMonth] = useState(new Date(TODAY.getFullYear(), TODAY.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(fmtDate(TODAY));
   const [filter, setFilter] = useState('all');
   const [toast, setToast] = useState(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false); // 👈 新增：成員管理面板開關
   const [expandedRoutineId, setExpandedRoutineId] = useState(null);
   const [logModalRoutine, setLogModalRoutine] = useState(null);
-  // 4. 👇 新增這一段：網頁載入時去 Supabase 撈取資料
+  
+  // 4. 👇 網頁載入時去 Supabase 撈取資料
   useEffect(() => {
     async function fetchSupabaseData() {
       // 撈取手札事件 (events)
@@ -111,25 +116,49 @@ export default function FamilyHub() {
         .gte('created_at', '2026-05-22T00:00:00Z');
         
       if (routinesData) {
-        // 為了確保畫面不跑版，給予預設圖示和排序歷史紀錄
         const formattedRoutines = routinesData.map(r => ({
           ...r,
           icon: r.icon || 'activity',
-          color: r.color || '#425C73', // 預設莫蘭迪藍
+          color: r.color || '#425C73',
           logs: r.logs ? r.logs.sort((a, b) => new Date(b.date) - new Date(a.date)) : []
         }));
         setRoutines(formattedRoutines);
       }
+
+      // 👈 新增：撈取動態家庭成員 (安全降落機制：如果資料庫還沒建這張表也不會當機)
+      const { data: membersData, error: membersError } = await supabase.from('members').select('*');
+      if (!membersError && membersData) {
+        setMembers(membersData);
+      }
     }
 
     fetchSupabaseData();
-  }, []); // 空陣列代表只在網頁一打開時執行一次
+  }, []); 
   
   // ==========================================
 
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  // 👈 新增：處理新增成員寫入資料庫
+  const handleAddMember = async (name, role) => {
+    if (!name || !role) return;
+    const newMember = { name, role_name: role };
+    
+    // 樂觀更新：先讓畫面顯示
+    const tempId = Date.now();
+    setMembers(prev => [...prev, { ...newMember, id: tempId }]);
+    
+    // 寫入 Supabase
+    const { error } = await supabase.from('members').insert([newMember]);
+    if (error) {
+      showToast('⚠️ 儲存失敗，請確認資料庫是否已建立 members 表單');
+      setMembers(prev => prev.filter(m => m.id !== tempId));
+    } else {
+      showToast('✅ 成員角色已成功建立');
+    }
   };
 
   const handleAiSubmit = (text) => {
@@ -607,6 +636,70 @@ export default function FamilyHub() {
     );
   };
 
+  // --- 🌟 全新 UI 元件：成員管理面板 (Member Modal) ---
+  const MemberModal = () => {
+    const [nameInput, setNameInput] = useState('');
+    const [roleInput, setRoleInput] = useState('');
+    if (!isMemberModalOpen) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2C2A28]/50 backdrop-blur-md transition-opacity p-2 sm:p-4">
+        <div className="bg-[#FBF9F6] w-full max-w-md rounded-t-[32px] sm:rounded-[32px] shadow-2xl overflow-hidden flex flex-col pb-safe animate-in slide-in-from-bottom-8 duration-300 border border-[#E3DFD5]">
+          <div className="p-6 relative max-h-[80vh] flex flex-col">
+            <button onClick={() => setIsMemberModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] hover:bg-[#E3DFD5] transition-colors active:scale-90">
+              <X size={18} strokeWidth={2}/>
+            </button>
+            
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-9 h-9 rounded-full bg-[#566B56] flex items-center justify-center shadow-md">
+                 <Users size={16} className="text-[#FBF9F6]" strokeWidth={2} />
+              </div>
+              <span className="text-[20px] font-bold text-[#2C2A28] font-serif tracking-wide">動態成員設定</span>
+            </div>
+            <p className="text-[13px] text-[#7D7973] mb-6 tracking-widest leading-relaxed border-b border-[#E3DFD5] border-dashed pb-5">
+              在此自定義家人的暱稱與角色定位。設定完成後，這些角色將連動至系統供指派與提醒使用。
+            </p>
+
+            {/* 成員列表展示 */}
+            <div className="flex-1 overflow-y-auto pr-2 space-y-3 mb-6">
+              {members.length === 0 ? (
+                <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-[20px]">尚無建立任何角色</div>
+              ) : (
+                members.map(m => (
+                  <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-[16px] border border-[#E3DFD5]">
+                    <span className="text-[15px] font-bold text-[#2C2A28]">{m.name}</span>
+                    <span className="text-[11px] font-medium text-[#566B56] bg-[#FBF9F6] px-2 py-1 rounded-md border border-[#E3DFD5] tracking-widest">{m.role_name}</span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* 新增成員表單 */}
+            <div className="bg-[#F2EFE9] p-4 rounded-[20px] border border-[#E3DFD5] space-y-3 shadow-inner">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">系統名稱</label>
+                  <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="例：林老杯" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-[14px] px-3 py-2.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56] shadow-sm placeholder:text-[#D1CFC7]" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">角色稱謂</label>
+                  <input value={roleInput} onChange={(e) => setRoleInput(e.target.value)} placeholder="例：室友/爸爸" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-[14px] px-3 py-2.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#566B56] shadow-sm placeholder:text-[#D1CFC7]" />
+                </div>
+              </div>
+              <button 
+                onClick={() => { handleAddMember(nameInput, roleInput); setNameInput(''); setRoleInput(''); }}
+                disabled={!nameInput.trim() || !roleInput.trim()}
+                className="w-full mt-2 bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] py-3 rounded-[14px] flex items-center justify-center gap-2 text-[14px] font-bold transition-all active:scale-[0.98] shadow-md tracking-widest"
+              >
+                <UserPlus size={16} /> 新增角色
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // --- 根佈局 ---
   return (
     <div className={`min-h-screen bg-[#DFDCD4] font-sans flex justify-center selection:bg-[#E3DFD5] ${hideScrollbar}`}>
@@ -622,9 +715,15 @@ export default function FamilyHub() {
             <h1 className="text-[24px] font-bold tracking-wider text-[#2C2A28] font-serif">Family Hub</h1>
             <p className="text-[9px] text-[#7D7973] tracking-[0.3em] uppercase mt-1">Traveler's Logbook</p>
           </div>
-          {/* 連線狀態印章 (Rubber Stamp Style) */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-sm border-2 border-[#566B56]/70 bg-[#FBF9F6]/50 backdrop-blur-sm">
-            <span className="text-[9px] font-bold text-[#566B56] uppercase tracking-widest opacity-90">LINE Sync</span>
+          {/* 右上角工具列 */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-sm border-2 border-[#566B56]/70 bg-[#FBF9F6]/50 backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-[#566B56] uppercase tracking-widest opacity-90">LINE Sync</span>
+            </div>
+            {/* 👈 新增：觸發成員管理面板的按鈕 */}
+            <button onClick={() => setIsMemberModalOpen(true)} className="w-8 h-8 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-full flex items-center justify-center text-[#2C2A28] shadow-sm hover:bg-[#F2EFE9] active:scale-90 transition-all">
+              <Users size={16} strokeWidth={2.5} />
+            </button>
           </div>
         </header>
 
@@ -643,6 +742,7 @@ export default function FamilyHub() {
 
         <AiModal />
         <RoutineLogModal />
+        <MemberModal /> {/* 👈 渲染成員管理面板 */}
 
         {/* 通知 Toast */}
         {toast && (
