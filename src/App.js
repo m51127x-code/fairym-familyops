@@ -62,14 +62,11 @@ export default function FamilyHub() {
   const [expandedRoutineId, setExpandedRoutineId] = useState(null);
   const [logModalRoutine, setLogModalRoutine] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
-  const [currentUserLineId, setCurrentUserLineId] = useState(null); // 新增：記錄當下操作者的 LINE ID
+  const [currentUserLineId, setCurrentUserLineId] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false); // 🌟 新增：重新整理的動畫狀態
 
- // 🌟 自動計算未綁定人數 (過濾掉同一個人在不同群組的重複紀錄)
   const unboundLineUsers = useMemo(() => {
-    // 1. 先找出所有沒綁定的人
     const unbound = lineUsers.filter(lu => !members.some(m => m.line_user_id === lu.user_id));
-    
-    // 2. 利用 user_id 進行去重複
     const uniqueUnbound = [];
     const seenIds = new Set();
     for (const user of unbound) {
@@ -81,8 +78,10 @@ export default function FamilyHub() {
     return uniqueUnbound;
   }, [lineUsers, members]);
 
-  useEffect(() => {
-    async function fetchSupabaseData() {
+  // 🌟 將撈取資料獨立成一個函式，讓按鈕可以隨時呼叫
+  const fetchSupabaseData = async () => {
+    setIsRefreshing(true); // 開啟旋轉動畫
+    try {
       const { data: eventsData } = await supabase.from('events').select('*').gte('date', '2026-05-22').order('date', { ascending: true });
       if (eventsData) setEvents(eventsData);
 
@@ -102,6 +101,37 @@ export default function FamilyHub() {
           })
         );
       }
+
+      const { data: membersData } = await supabase.from('members').select('*');
+      if (membersData) setMembers(membersData);
+
+      const { data: lineUsersData } = await supabase.from('line_users').select('*');
+      if (lineUsersData) setLineUsers(lineUsersData);
+    } catch (err) {
+      console.error('Fetch error:', err);
+    } finally {
+      setIsRefreshing(false); // 關閉旋轉動畫
+    }
+  };
+
+  useEffect(() => {
+    async function initLiff() {
+      try {
+        await liff.init({ liffId: '2010165775-xmYZj7n4' });
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          const profile = await liff.getProfile();
+          setCurrentUserLineId(profile.userId);
+        }
+      } catch (err) {
+        console.error('LIFF 初始化失敗:', err);
+      }
+    }
+
+    fetchSupabaseData(); // 網頁初次載入時呼叫一次
+    initLiff();
+  }, []);
 
       const { data: membersData } = await supabase.from('members').select('*');
       if (membersData) setMembers(membersData);
@@ -517,10 +547,18 @@ export default function FamilyHub() {
             <p className="text-[9px] text-[#7D7973] tracking-[0.3em] uppercase mt-1">生活導航 Life Navigator</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border-2 border-[#566B56]/70 bg-[#FBF9F6]/50">
-              <span className="text-[9px] font-bold text-[#566B56] uppercase tracking-widest opacity-90">LINE Sync</span>
-            </div>
+            <button 
+              onClick={fetchSupabaseData}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border-2 border-[#566B56]/70 bg-[#FBF9F6]/80 active:scale-95 transition-all disabled:opacity-70 shadow-sm"
+            >
+              <RotateCw size={11} strokeWidth={3} className={`text-[#566B56] ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="text-[9px] font-bold text-[#566B56] uppercase tracking-widest mt-[1px]">
+                {isRefreshing ? 'SYNCING' : 'SYNC'}
+              </span>
+            </button>
             <button onClick={() => setIsMemberModalOpen(true)} className="w-9 h-9 bg-[#FBF9F6] border-2 border-[#E3DFD5] rounded-lg flex items-center justify-center text-[#2C2A28] shadow-sm active:bg-[#E3DFD5] transition-colors"><Users size={16} strokeWidth={2.5} /></button>
+          </div>
           </div>
         </header>
 
