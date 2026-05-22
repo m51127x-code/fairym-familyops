@@ -655,7 +655,7 @@ export default function FamilyHub() {
                 <span className="relative inline-flex rounded-md h-2 w-2 bg-[#A84C3D]"></span>
               </div>
               <p className="text-[12px] font-bold text-[#2C2A28] m-0 tracking-wide">
-                📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角角色按鈕進行綁定。
+                📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角按鈕進行綁定。
               </p>
             </div>
           </div>
