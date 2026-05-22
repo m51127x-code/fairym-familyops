@@ -62,43 +62,76 @@ export default function FamilyHub() {
   const [logModalRoutine, setLogModalRoutine] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
 
-  useEffect(() => {
+    useEffect(() => {
     async function fetchSupabaseData() {
-      const { data: eventsData } = await supabase.from('events').select('*').gte('date', '2026-05-22').order('date', { ascending: true });
+      const { data: eventsData } = await supabase
+        .from('events')
+        .select('*')
+        .gte('date', '2026-05-22')
+        .order('date', { ascending: true });
+
       if (eventsData) setEvents(eventsData);
 
-      const { data: routinesData } = await supabase.from('routines').select('*').gte('created_at', '2026-05-22T00:00:00Z');
-      const { data: logsData } = await supabase.from('routine_logs').select('*');
+      const { data: routinesData } = await supabase
+        .from('routines')
+        .select('*')
+        .gte('created_at', '2026-05-22T00:00:00Z');
+
+      const { data: logsData } = await supabase
+        .from('routine_logs')
+        .select('*');
+
       if (routinesData) {
-        setRoutines(routinesData.map(r => {
-          const myLogs = logsData ? logsData.filter(log => log.routine_name === r.name) : [];
-          return {
-            ...r, icon: r.icon || 'activity', color: r.color || '#425C73',
-            logs: myLogs.map(l => ({ id: l.id, date: l.last_done_at, note: l.note })).sort((a, b) => new Date(b.date) - new Date(a.date))
-          };
-        }));
+        setRoutines(
+          routinesData.map(r => {
+            const myLogs = logsData
+              ? logsData.filter(log => log.routine_name === r.name)
+              : [];
+
+            return {
+              ...r,
+              icon: r.icon || 'activity',
+              color: r.color || '#425C73',
+              logs: myLogs
+                .map(l => ({
+                  id: l.id,
+                  date: l.last_done_at,
+                  note: l.note,
+                }))
+                .sort((a, b) => new Date(b.date) - new Date(a.date)),
+            };
+          })
+        );
       }
 
-      const { data: membersData } = await supabase.from('members').select('*');
+      const { data: membersData } = await supabase
+        .from('members')
+        .select('*');
+
       if (membersData) setMembers(membersData);
     }
-    fetchSupabaseData();
-  }, []);
-// 2. 新加入的 LIFF 初始化邏輯 (直接追加在後面)
+
     async function initLiff() {
       try {
-        await liff.init({ liffId: '2010165775-xmYZj7n4' });
-        if (!liff.isLoggedIn()) {
-          liff.login();
+        if (!window.liff) {
+          console.warn('LIFF SDK 尚未載入');
+          return;
+        }
+
+        await window.liff.init({ liffId: '2010165775-xmYZj7n4' });
+
+        if (!window.liff.isLoggedIn()) {
+          window.liff.login();
         } else {
-          const profile = await liff.getProfile();
-          console.log("當前使用者 LINE ID:", profile.userId);
+          const profile = await window.liff.getProfile();
+          console.log('當前使用者 LINE ID:', profile.userId);
         }
       } catch (err) {
-        console.error("LIFF 初始化失敗:", err);
+        console.error('LIFF 初始化失敗:', err);
       }
     }
-    
+
+    fetchSupabaseData();
     initLiff();
   }, []);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -424,7 +457,7 @@ export default function FamilyHub() {
     <button 
       onClick={async () => {
         try {
-          const profile = await liff.getProfile(); 
+          const profile = await window.liff.getProfile();
           await supabase.from("members").update({ line_user_id: profile.userId }).eq("id", m.id);
           alert(`✅ 綁定成功！您現在是：${m.name}`);
         } catch (err) {
