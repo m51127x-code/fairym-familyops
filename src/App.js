@@ -559,28 +559,7 @@ export default function FamilyHub() {
     );
   };
 
-  const AiModal = () => {
-    const [input, setInput] = useState('');
-    if (!isAiModalOpen) return null;
-    return (
-      <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
-        <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-3xl rounded-b-none shadow-2xl flex flex-col pb-safe animate-in slide-in-from-bottom-full duration-300">
-          <div className="p-6 relative">
-            <button onClick={() => setIsAiModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-9 h-9 rounded-lg bg-[#2C2A28] flex items-center justify-center shadow-md"><Sparkles size={16} className="text-[#FBF9F6]" strokeWidth={2} /></div>
-              <span className="text-[20px] font-bold text-[#2C2A28] tracking-wide">AI 手札助理</span>
-            </div>
-            <p className="text-[13px] text-[#7D7973] mb-6 tracking-widest leading-relaxed">寫下生活瑣事，自動蓋上時間與分類章。</p>
-            <div className="relative mb-2">
-              <textarea autoFocus value={input} onChange={(e) => setInput(e.target.value)} placeholder="「明天要去超市買鮮奶，爸爸負責」" className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-5 pb-16 text-[16px] font-medium text-[#2C2A28] placeholder:text-[#D1CFC7] focus:outline-none focus:border-[#7D7973] resize-none h-40"></textarea>
-              <button onClick={() => { if(input.trim()) handleAiSubmit(input); }} disabled={!input.trim()} className="absolute right-3 bottom-3 bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] py-2.5 px-6 rounded-lg shadow-sm flex items-center gap-2 text-[14px] font-bold transition-all active:scale-95 disabled:scale-100 tracking-widest">寫入</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  
 
   const MemberModal = () => {
     const [nameInput, setNameInput] = useState('');
