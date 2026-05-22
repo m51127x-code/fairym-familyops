@@ -91,7 +91,30 @@ async function pushNotification(messagePayload, targetGroupId = null) {
     console.error("LINE push error:", await response.text());
   }
 }
+// 🌟 新增：針對事件立即精準回覆的專用函式 (確保訊息絕對不會傳錯群組)
+async function replyMessage(replyToken, messagePayload) {
+  if (!replyToken) return;
 
+  const messages = typeof messagePayload === 'string'
+    ? [{ type: "text", text: messagePayload }]
+    : [messagePayload];
+
+  const response = await fetch("https://api.line.me/v2/bot/message/reply", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      replyToken: replyToken,
+      messages: messages,
+    }),
+  });
+
+  if (!response.ok) {
+    console.error("LINE reply error:", await response.text());
+  }
+}
 async function syncGroupName(groupId) {
   if (!groupId) return null;
   const { data: existing } = await supabase.from("group_aliases").select("group_name").eq("group_id", groupId).maybeSingle();
@@ -150,6 +173,7 @@ export default async function handler(req, res) {
     for (const event of events) {
       const groupId = event.source?.groupId || null;
       const userId = event.source?.userId || null;
+      const replyToken = event.replyToken || null; // 🌟 抓取專屬回覆金鑰
 
       // 🌟 情境 1：機器人被邀請加入群組 (Bot 本身加入)
       if (event.type === "join") {
@@ -159,10 +183,10 @@ export default async function handler(req, res) {
           template: {
             type: "buttons",
             text: "👋 大家好！我是 FairyM 生活導航助理。\n\n請點擊下方按鈕開啟「生活導航」並綁定您的專屬角色，我們就可以開始自動記錄生活囉！",
-            actions: [{ type: "uri", label: "打開生活導航 APP", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
+            actions: [{ type: "uri", label: "打開生活導航", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
           }
         };
-        await pushNotification(welcomeTemplate, groupId);
+        await replyMessage(replyToken, welcomeTemplate); // 改用精準回覆
         continue;
       }
 
@@ -179,10 +203,10 @@ export default async function handler(req, res) {
           template: {
             type: "buttons",
             text: "🎉 歡迎新夥伴加入！\n\n系統已偵測到您的進駐。請直接點開下方的按鈕，綁定您的專屬身分喔！",
-            actions: [{ type: "uri", label: "打開生活導航 APP", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
+            actions: [{ type: "uri", label: "打開生活導航", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
           }
         };
-        await pushNotification(newbieTemplate, groupId);
+        await replyMessage(replyToken, newbieTemplate); // 改用精準回覆
         continue;
       }
 
@@ -194,12 +218,21 @@ export default async function handler(req, res) {
           template: {
             type: "buttons",
             text: "🌸 歡迎加入 FairyM！\n\n您可以把我邀請到您的「家庭 LINE 群組」裡。如果已在群組內，請點擊下方按鈕打開我們的專屬基地：",
-            actions: [{ type: "uri", label: "打開生活導航 APP", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
+            actions: [{ type: "uri", label: "打開生活導航", uri: "https://liff.line.me/2010165775-xmYZj7n4" }]
           }
         };
-        await pushNotification(privateTemplate, userId);
+        await replyMessage(replyToken, privateTemplate); // 改用精準回覆
         continue;
       }
+
+      // --- 擋下非文字訊息 ---
+      if (event.type !== "message") continue;
+      if (event.message?.type !== "text") continue;
+
+      const messageText = event.message.text;
+      if (!isFairyMMessage(messageText)) continue;
+
+      // ...(後續原本的程式碼維持不動)
 
       // --- 擋下非文字訊息 ---
       if (event.type !== "message") continue;
