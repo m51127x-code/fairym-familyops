@@ -312,8 +312,8 @@ export default function FamilyHub() {
       });
     const isTodaySelected = selectedDate === fmtDate(TODAY);
     const monthEvents = events.filter(e => e.date.startsWith(fmtDate(currentMonth).substring(0, 7)));
-    const stats = { schedule: 0, todo: 0, shop: 0, remind: 0, health: 0, mood: 0, routine: 0 };
-    monthEvents.forEach(e => { if(stats[e.type]!==undefined) stats[e.type]++; });
+    const stats = { schedule: 0, todo: 0, shop: 0, remind: 0, health: 0, mood: 0, routine: 0, note: 0 };
+    monthEvents.forEach(e => { if(stats[e.type] !== undefined) stats[e.type]++; });
 
     const [animKey, setAnimKey] = useState(Date.now());
     const handleDayClick = (date) => { setSelectedDate(date); setAnimKey(Date.now()); };
