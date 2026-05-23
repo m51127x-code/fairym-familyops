@@ -10,22 +10,29 @@ module.exports = async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
   try {
-    const { text, member, date } = req.body;
+    // 🌟 接收前端傳來的新參數：type 與 mood
+    const { text, member, date, type, mood } = req.body;
     
-    const mainGroupId = process.env.FAIRYM_OPS_GROUP_ID; // 您與室友的中控群組 ID
+    const mainGroupId = process.env.FAIRYM_OPS_GROUP_ID; 
     const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
     if (!token) {
       throw new Error("Missing LINE_CHANNEL_ACCESS_TOKEN");
     }
 
-    // 建立一個非同步任務陣列，讓兩條軌道的推播可以同時發射
     const sendPromises = [];
 
-    // ════════ 軌道一：發送到中控台群組（您與室友的共享基地） ════════
+    // ════════ 軌道一：發送到中控台群組 ════════
     if (mainGroupId) {
-      const groupMessage = `🏠 [FairyM 任務動態同步]\n\n「${text}」\n👤 負責人：${member}\n📅 排定日期：${date}\n\n(此副本已同步發送至負責人私訊)`;
+      let groupMessage = "";
       
+      // 🌟 根據 type 決定群組通知內容
+      if (type === "mood") {
+        groupMessage = `💭 [FairyM 心情廣播]\n\n${member} 說：「${text}」 ${mood || "✨"}\n📅 記錄日期：${date}`;
+      } else {
+        groupMessage = `🏠 [FairyM 任務動態同步]\n\n「${text}」\n👤 負責人：${member}\n📅 排定日期：${date}\n\n(此副本已同步發送至負責人私訊)`;
+      }
+
       sendPromises.push(
         fetch("https://api.line.me/v2/bot/message/push", {
           method: "POST",
@@ -41,8 +48,8 @@ module.exports = async function handler(req, res) {
     }
 
     // ════════ 軌道二：精準一對一私訊給負責人 ════════
-    if (member && member !== "全家") {
-      // 去 Supabase 撈取該成員綁定的 line_user_id
+    // 🌟 判斷：心情分享不需要發「提醒做事」的私訊給自己
+    if (type !== "mood" && member && member !== "全家") {
       const { data: memberData } = await supabase
         .from("members")
         .select("line_user_id")
@@ -64,12 +71,9 @@ module.exports = async function handler(req, res) {
             if (!r.ok) console.error(`私訊發送給 ${member} 失敗:`, await r.text());
           })
         );
-      } else {
-        console.log(`📢 成員「${member}」尚未在 APP 內綁定 LINE 身分，略過私訊發送。`);
       }
     }
 
-    // 同時執行所有推播發送
     await Promise.all(sendPromises);
 
     res.status(200).json({ success: true });
