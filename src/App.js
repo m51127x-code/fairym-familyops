@@ -36,12 +36,10 @@ const TYPE_CONFIG = {
   health: { label: '健康', color: PALETTE.health, icon: HeartPulse },
   routine: { label: '週期', color: PALETTE.inkMuted, icon: RotateCw },
   mood: { label: '心情', color: PALETTE.mood, icon: Smile },
-  note: { label: '紀錄', color: '#9CA3AF', icon: PenLine }, // 🌟 新增：專門用來放純文字留言
+  note: { label: '紀錄', color: '#9CA3AF', icon: PenLine }, 
 };
 
-// 🌟 新增這行：定義系統排序的緊急度 (數字越小越上面)
 const PRIORITY = { remind: 1, schedule: 2, todo: 3, shop: 4, health: 5, routine: 6, mood: 7, note: 8 };
-
 const HOLIDAYS = { '2026-05-01':'勞動節', '2026-06-19':'端午節', '2026-09-25':'中秋節', '2026-10-10':'國慶日' };
 const MOOD_MAP = { '開心':'😊', '快樂':'😄', '累':'😴', '煩':'😤', '難過':'😢', '期待':'🥰', '放鬆':'😌', '不錯':'🙂' };
 const hideScrollbar = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']";
@@ -176,47 +174,16 @@ export default function FamilyHub() {
     }
   };
 
-  const handleAiSubmit = async (text) => {
-    let type = 'note'; // 預設改為 note (紀錄)
-    const lower = text.toLowerCase();
-    
-    // 優先判斷心情
-    for (const [word, emoji] of Object.entries(MOOD_MAP)) { 
-      if (lower.includes(word)) { type = 'mood'; break; } 
-    }
-    
-    // 動作過濾：只有明確包含動作詞才歸類為待辦/其他
-    if (type !== 'mood') {
-      if (/前|之前|底前|截止|期限/.test(lower)) type = 'remind';
-      else if (/去|約|下班後|打球|美甲|看電影|吃飯|上課|會議|班機/.test(lower)) type = 'schedule';
-      else if (/買|採買|超市|補/.test(lower)) type = 'shop';
-      else if (/醫|看診|回診|健康|吃藥/.test(lower)) type = 'health';
-      else if (/處理|寄|領|包裹|整理|設定|做|洗|拿|換/.test(lower)) type = 'todo';
-      // 🌟 如果什麼動作都沒有 (例如：「老公最棒了」)，就歸為留言紀錄！
-      // (預設值已在上方設為 'note'，無需額外 else)
-    }
-    
-    // 抓取負責人
-    for (const m of members) {
-      if (lower.includes(m.name.toLowerCase()) || lower.includes(m.role_name.toLowerCase())) { member = m.name; break; }
-    }
-
-    // 抓取簡易日期 (複雜日期如"下週三"可由後端 Webhook 處理)
-    if (/明天/.test(lower)) date = shiftDays(TODAY, 1);
-    else if (/後天/.test(lower)) date = shiftDays(TODAY, 2);
-
-    const { data, error } = await supabase.from('events').insert([{ date, type, text, member, mood }]).select();
-    if (!error && data) {
-      setEvents(prev => [...prev, data[0]].sort((a, b) => new Date(a.date) - new Date(b.date)));
-      setSelectedDate(date);
-      setIsAiModalOpen(false);
-      showToast('已安全存入手札');
-    }
-  };
-
   const handleUpdateEvent = async (updatedEvent) => {
     const { error } = await supabase.from('events').update(updatedEvent).eq('id', updatedEvent.id);
-    if (!error) { setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e)); setEditingEvent(null); showToast('手札已更新'); }
+    if (!error) { 
+      setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e).sort((a,b) => {
+        if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
+        return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
+      })); 
+      setEditingEvent(null); 
+      showToast('手札已更新'); 
+    }
   };
 
   const handleDeleteEvent = async (eventId) => {
@@ -224,7 +191,6 @@ export default function FamilyHub() {
     if (!error) { setEvents(prev => prev.filter(e => e.id !== eventId)); setEditingEvent(null); showToast('手札已刪除'); }
   };
 
-  // 🌟 真實推播功能
   const handleNotify = async (e, ev) => {
     e.stopPropagation(); 
     showToast('發送提醒中...');
@@ -240,7 +206,6 @@ export default function FamilyHub() {
     }
   };
 
-  // 🌟 任務打卡功能與週期永動機
   const handleToggleDone = async (e, ev) => {
     e.stopPropagation();
     const newStatus = !ev.is_done;
@@ -261,7 +226,7 @@ export default function FamilyHub() {
           
           if (!existing || existing.length === 0) {
             await supabase.from('events').insert([{
-              title: ev.title, text: ev.text, type: ev.type, member: ev.member,
+              title: ev.text, text: ev.text, type: ev.type, member: ev.member,
               date: nextDate, is_routine: true, routine_id: routine.id, is_done: false
             }]);
             showToast(`🔄 已自動排定下次任務：${nextDate}`);
@@ -288,12 +253,15 @@ export default function FamilyHub() {
       return days;
     }, [currentMonth, events]);
 
-    const dayEvents = events
-      .filter(e => e.date === selectedDate && (filter === 'all' || e.type === filter))
-      .sort((a, b) => {
-        if (a.is_done !== b.is_done) return a.is_done ? 1 : -1; // 已完成的自動沉降到底部
-        return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99); // 依照緊急度排序
-      });
+    const dayEvents = useMemo(() => {
+      return events
+        .filter(e => e.date === selectedDate && (filter === 'all' || e.type === filter))
+        .sort((a, b) => {
+          if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
+          return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
+        });
+    }, [events, selectedDate, filter]);
+
     const isTodaySelected = selectedDate === fmtDate(TODAY);
     const monthEvents = events.filter(e => e.date.startsWith(fmtDate(currentMonth).substring(0, 7)));
     const stats = { schedule: 0, todo: 0, shop: 0, remind: 0, health: 0, mood: 0, routine: 0, note: 0 };
@@ -316,7 +284,8 @@ export default function FamilyHub() {
               </div>
             </div>
 
-<div className="grid grid-cols-4 gap-y-3 gap-x-1.5 pt-4 border-t border-[#E3DFD5] border-dashed relative z-10">              {Object.keys(TYPE_CONFIG).map(type => (
+            <div className="grid grid-cols-4 gap-y-3 gap-x-1.5 pt-4 border-t border-[#E3DFD5] border-dashed relative z-10">
+              {Object.keys(TYPE_CONFIG).map(type => (
                 <div key={type} className="flex flex-col items-center justify-center py-2 rounded-lg hover:bg-[#F2EFE9] cursor-pointer transition-colors active:bg-[#E3DFD5]" onClick={() => setFilter(type)}>
                   <span className="text-[18px] font-bold leading-none" style={{ color: stats[type] > 0 ? TYPE_CONFIG[type].color : '#D1CFC7' }}>{stats[type]}</span>
                   <span className="text-[10px] font-medium text-[#7D7973] mt-1.5 leading-none">{TYPE_CONFIG[type].label}</span>
@@ -389,7 +358,7 @@ export default function FamilyHub() {
                 <div className="absolute left-[20px] top-6 bottom-4 w-[1.5px] bg-[#E3DFD5] border-l border-dashed border-[#D1CFC7]"></div>
                 <div className="space-y-4 relative mt-2">
                   {dayEvents.map((e) => {
-                    const TypeIcon = TYPE_CONFIG[e.type].icon;
+                    const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
                     return (
                       <div key={e.id} className="relative pl-12 pr-1 group cursor-pointer tap-highlight-transparent" onClick={() => setEditingEvent(e)}>
                         
@@ -397,19 +366,19 @@ export default function FamilyHub() {
                           className={`absolute left-[8px] top-3.5 w-[26px] h-[26px] rounded-lg border-2 flex items-center justify-center shadow-sm z-20 transition-all active:scale-90 ${e.is_done ? 'bg-[#566B56] border-[#566B56] text-[#FBF9F6]' : 'bg-[#FBF9F6] border-[#E3DFD5]'}`} 
                           onClick={(event) => handleToggleDone(event, e)}
                         >
-                          {e.is_done ? <Check size={14} strokeWidth={3} /> : (e.type === 'mood' ? <span className="text-[12px] leading-none mb-[1px]">{e.mood}</span> : <TypeIcon size={12} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type].color }} />)}
+                          {e.is_done ? <Check size={14} strokeWidth={3} /> : (e.type === 'mood' ? <span className="text-[12px] leading-none mb-[1px]">{e.mood}</span> : <TypeIcon size={12} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color }} />)}
                         </div>
 
                         <div className={`bg-[#FBF9F6]/95 backdrop-blur-sm p-4 rounded-xl border border-[#E3DFD5] shadow-sm flex flex-col gap-2.5 active:bg-[#F2EFE9] transition-all ${e.is_done ? 'opacity-60 grayscale-[0.3]' : ''}`}>
                           <div className="flex justify-between items-center h-5">
-                            <span className={`text-[11px] font-bold tracking-widest uppercase leading-none ${e.is_done ? 'text-[#7D7973]' : ''}`} style={{ color: e.is_done ? undefined : TYPE_CONFIG[e.type].color }}>{TYPE_CONFIG[e.type].label}</span>
+                            <span className={`text-[11px] font-bold tracking-widest uppercase leading-none ${e.is_done ? 'text-[#7D7973]' : ''}`} style={{ color: e.is_done ? undefined : TYPE_CONFIG[e.type]?.color }}>{TYPE_CONFIG[e.type]?.label}</span>
                             
                             <button onClick={(event) => handleNotify(event, e)} className="text-[#D1CFC7] hover:text-[#A84C3D] bg-[#F2EFE9] w-7 h-7 flex items-center justify-center rounded-lg transition-colors active:bg-[#E3DFD5] m-0 p-0 z-20">
                               <Bell size={13} strokeWidth={2.5} />
                             </button>
                           </div>
                           
-                          <div className={`text-[15px] font-medium leading-snug m-0 transition-all ${e.is_done ? 'text-[#D1CFC7] line-through' : 'text-[#2C2A28]'}`}>
+                          <div className={`text-[15px] font-medium leading-snug m-0 transition-all ${e.is_done ? 'text-[#7D7973] line-through' : 'text-[#2C2A28]'}`}>
                             {e.text}
                           </div>
                           
@@ -431,7 +400,7 @@ export default function FamilyHub() {
       </div>
     );
   };
-// 🌟 👇👇 從這裡開始複製並貼在 RoutinesView 的正上方 👇👇 🌟
+
   const WeeklyPlannerView = () => {
     const weekDays = useMemo(() => {
       const days = [];
@@ -477,13 +446,11 @@ export default function FamilyHub() {
                     const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
                     return (
                       <div key={e.id} className="relative group cursor-pointer tap-highlight-transparent" onClick={() => setEditingEvent(e)}>
-                        
                         {e.is_done && (
                           <div className="absolute -right-2 -top-1 transform rotate-[-10deg] opacity-80 pointer-events-none z-10 animate-in zoom-in-75 duration-300">
                             <div className="border-[1.5px] border-[#A84C3D] text-[#A84C3D] text-[10px] font-bold px-2 py-0.5 tracking-widest">DONE</div>
                           </div>
                         )}
-
                         <div className={`flex items-start gap-4 transition-all ${e.is_done ? 'opacity-40 grayscale-[0.8]' : ''}`}>
                           <div className="mt-[3px]" onClick={(event) => handleToggleDone(event, e)}>
                             {e.is_done ? <Check size={14} className="text-[#A84C3D]" strokeWidth={3}/> : <TypeIcon size={14} className="text-[#D1CFC7]" />}
@@ -508,9 +475,8 @@ export default function FamilyHub() {
       </div>
     );
   };
-  // 🌟 👆👆 貼到這裡結束 👆👆 🌟
+
   const RoutinesView = () => {
-    const RoutinesView = () => {
     const [isAdding, setIsAdding] = useState(false);
     const [newName, setNewName] = useState('');
     const [newInterval, setNewInterval] = useState(30);
@@ -565,7 +531,7 @@ export default function FamilyHub() {
                     <span className="text-[10px] font-bold text-[#7D7973] uppercase tracking-widest bg-[#F2EFE9] px-2 py-1 rounded-md">每 {r.interval_days} 天執行</span>
                   </div>
                 </div>
-                <button onClick={() => handleDeleteRoutine(r.id)} className="text-[#D1CFC7] hover:text-[#A84C3D] w-8 h-8 flex items-center justify-center rounded-lg bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><Trash2 size={16} strokeWidth={2.5} /></button>
+                <button onClick={() => handleDeleteRoutine(r.id)} className="text-[#D1CFC7] hover:text-[#A84C3D] w-8 h-8 flex items-center justify-center rounded-lg bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><Trash2 size6={16} strokeWidth={2.5} /></button>
               </div>
             ))
           )}
@@ -595,47 +561,138 @@ export default function FamilyHub() {
       </div>
     );
   };
-    return (
-      <div className="px-5 pb-32 pt-2 animate-in fade-in duration-300">
-        <h2 className="text-[22px] font-bold text-[#2C2A28] tracking-wide mb-6 px-1">週期事務追蹤</h2>
-        <div className="bg-[#FBF9F6]/80 backdrop-blur-sm border border-[#E3DFD5] border-dashed rounded-xl p-10 text-center flex flex-col items-center justify-center shadow-sm mt-2">
-          <Activity size={28} strokeWidth={1.5} className="text-[#D1CFC7] mb-3" />
-          <p className="text-[#7D7973] text-[14px] tracking-widest font-medium m-0">目前沒有週期事務</p>
-        </div>
-      </div>
-    );
-  };
 
   const EventEditModal = () => {
+    const [text, setText] = useState('');
+    const [type, setType] = useState('todo');
+    const [date, setDate] = useState('');
+    const [time, setTime] = useState('');
+    const [member, setMember] = useState('全家');
+    const [mood, setMood] = useState('😊');
+
+    const moodOptions = ['😊', '😄', '🥰', '😌', '🙂', '😴', '😢', '😤'];
+
+    useEffect(() => {
+      if (editingEvent) {
+        let initText = editingEvent.text || '';
+        let initTime = '';
+        
+        if (editingEvent.type === 'schedule') {
+          const match = initText.match(/^(\d{2}:\d{2})\s+(.*)/);
+          if (match) { initTime = match[1]; initText = match[2]; }
+        } else if (editingEvent.type === 'remind') {
+          const match = initText.match(/(.*?)\s+\((\d{2}:\d{2})\s+截止\)$/);
+          if (match) { initText = match[1]; initTime = match[2]; }
+        }
+
+        setText(initText);
+        setType(editingEvent.type || 'todo');
+        setDate(editingEvent.date);
+        setTime(initTime);
+        setMember(editingEvent.member || '全家');
+        setMood(editingEvent.mood || '😊');
+      }
+    }, [editingEvent]);
+
     if (!editingEvent) return null;
+
+    const handleSave = () => {
+      if (!text.trim() && type !== 'mood') return;
+
+      let finalText = text;
+      let finalMood = null;
+
+      if (type === 'mood') {
+        finalMood = mood;
+        finalText = text || '紀錄當下心情...';
+      } else if (time) {
+        if (type === 'schedule') finalText = `${time} ${text}`;
+        else if (type === 'remind') finalText = `${text} (${time} 截止)`;
+      }
+
+      handleUpdateEvent({
+        ...editingEvent,
+        type,
+        text: finalText,
+        date,
+        member,
+        mood: finalMood
+      });
+    };
+
     return (
       <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
         <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-3xl rounded-b-none shadow-2xl flex flex-col animate-in slide-in-from-bottom-full duration-300">
           <div className="p-6 relative" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 32px)' }}>
             <button onClick={() => setEditingEvent(null)} className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
-            <h3 className="text-[20px] font-bold text-[#2C2A28] tracking-wide mb-5 border-b border-[#E3DFD5] border-dashed pb-4">手札內容管理</h3>
-            <div className="space-y-4 mb-6">
+            
+            <div className="flex items-center gap-2.5 mb-5 border-b border-[#E3DFD5] border-dashed pb-4">
+              <div className="w-9 h-9 rounded-lg bg-[#2C2A28] flex items-center justify-center shadow-md"><PenLine size={18} className="text-[#FBF9F6]" strokeWidth={2.5} /></div>
+              <span className="text-[20px] font-bold text-[#2C2A28] tracking-wide">編輯記事</span>
+            </div>
+
+            <div className="space-y-5 mb-6">
+              <div>
+                <label className="block text-[11px] font-bold text-[#7D7973] mb-2 uppercase tracking-widest">變更分類</label>
+                <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                  {Object.entries(TYPE_CONFIG).filter(([k]) => k !== 'routine').map(([k, v]) => {
+                    const Icon = v.icon;
+                    const isSelected = type === k;
+                    return (
+                      <button 
+                        key={k} onClick={() => { setType(k); if(k!=='schedule'&&k!=='remind') setTime(''); }}
+                        className={`snap-start whitespace-nowrap flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-bold transition-all border ${isSelected ? 'bg-[#2C2A28] text-[#FBF9F6] border-[#2C2A28] shadow-md' : 'bg-[#F2EFE9] text-[#7D7973] border-[#E3DFD5]'}`}
+                      >
+                        <Icon size={14} strokeWidth={isSelected ? 2.5 : 2} /> {v.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">事項內容</label>
-                <textarea value={editingEvent.text} onChange={e => setEditingEvent({...editingEvent, text: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[15px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#7D7973] resize-none h-24" />
+                <input value={text} onChange={(e) => setText(e.target.value)} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-4 py-3.5 text-[15px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#A84C3D] transition-colors" />
               </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">日期</label>
-                  <input type="date" value={editingEvent.date} onChange={e => setEditingEvent({...editingEvent, date: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973]" />
+
+              {type === 'mood' ? (
+                <div className="animate-in fade-in zoom-in-95 duration-200">
+                  <label className="block text-[11px] font-bold text-[#7D7973] mb-2 uppercase tracking-widest">當下心情</label>
+                  <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                    {moodOptions.map(m => (
+                      <button key={m} onClick={() => setMood(m)} className={`snap-start min-w-[44px] h-[44px] rounded-xl flex items-center justify-center text-[22px] transition-all border ${mood === m ? 'bg-[#FBF9F6] border-[#A84C3D] scale-105 shadow-sm' : 'bg-[#F2EFE9] border-[#E3DFD5] grayscale opacity-50'}`}>{m}</button>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">負責人</label>
-                  <select value={editingEvent.member} onChange={e => setEditingEvent({...editingEvent, member: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973] appearance-none">
-                    <option value="全家">全家</option>
-                    {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                  </select>
+              ) : (
+                <div className="space-y-5 animate-in fade-in duration-200">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">日期</label>
+                      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3 py-3 text-[14px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#A84C3D]" />
+                    </div>
+                    {(type === 'schedule' || type === 'remind') && (
+                      <div className="flex-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                        <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">時間 (選填)</label>
+                        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3 py-3 text-[14px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#A84C3D]" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">關聯成員</label>
+                    <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                      {['全家', ...members.map(m => m.name)].map(m => (
+                        <button key={m} onClick={() => setMember(m)} className={`snap-start whitespace-nowrap px-4 py-2 text-[13px] font-bold rounded-xl transition-all border ${member === m ? 'bg-[#2C2A28] text-[#FBF9F6] border-[#2C2A28] shadow-sm' : 'bg-[#F2EFE9] text-[#7D7973] border-[#E3DFD5]'}`}>{m}</button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
-            <div className="flex gap-3 mb-2">
+
+            <div className="flex gap-3">
               <button onClick={() => handleDeleteEvent(editingEvent.id)} className="w-14 h-[52px] bg-[#F2EFE9] text-[#A84C3D] rounded-xl font-bold flex items-center justify-center active:bg-[#E3DFD5] transition-colors"><Trash2 size={20} strokeWidth={2} /></button>
-              <button onClick={() => handleUpdateEvent(editingEvent)} className="flex-1 h-[52px] bg-[#2C2A28] text-[#FBF9F6] rounded-xl text-[15px] font-bold active:scale-[0.98] transition-transform flex items-center justify-center tracking-widest">儲存變更</button>
+              <button onClick={handleSave} disabled={!text.trim() && type !== 'mood'} className="flex-1 h-[52px] bg-[#2C2A28] disabled:bg-[#D1CFC7] text-[#FBF9F6] rounded-xl text-[15px] font-bold active:scale-[0.98] transition-transform flex items-center justify-center tracking-widest">儲存變更</button>
             </div>
           </div>
         </div>
@@ -656,7 +713,6 @@ export default function FamilyHub() {
     if (!isAiModalOpen) return null;
 
     const handleManualSubmit = async () => {
-      // 確保有填寫內容 (心情分類除外，心情可以只發表情)
       if (!text.trim() && type !== 'mood') return;
 
       let finalText = text;
@@ -667,12 +723,10 @@ export default function FamilyHub() {
       if (type === 'mood') {
         finalMood = mood;
         finalText = text || '紀錄當下心情...';
-        // 心情會自動綁定給操作的本人，如果還沒綁定 LINE 則預設為家人
         const me = members.find(m => m.line_user_id === currentUserLineId);
         finalMember = me ? me.name : '家人'; 
-        finalDate = fmtDate(TODAY); // 心情強制記錄在今天
+        finalDate = fmtDate(TODAY);
       } else {
-        // 將時間優雅地組合進文字中
         if (time) {
           if (type === 'schedule') finalText = `${time} ${text}`;
           else if (type === 'remind') finalText = `${text} (${time} 截止)`;
@@ -694,7 +748,6 @@ export default function FamilyHub() {
         }));
         setSelectedDate(finalDate);
         setIsAiModalOpen(false);
-        // 重置表單狀態
         setText(''); setTime(''); setType('todo'); setMember('全家'); setMood('😊');
         showToast('✅ 已存入手札');
       } else {
@@ -714,8 +767,6 @@ export default function FamilyHub() {
             </div>
 
             <div className="space-y-5 mb-6">
-              
-              {/* 🌟 1. 動態分類選擇 (採用橫向滾動的方塊設計) */}
               <div>
                 <label className="block text-[11px] font-bold text-[#7D7973] mb-2 uppercase tracking-widest">選擇分類</label>
                 <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
@@ -736,32 +787,29 @@ export default function FamilyHub() {
                 </div>
               </div>
 
-              {/* 🌟 2. 文字輸入框 */}
               <div>
                 <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">{type === 'mood' ? '想說些什麼？(選填)' : '事項內容'}</label>
                 <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={type === 'mood' ? '今天過得如何...' : '例：去超市買牛奶'} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-4 py-3.5 text-[15px] font-medium text-[#2C2A28] placeholder:text-[#D1CFC7] focus:outline-none focus:border-[#A84C3D] transition-colors" />
               </div>
 
-              {/* 🌟 3. 動態顯示區 (根據分類切換) */}
               {type === 'mood' ? (
                 <div className="animate-in fade-in zoom-in-95 duration-200">
                   <label className="block text-[11px] font-bold text-[#7D7973] mb-2 uppercase tracking-widest">當下心情</label>
                   <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
                     {moodOptions.map(m => (
-                      <button key={m} onClick={() => setMood(m)} className={`snap-start min-w-[44px] h-[44px] rounded-xl flex items-center justify-center text-[22px] transition-all border ${mood === m ? 'bg-[#FBF9F6] border-[#A84C3D] scale-105 shadow-sm' : 'bg-[#F2EFE9] border-[#E3DFD5] grayscale opacity-50 hover:opacity-100 hover:grayscale-0'}`}>{m}</button>
+                      <button key={m} onClick={() => setMood(m)} className={`snap-start min-w-[44px] h-[44px] rounded-xl flex items-center justify-center text-[22px] transition-all border ${mood === m ? 'bg-[#FBF9F6] border-[#A84C3D] scale-105 shadow-sm' : 'bg-[#F2EFE9] border-[#E3DFD5] grayscale opacity-50'}`}>{m}</button>
                     ))}
                   </div>
                 </div>
               ) : (
                 <div className="space-y-5 animate-in fade-in duration-200">
-                <div className="space-y-3">
+                  <div className="flex gap-3">
                     <div>
                       <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">日期</label>
                       <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3 py-3 text-[14px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#A84C3D] transition-colors" />
                     </div>
-                    {/* 只有在「行程」或「提醒」時，時間欄位才會滑順地出現 */}
                     {(type === 'schedule' || type === 'remind') && (
-                      <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="flex-1 animate-in fade-in slide-in-from-top-2 duration-200">
                         <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">時間 (選填)</label>
                         <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3 py-3 text-[14px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#A84C3D] transition-colors" />
                       </div>
@@ -830,7 +878,7 @@ export default function FamilyHub() {
 
               <div className="space-y-2.5 mb-2">
                 {members.length === 0 ? (
-                  <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-xl">尚無建立任何角色</div>
+                  <div className="text-center py-6 text-[#D1CFC7] text-[13px] font-medium border border-dashed border-[#E3DFD5] rounded-xl">尚無建立 any 角色</div>
                 ) : (
                   members.map(m => (
                     <div key={m.id} className="flex justify-between items-center p-3.5 bg-[#F2EFE9] rounded-xl border border-[#E3DFD5]">
@@ -960,7 +1008,7 @@ export default function FamilyHub() {
           className="absolute right-6 w-14 h-14 rounded-xl flex items-center justify-center z-20 active:scale-90 hover:scale-105 shadow-lg bg-[#2C2A28] text-[#FBF9F6] transition-transform"
           style={{ bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))' }}
         >
-          <Sparkles size={22} strokeWidth={1.5} />
+          <Plus size={26} strokeWidth={2.5} />
         </button>
 
         <AiModal />
@@ -983,6 +1031,13 @@ export default function FamilyHub() {
             <span className="text-[10px] font-bold tracking-widest">任務看板</span>
             {activeTab === 'board' && <div className="w-1.5 h-1.5 rounded-md bg-[#A84C3D]"></div>}
           </button>
+
+          <button onClick={() => setActiveTab('weekly')} className={`flex flex-col items-center gap-1.5 w-20 transition-all duration-300 ${activeTab === 'weekly' ? 'text-[#2C2A28] -translate-y-1' : 'text-[#D1CFC7]'}`}>
+            <PenLine size={24} strokeWidth={activeTab === 'weekly' ? 2 : 1.5} />
+            <span className="text-[10px] font-bold tracking-widest">本週手帳</span>
+            {activeTab === 'weekly' && <div className="w-1.5 h-1.5 rounded-md bg-[#A84C3D]"></div>}
+          </button>
+
           <button onClick={() => setActiveTab('routines')} className={`flex flex-col items-center gap-1.5 w-20 transition-all duration-300 ${activeTab === 'routines' ? 'text-[#2C2A28] -translate-y-1' : 'text-[#D1CFC7]'}`}>
             <RotateCw size={24} strokeWidth={activeTab === 'routines' ? 2 : 1.5} />
             <span className="text-[10px] font-bold tracking-widest">週期事務</span>
