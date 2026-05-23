@@ -179,33 +179,22 @@ export default function FamilyHub() {
   };
 
   const handleAiSubmit = async (text) => {
-    let type = 'todo', member = '全家', date = fmtDate(TODAY), mood = null;
+    let type = 'note'; // 預設改為 note (紀錄)
     const lower = text.toLowerCase();
     
     // 優先判斷心情
     for (const [word, emoji] of Object.entries(MOOD_MAP)) { 
-      if (lower.includes(word)) { type = 'mood'; mood = emoji; break; } 
+      if (lower.includes(word)) { type = 'mood'; break; } 
     }
     
-    // 🌟 嚴格遵守 80/20 原則：使用程式碼 Regex 實作「優先級漏斗」
-    // 🌟 AI 降落傘升級：嚴格動作過濾，沒動作就當作留言紀錄
+    // 動作過濾：只有明確包含動作詞才歸類為待辦/其他
     if (type !== 'mood') {
-      if (/前|之前|底前|截止|期限/.test(lower)) {
-        type = 'remind'; 
-      } 
-      else if (/去|約|下班後|打球|美甲|看電影|吃飯|上課|會議|班機/.test(lower)) {
-        type = 'schedule'; 
-      } 
-      else if (/買|採買|超市|補/.test(lower)) {
-        type = 'shop'; 
-      } 
-      else if (/醫|看診|回診|健康|吃藥/.test(lower)) {
-        type = 'health'; 
-      }
-      // 🌟 新增：必須要有實際「動作」才算待辦
-      else if (/處理|寄|領|包裹|整理|設定|做|洗|拿|換/.test(lower)) {
-        type = 'todo';
-      }
+      if (/前|之前|底前|截止|期限/.test(lower)) type = 'remind';
+      else if (/去|約|下班後|打球|美甲|看電影|吃飯|上課|會議|班機/.test(lower)) type = 'schedule';
+      else if (/買|採買|超市|補/.test(lower)) type = 'shop';
+      else if (/醫|看診|回診|健康|吃藥/.test(lower)) type = 'health';
+      else if (/處理|寄|領|包裹|整理|設定|做|洗|拿|換/.test(lower)) type = 'todo';
+    }
       // 🌟 如果什麼動作都沒有 (例如：「老公最棒了」)，就歸為留言紀錄！
       else {
         type = 'note';
