@@ -207,7 +207,56 @@ export default function FamilyHub() {
     if (!error) { setEvents(prev => prev.filter(e => e.id !== eventId)); setEditingEvent(null); showToast('手札已刪除'); }
   };
 
-  const handleNotify = (e) => { e.stopPropagation(); showToast('已發送推播請求至 LINE'); };
+ const handleNotify = async (e, ev) => {
+    e.stopPropagation(); 
+    showToast('發送提醒中...');
+    try {
+      await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: ev.text, member: ev.member, date: ev.date })
+      });
+      showToast('🔔 已發送 LINE 提醒');
+    } catch (err) {
+      showToast('推播失敗，請稍後再試');
+    }
+  };
+
+  const handleToggleDone = async (e, ev) => {
+    e.stopPropagation();
+    const newStatus = !ev.is_done;
+
+    // 先樂觀更新 UI
+    setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, is_done: newStatus } : item));
+
+    const { error } = await supabase.from('events').update({ is_done: newStatus }).eq('id', ev.id);
+    
+    if (!error) {
+      if (newStatus) showToast('✅ 任務已完成');
+      else showToast('取消完成');
+
+      // 週期永動機
+      if (newStatus && ev.is_routine && ev.routine_id) {
+        const routine = routines.find(r => r.id === ev.routine_id);
+        if (routine) {
+          const nextDate = shiftDays(ev.date, routine.interval_days || 30); 
+          const { data: existing } = await supabase.from('events').select('id').eq('routine_id', routine.id).eq('date', nextDate);
+          
+          if (!existing || existing.length === 0) {
+            await supabase.from('events').insert([{
+              title: ev.title, text: ev.text, type: ev.type, member: ev.member,
+              date: nextDate, is_routine: true, routine_id: routine.id, is_done: false
+            }]);
+            showToast(`🔄 已自動排定下次任務：${nextDate}`);
+            fetchSupabaseData(); 
+          }
+        }
+      }
+    } else {
+      setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, is_done: !newStatus } : item));
+      showToast('網路錯誤，請重試');
+    }
+  };
 
   const BoardView = () => {
     const calendarDays = useMemo(() => {
@@ -322,17 +371,31 @@ export default function FamilyHub() {
                     const TypeIcon = TYPE_CONFIG[e.type].icon;
                     return (
                       <div key={e.id} className="relative pl-12 pr-1 group cursor-pointer tap-highlight-transparent" onClick={() => setEditingEvent(e)}>
-                        <div className="absolute left-[8px] top-3.5 w-[26px] h-[26px] rounded-lg bg-[#FBF9F6] border-2 border-[#E3DFD5] flex items-center justify-center shadow-sm z-10" style={{ color: TYPE_CONFIG[e.type].color }}>
-                          {e.type === 'mood' ? <span className="text-[12px] leading-none mb-[1px]">{e.mood}</span> : <TypeIcon size={12} strokeWidth={2.5} />}
+                        
+                        {/* 🌟 打卡按鈕 (取代原本純展示的 Icon) */}
+                        <div 
+                          className={`absolute left-[8px] top-3.5 w-[26px] h-[26px] rounded-lg border-2 flex items-center justify-center shadow-sm z-20 transition-all active:scale-90 ${e.is_done ? 'bg-[#566B56] border-[#566B56] text-[#FBF9F6]' : 'bg-[#FBF9F6] border-[#E3DFD5]'}`} 
+                          onClick={(event) => handleToggleDone(event, e)}
+                        >
+                          {e.is_done ? <Check size={14} strokeWidth={3} /> : (e.type === 'mood' ? <span className="text-[12px] leading-none mb-[1px]">{e.mood}</span> : <TypeIcon size={12} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type].color }} />)}
                         </div>
-                        <div className="bg-[#FBF9F6]/95 backdrop-blur-sm p-4 rounded-xl border border-[#E3DFD5] shadow-sm flex flex-col gap-2.5 active:bg-[#F2EFE9] active:scale-[0.99] transition-all">
+
+                        {/* 任務卡片本體 (完成時會有半透明與灰色濾鏡) */}
+                        <div className={`bg-[#FBF9F6]/95 backdrop-blur-sm p-4 rounded-xl border border-[#E3DFD5] shadow-sm flex flex-col gap-2.5 active:bg-[#F2EFE9] transition-all ${e.is_done ? 'opacity-60 grayscale-[0.3]' : ''}`}>
                           <div className="flex justify-between items-center h-5">
-                            <span className="text-[11px] font-bold tracking-widest uppercase leading-none" style={{ color: TYPE_CONFIG[e.type].color }}>{TYPE_CONFIG[e.type].label}</span>
-                            <button onClick={handleNotify} className="text-[#D1CFC7] hover:text-[#2C2A28] bg-[#F2EFE9] w-7 h-7 flex items-center justify-center rounded-lg transition-colors active:bg-[#E3DFD5] m-0 p-0"><Bell size={13} strokeWidth={2.5} /></button>
+                            <span className={`text-[11px] font-bold tracking-widest uppercase leading-none ${e.is_done ? 'text-[#7D7973]' : ''}`} style={{ color: e.is_done ? undefined : TYPE_CONFIG[e.type].color }}>{TYPE_CONFIG[e.type].label}</span>
+                            
+                            {/* 🌟 真實的推播小鈴鐺 */}
+                            <button onClick={(event) => handleNotify(event, e)} className="text-[#D1CFC7] hover:text-[#A84C3D] bg-[#F2EFE9] w-7 h-7 flex items-center justify-center rounded-lg transition-colors active:bg-[#E3DFD5] m-0 p-0 z-20">
+                              <Bell size={13} strokeWidth={2.5} />
+                            </button>
                           </div>
-                          <div className="text-[15px] font-medium text-[#2C2A28] leading-snug m-0">
+                          
+                          {/* 標題 (完成時加上刪除線) */}
+                          <div className={`text-[15px] font-medium leading-snug m-0 transition-all ${e.is_done ? 'text-[#D1CFC7] line-through' : 'text-[#2C2A28]'}`}>
                             {e.text}
                           </div>
+                          
                           <div className="flex items-center pt-2.5 border-t border-[#E3DFD5]/60 border-dashed m-0">
                             <span className="text-[11px] text-[#7D7973] flex items-center gap-1.5 bg-[#F2EFE9] px-2 py-1 rounded-md leading-none">
                                <div className="w-1.5 h-1.5 rounded-md bg-[#A84C3D]"></div>
