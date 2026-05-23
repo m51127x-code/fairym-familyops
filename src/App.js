@@ -29,6 +29,7 @@ const PALETTE = {
 };
 
 const TYPE_CONFIG = {
+  schedule: { label: '行程', color: '#D4A373', icon: CalendarDays }, // 🌟 新增這行：給行程一個溫暖的大地色
   todo: { label: '待辦', color: PALETTE.todo, icon: Activity },
   shop: { label: '採買', color: PALETTE.shop, icon: ShoppingCart },
   remind: { label: '提醒', color: PALETTE.remind, icon: AlertCircle },
@@ -174,17 +175,35 @@ export default function FamilyHub() {
   const handleAiSubmit = async (text) => {
     let type = 'todo', member = '全家', date = fmtDate(TODAY), mood = null;
     const lower = text.toLowerCase();
-    for (const [word, emoji] of Object.entries(MOOD_MAP)) { if (lower.includes(word)) { type = 'mood'; mood = emoji; break; } }
-    if (type !== 'mood') {
-      if (/買|採買|超市/.test(lower)) type = 'shop';
-      else if (/醫|看診|回診|健康/.test(lower)) type = 'health';
-      else if (/提醒|記得|截止|到期/.test(lower)) type = 'remind';
+    
+    // 優先判斷心情
+    for (const [word, emoji] of Object.entries(MOOD_MAP)) { 
+      if (lower.includes(word)) { type = 'mood'; mood = emoji; break; } 
     }
     
+    // 🌟 嚴格遵守 80/20 原則：使用程式碼 Regex 實作「優先級漏斗」
+    if (type !== 'mood') {
+      if (/前|之前|底前|截止|期限/.test(lower)) {
+        type = 'remind'; // 第一關：抓死線
+      } 
+      else if (/去|約|下班後|打球|美甲|看電影|吃飯|上課|會議|班機/.test(lower)) {
+        type = 'schedule'; // 第二關：抓移動與赴約
+      } 
+      else if (/買|採買|超市|補/.test(lower)) {
+        type = 'shop'; // 第三關：日常採買
+      } 
+      else if (/醫|看診|回診|健康|吃藥/.test(lower)) {
+        type = 'health'; // 第四關：醫療
+      }
+      // 如果都沒中，就會保留預設的 'todo' (待辦)
+    }
+    
+    // 抓取負責人
     for (const m of members) {
       if (lower.includes(m.name.toLowerCase()) || lower.includes(m.role_name.toLowerCase())) { member = m.name; break; }
     }
 
+    // 抓取簡易日期 (複雜日期如"下週三"可由後端 Webhook 處理)
     if (/明天/.test(lower)) date = shiftDays(TODAY, 1);
     else if (/後天/.test(lower)) date = shiftDays(TODAY, 2);
 
