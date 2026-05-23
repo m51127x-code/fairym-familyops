@@ -293,7 +293,7 @@ export default function FamilyHub() {
     const dayEvents = events.filter(e => e.date === selectedDate && (filter === 'all' || e.type === filter));
     const isTodaySelected = selectedDate === fmtDate(TODAY);
     const monthEvents = events.filter(e => e.date.startsWith(fmtDate(currentMonth).substring(0, 7)));
-    const stats = { todo: 0, shop: 0, remind: 0, health: 0, mood: 0 };
+    const stats = { schedule: 0, todo: 0, shop: 0, remind: 0, health: 0, mood: 0, routine: 0 };
     monthEvents.forEach(e => { if(stats[e.type]!==undefined) stats[e.type]++; });
 
     const [animKey, setAnimKey] = useState(Date.now());
@@ -313,7 +313,7 @@ export default function FamilyHub() {
               </div>
             </div>
             
-            <div className="grid grid-cols-5 gap-1.5 pt-3 border-t border-[#E3DFD5] border-dashed relative z-10">
+            <div className="grid grid-cols-4 gap-y-3 gap-x-1.5 pt-4 border-t border-[#E3DFD5] border-dashed relative z-10">
               {Object.keys(TYPE_CONFIG).map(type => (
                 <div key={type} className="flex flex-col items-center justify-center py-2 rounded-lg hover:bg-[#F2EFE9] cursor-pointer transition-colors active:bg-[#E3DFD5]" onClick={() => setFilter(type)}>
                   <span className="text-[18px] font-bold leading-none" style={{ color: stats[type] > 0 ? TYPE_CONFIG[type].color : '#D1CFC7' }}>{stats[type]}</span>
