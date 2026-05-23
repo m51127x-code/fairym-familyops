@@ -208,6 +208,23 @@ export default function FamilyHub() {
   };
 
  const handleNotify = async (e, ev) => {
+    e.stopPropagation(); 
+    showToast('發送提醒中...');
+    try {
+      await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: ev.text, member: ev.member, date: ev.date, type: ev.type, mood: ev.mood })
+      });
+      showToast('🔔 已發送 LINE 提醒');
+    } catch (err) {
+      showToast('推播失敗，請稍後再試');
+    }
+  };
+
+  const handleToggleDone = async (e, ev) => {
+    e.stopPropagation();
+    const newStatus = !ev.is_done;
 
   const handleToggleDone = async (e, ev) => {
     e.stopPropagation();
