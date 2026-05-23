@@ -619,12 +619,12 @@ export default function FamilyHub() {
                 <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">事項內容</label>
                 <textarea value={editingEvent.text} onChange={e => setEditingEvent({...editingEvent, text: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[15px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#7D7973] resize-none h-24" />
               </div>
-              <div className="flex gap-3">
-                <div className="flex-1">
+              <div className="space-y-3">
+                <div>
                   <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">日期</label>
                   <input type="date" value={editingEvent.date} onChange={e => setEditingEvent({...editingEvent, date: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973]" />
                 </div>
-                <div className="flex-1">
+                <div>
                   <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">負責人</label>
                   <select value={editingEvent.member} onChange={e => setEditingEvent({...editingEvent, member: e.target.value})} className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-3.5 text-[14px] text-[#2C2A28] focus:outline-none focus:border-[#7D7973] appearance-none">
                     <option value="全家">全家</option>
@@ -754,14 +754,14 @@ export default function FamilyHub() {
                 </div>
               ) : (
                 <div className="space-y-5 animate-in fade-in duration-200">
-                  <div className="flex gap-3">
-                    <div className="flex-1">
+                <div className="space-y-3">
+                    <div>
                       <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">日期</label>
                       <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3 py-3 text-[14px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#A84C3D] transition-colors" />
                     </div>
                     {/* 只有在「行程」或「提醒」時，時間欄位才會滑順地出現 */}
                     {(type === 'schedule' || type === 'remind') && (
-                      <div className="flex-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                      <div className="animate-in fade-in slide-in-from-top-2 duration-200">
                         <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">時間 (選填)</label>
                         <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3 py-3 text-[14px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#A84C3D] transition-colors" />
                       </div>
