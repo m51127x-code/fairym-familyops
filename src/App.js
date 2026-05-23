@@ -561,8 +561,9 @@ export default function FamilyHub() {
 
 
   return (
-    <div className={`min-h-screen bg-[#DFDCD4] flex justify-center selection:bg-[#E3DFD5] ${hideScrollbar}`} style={{ fontFamily: 'PingFang TC, PingFang SC, sans-serif', fontStyle: 'normal' }}>
-      <div className="w-full max-w-[480px] h-dvh bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
+    // 請將最外層的兩個 div 替換成這樣：
+<div className={`fixed inset-0 bg-[#DFDCD4] flex justify-center overflow-hidden select-none selection:bg-[#E3DFD5] ${hideScrollbar}`} style={{ fontFamily: 'PingFang TC, PingFang SC, sans-serif', fontStyle: 'normal' }}>
+  <div className="w-full max-w-[480px] h-full bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
         
         <header className="flex-none pt-12 pb-3 px-6 flex justify-between items-center z-30 bg-[#F2EFE9]/95 backdrop-blur-xl border-b border-[#E3DFD5] sticky top-0">
           <div>
