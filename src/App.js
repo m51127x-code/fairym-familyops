@@ -372,7 +372,7 @@ export default function FamilyHub() {
                     return (
                       <div key={e.id} className="relative pl-12 pr-1 group cursor-pointer tap-highlight-transparent" onClick={() => setEditingEvent(e)}>
                         
-                        {/* 🌟 打卡按鈕 (取代原本純展示的 Icon) */}
+                        {/* 🌟 這裡就是打卡按鈕！點擊左側的圖示就能完成任務 */}
                         <div 
                           className={`absolute left-[8px] top-3.5 w-[26px] h-[26px] rounded-lg border-2 flex items-center justify-center shadow-sm z-20 transition-all active:scale-90 ${e.is_done ? 'bg-[#566B56] border-[#566B56] text-[#FBF9F6]' : 'bg-[#FBF9F6] border-[#E3DFD5]'}`} 
                           onClick={(event) => handleToggleDone(event, e)}
@@ -380,18 +380,17 @@ export default function FamilyHub() {
                           {e.is_done ? <Check size={14} strokeWidth={3} /> : (e.type === 'mood' ? <span className="text-[12px] leading-none mb-[1px]">{e.mood}</span> : <TypeIcon size={12} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type].color }} />)}
                         </div>
 
-                        {/* 任務卡片本體 (完成時會有半透明與灰色濾鏡) */}
+                        {/* 任務卡片本體 */}
                         <div className={`bg-[#FBF9F6]/95 backdrop-blur-sm p-4 rounded-xl border border-[#E3DFD5] shadow-sm flex flex-col gap-2.5 active:bg-[#F2EFE9] transition-all ${e.is_done ? 'opacity-60 grayscale-[0.3]' : ''}`}>
                           <div className="flex justify-between items-center h-5">
                             <span className={`text-[11px] font-bold tracking-widest uppercase leading-none ${e.is_done ? 'text-[#7D7973]' : ''}`} style={{ color: e.is_done ? undefined : TYPE_CONFIG[e.type].color }}>{TYPE_CONFIG[e.type].label}</span>
                             
-                            {/* 🌟 真實的推播小鈴鐺 */}
+                            {/* 🌟 推播鈴鐺！這裡確保有把卡片資料 (e) 傳給函式 */}
                             <button onClick={(event) => handleNotify(event, e)} className="text-[#D1CFC7] hover:text-[#A84C3D] bg-[#F2EFE9] w-7 h-7 flex items-center justify-center rounded-lg transition-colors active:bg-[#E3DFD5] m-0 p-0 z-20">
                               <Bell size={13} strokeWidth={2.5} />
                             </button>
                           </div>
                           
-                          {/* 標題 (完成時加上刪除線) */}
                           <div className={`text-[15px] font-medium leading-snug m-0 transition-all ${e.is_done ? 'text-[#D1CFC7] line-through' : 'text-[#2C2A28]'}`}>
                             {e.text}
                           </div>
