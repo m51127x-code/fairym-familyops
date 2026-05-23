@@ -207,7 +207,8 @@ export default function FamilyHub() {
     if (!error) { setEvents(prev => prev.filter(e => e.id !== eventId)); setEditingEvent(null); showToast('手札已刪除'); }
   };
 
- const handleNotify = async (e, ev) => {
+  // 🌟 真實推播功能
+  const handleNotify = async (e, ev) => {
     e.stopPropagation(); 
     showToast('發送提醒中...');
     try {
@@ -221,15 +222,12 @@ export default function FamilyHub() {
       showToast('推播失敗，請稍後再試');
     }
   };
+
+  // 🌟 任務打卡功能與週期永動機
   const handleToggleDone = async (e, ev) => {
     e.stopPropagation();
     const newStatus = !ev.is_done;
 
-  const handleToggleDone = async (e, ev) => {
-    e.stopPropagation();
-    const newStatus = !ev.is_done;
-
-    // 先樂觀更新 UI
     setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, is_done: newStatus } : item));
 
     const { error } = await supabase.from('events').update({ is_done: newStatus }).eq('id', ev.id);
@@ -238,7 +236,6 @@ export default function FamilyHub() {
       if (newStatus) showToast('✅ 任務已完成');
       else showToast('取消完成');
 
-      // 週期永動機
       if (newStatus && ev.is_routine && ev.routine_id) {
         const routine = routines.find(r => r.id === ev.routine_id);
         if (routine) {
@@ -375,7 +372,6 @@ export default function FamilyHub() {
                     return (
                       <div key={e.id} className="relative pl-12 pr-1 group cursor-pointer tap-highlight-transparent" onClick={() => setEditingEvent(e)}>
                         
-                        {/* 🌟 這裡就是打卡按鈕！點擊左側的圖示就能完成任務 */}
                         <div 
                           className={`absolute left-[8px] top-3.5 w-[26px] h-[26px] rounded-lg border-2 flex items-center justify-center shadow-sm z-20 transition-all active:scale-90 ${e.is_done ? 'bg-[#566B56] border-[#566B56] text-[#FBF9F6]' : 'bg-[#FBF9F6] border-[#E3DFD5]'}`} 
                           onClick={(event) => handleToggleDone(event, e)}
@@ -383,12 +379,10 @@ export default function FamilyHub() {
                           {e.is_done ? <Check size={14} strokeWidth={3} /> : (e.type === 'mood' ? <span className="text-[12px] leading-none mb-[1px]">{e.mood}</span> : <TypeIcon size={12} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type].color }} />)}
                         </div>
 
-                        {/* 任務卡片本體 */}
                         <div className={`bg-[#FBF9F6]/95 backdrop-blur-sm p-4 rounded-xl border border-[#E3DFD5] shadow-sm flex flex-col gap-2.5 active:bg-[#F2EFE9] transition-all ${e.is_done ? 'opacity-60 grayscale-[0.3]' : ''}`}>
                           <div className="flex justify-between items-center h-5">
                             <span className={`text-[11px] font-bold tracking-widest uppercase leading-none ${e.is_done ? 'text-[#7D7973]' : ''}`} style={{ color: e.is_done ? undefined : TYPE_CONFIG[e.type].color }}>{TYPE_CONFIG[e.type].label}</span>
                             
-                            {/* 🌟 推播鈴鐺！這裡確保有把卡片資料 (e) 傳給函式 */}
                             <button onClick={(event) => handleNotify(event, e)} className="text-[#D1CFC7] hover:text-[#A84C3D] bg-[#F2EFE9] w-7 h-7 flex items-center justify-center rounded-lg transition-colors active:bg-[#E3DFD5] m-0 p-0 z-20">
                               <Bell size={13} strokeWidth={2.5} />
                             </button>
@@ -429,13 +423,11 @@ export default function FamilyHub() {
     );
   };
 
-  // 🌟 修復：全面恢復極簡雜誌風格，去除死板的膠囊按鈕，改回俐落的 rounded-xl
   const EventEditModal = () => {
     if (!editingEvent) return null;
     return (
       <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
         <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-3xl rounded-b-none shadow-2xl flex flex-col animate-in slide-in-from-bottom-full duration-300">
-          {/* 🌟 加入底部墊高空間，避開 Safari 導航列 */}
           <div className="p-6 relative" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 32px)' }}>
             <button onClick={() => setEditingEvent(null)} className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
             <h3 className="text-[20px] font-bold text-[#2C2A28] tracking-wide mb-5 border-b border-[#E3DFD5] border-dashed pb-4">手札內容管理</h3>
@@ -474,7 +466,6 @@ export default function FamilyHub() {
     return (
       <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
         <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-3xl rounded-b-none shadow-2xl flex flex-col animate-in slide-in-from-bottom-full duration-300">
-          {/* 🌟 加入底部墊高空間，避開 Safari 導航列 */}
           <div className="p-6 relative" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 32px)' }}>
             <button onClick={() => setIsAiModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
             <div className="flex items-center gap-2.5 mb-2">
@@ -501,7 +492,6 @@ export default function FamilyHub() {
     return (
       <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
         <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-3xl rounded-b-none shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-full duration-300">
-          {/* 🌟 加入底部墊高空間，避開 Safari 導航列 */}
           <div className="p-6 relative flex flex-col h-full" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 32px)' }}>
             <button onClick={() => setIsMemberModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
             <div className="flex items-center gap-2.5 mb-2">
@@ -511,7 +501,6 @@ export default function FamilyHub() {
             <p className="text-[13px] text-[#7D7973] mb-5 tracking-widest leading-relaxed border-b border-[#E3DFD5] border-dashed pb-4">建立專屬稱謂，以便自動分派任務。</p>
             
             <div className="flex-1 overflow-y-auto pr-1">
-              {/* --- 內容區域維持不變，省略以節省篇幅 --- */}
               {unboundLineUsers.length > 0 && (
                 <div className="mb-4 p-3.5 bg-[#B87A45]/5 border border-[#B87A45]/20 rounded-xl">
                   <p className="text-[11px] font-bold text-[#A84C3D] mb-2.5 flex items-center gap-1.5">
@@ -624,11 +613,9 @@ export default function FamilyHub() {
     );
   };
 
-
   return (
-    // 請將最外層的兩個 div 替換成這樣：
-<div className={`fixed inset-0 bg-[#DFDCD4] flex justify-center overflow-hidden select-none selection:bg-[#E3DFD5] ${hideScrollbar}`} style={{ fontFamily: 'PingFang TC, PingFang SC, sans-serif', fontStyle: 'normal' }}>
-  <div className="w-full max-w-[480px] h-full bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
+    <div className={`fixed inset-0 bg-[#DFDCD4] flex justify-center overflow-hidden select-none selection:bg-[#E3DFD5] ${hideScrollbar}`} style={{ fontFamily: 'PingFang TC, PingFang SC, sans-serif', fontStyle: 'normal' }}>
+      <div className="w-full max-w-[480px] h-full bg-[#F2EFE9] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
         
         <header className="flex-none pt-12 pb-3 px-6 flex justify-between items-center z-30 bg-[#F2EFE9]/95 backdrop-blur-xl border-b border-[#E3DFD5] sticky top-0">
           <div>
@@ -664,7 +651,6 @@ export default function FamilyHub() {
           {activeTab === 'board' ? <BoardView /> : <RoutinesView />}
         </main>
 
-        {/* 🌟 修復設計細節：精準的 AI 按鈕懸浮定位，完美避開安全距離 */}
         <button 
           onClick={() => setIsAiModalOpen(true)} 
           className="absolute right-6 w-14 h-14 rounded-xl flex items-center justify-center z-20 active:scale-90 hover:scale-105 shadow-lg bg-[#2C2A28] text-[#FBF9F6] transition-transform"
@@ -684,7 +670,6 @@ export default function FamilyHub() {
           </div>
         )}
 
-        {/* 🌟 修復設計細節：保留 70px 基礎固定高度 + 安全距離，讓導航列在任何裝置都完美貼合底部 */}
         <nav 
           className="absolute bottom-0 left-0 w-full bg-[#FBF9F6]/95 backdrop-blur-2xl border-t border-[#E3DFD5] z-10 flex justify-around items-start pt-3 px-2"
           style={{ height: 'calc(70px + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
