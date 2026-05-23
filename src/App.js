@@ -29,14 +29,20 @@ const PALETTE = {
 };
 
 const TYPE_CONFIG = {
-  schedule: { label: '行程', color: '#D4A373', icon: CalendarDays }, // 🌟 新增這行：給行程一個溫暖的大地色
+  schedule: { label: '行程', color: '#D4A373', icon: CalendarDays },
+  remind: { label: '提醒', color: PALETTE.remind, icon: AlertCircle },
   todo: { label: '待辦', color: PALETTE.todo, icon: Activity },
   shop: { label: '採買', color: PALETTE.shop, icon: ShoppingCart },
-  remind: { label: '提醒', color: PALETTE.remind, icon: AlertCircle },
   health: { label: '健康', color: PALETTE.health, icon: HeartPulse },
-  mood: { label: '心情', color: PALETTE.mood, icon: Smile },
   routine: { label: '週期', color: PALETTE.inkMuted, icon: RotateCw },
+  mood: { label: '心情', color: PALETTE.mood, icon: Smile },
+  note: { label: '紀錄', color: '#9CA3AF', icon: PenLine }, // 🌟 新增：專門用來放純文字留言
 };
+
+const PRIORITY = { remind: 1, schedule: 2, todo: 3, shop: 4, health: 5, routine: 6, mood: 7, note: 8 };
+
+// 🌟 新增這行：定義系統排序的緊急度 (數字越小越上面)
+const PRIORITY = { remind: 1, schedule: 2, todo: 3, shop: 4, health: 5, routine: 6, mood: 7, note: 8 };
 
 const HOLIDAYS = { '2026-05-01':'勞動節', '2026-06-19':'端午節', '2026-09-25':'中秋節', '2026-10-10':'國慶日' };
 const MOOD_MAP = { '開心':'😊', '快樂':'😄', '累':'😴', '煩':'😤', '難過':'😢', '期待':'🥰', '放鬆':'😌', '不錯':'🙂' };
@@ -182,20 +188,28 @@ export default function FamilyHub() {
     }
     
     // 🌟 嚴格遵守 80/20 原則：使用程式碼 Regex 實作「優先級漏斗」
+    // 🌟 AI 降落傘升級：嚴格動作過濾，沒動作就當作留言紀錄
     if (type !== 'mood') {
       if (/前|之前|底前|截止|期限/.test(lower)) {
-        type = 'remind'; // 第一關：抓死線
+        type = 'remind'; 
       } 
       else if (/去|約|下班後|打球|美甲|看電影|吃飯|上課|會議|班機/.test(lower)) {
-        type = 'schedule'; // 第二關：抓移動與赴約
+        type = 'schedule'; 
       } 
       else if (/買|採買|超市|補/.test(lower)) {
-        type = 'shop'; // 第三關：日常採買
+        type = 'shop'; 
       } 
       else if (/醫|看診|回診|健康|吃藥/.test(lower)) {
-        type = 'health'; // 第四關：醫療
+        type = 'health'; 
       }
-      // 如果都沒中，就會保留預設的 'todo' (待辦)
+      // 🌟 新增：必須要有實際「動作」才算待辦
+      else if (/處理|寄|領|包裹|整理|設定|做|洗|拿|換/.test(lower)) {
+        type = 'todo';
+      }
+      // 🌟 如果什麼動作都沒有 (例如：「老公最棒了」)，就歸為留言紀錄！
+      else {
+        type = 'note';
+      }
     }
     
     // 抓取負責人
@@ -290,7 +304,12 @@ export default function FamilyHub() {
       return days;
     }, [currentMonth, events]);
 
-    const dayEvents = events.filter(e => e.date === selectedDate && (filter === 'all' || e.type === filter));
+    const dayEvents = events
+      .filter(e => e.date === selectedDate && (filter === 'all' || e.type === filter))
+      .sort((a, b) => {
+        if (a.is_done !== b.is_done) return a.is_done ? 1 : -1; // 已完成的自動沉降到底部
+        return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99); // 依照緊急度排序
+      });
     const isTodaySelected = selectedDate === fmtDate(TODAY);
     const monthEvents = events.filter(e => e.date.startsWith(fmtDate(currentMonth).substring(0, 7)));
     const stats = { schedule: 0, todo: 0, shop: 0, remind: 0, health: 0, mood: 0, routine: 0 };
@@ -429,8 +448,170 @@ export default function FamilyHub() {
       </div>
     );
   };
+// 🌟 👇👇 從這裡開始複製並貼在 RoutinesView 的正上方 👇👇 🌟
+  const WeeklyPlannerView = () => {
+    const weekDays = useMemo(() => {
+      const days = [];
+      const curr = new Date(selectedDate); 
+      const first = curr.getDate() - curr.getDay(); 
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(curr.setDate(first + i));
+        const dateStr = fmtDate(d);
+        days.push({
+          dateStr,
+          dayOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()],
+          dateNum: d.getDate(),
+          events: events.filter(e => e.date === dateStr).sort((a,b) => {
+              if(a.is_done !== b.is_done) return a.is_done ? 1 : -1;
+              return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
+          })
+        });
+      }
+      return days;
+    }, [selectedDate, events]);
 
+    return (
+      <div className="px-6 pb-32 pt-6 animate-in fade-in duration-300">
+        <div className="flex items-end justify-between mb-10 pb-4 border-b-2 border-[#2C2A28]">
+          <h2 className="text-[32px] font-bold text-[#2C2A28] leading-none tracking-wider">Weekly<br/>Planner</h2>
+          <span className="text-[12px] font-bold text-[#7D7973] tracking-[0.2em] uppercase">本週手帳</span>
+        </div>
+
+        <div className="space-y-10">
+          {weekDays.map((day) => (
+            <div key={day.dateStr} className="relative">
+              <div className="flex items-baseline gap-3 mb-5">
+                <span className={`text-[26px] font-bold leading-none ${day.dateStr === fmtDate(TODAY) ? 'text-[#A84C3D]' : 'text-[#2C2A28]'}`}>{day.dateNum}</span>
+                <span className={`text-[11px] font-bold tracking-[0.2em] uppercase ${day.dateStr === fmtDate(TODAY) ? 'text-[#A84C3D]' : 'text-[#7D7973]'}`}>{day.dayOfWeek}</span>
+                {day.dateStr === fmtDate(TODAY) && <span className="ml-auto text-[9px] bg-[#A84C3D] text-[#FBF9F6] px-2 py-0.5 rounded-sm tracking-[0.2em] uppercase">Today</span>}
+              </div>
+
+              {day.events.length === 0 ? (
+                <div className="pl-12 text-[12px] text-[#D1CFC7] font-medium tracking-widest italic">這天是一張白紙...</div>
+              ) : (
+                <div className="space-y-4 pl-12 border-l border-[#E3DFD5] ml-2 relative">
+                  {day.events.map(e => {
+                    const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
+                    return (
+                      <div key={e.id} className="relative group cursor-pointer tap-highlight-transparent" onClick={() => setEditingEvent(e)}>
+                        
+                        {e.is_done && (
+                          <div className="absolute -right-2 -top-1 transform rotate-[-10deg] opacity-80 pointer-events-none z-10 animate-in zoom-in-75 duration-300">
+                            <div className="border-[1.5px] border-[#A84C3D] text-[#A84C3D] text-[10px] font-bold px-2 py-0.5 tracking-widest">DONE</div>
+                          </div>
+                        )}
+
+                        <div className={`flex items-start gap-4 transition-all ${e.is_done ? 'opacity-40 grayscale-[0.8]' : ''}`}>
+                          <div className="mt-[3px]" onClick={(event) => handleToggleDone(event, e)}>
+                            {e.is_done ? <Check size={14} className="text-[#A84C3D]" strokeWidth={3}/> : <TypeIcon size={14} className="text-[#D1CFC7]" />}
+                          </div>
+                          <div className="flex-1 pb-4 border-b border-[#E3DFD5] border-dashed">
+                            <span className={`text-[15px] font-medium leading-snug block mb-2 ${e.is_done ? 'line-through text-[#7D7973]' : 'text-[#2C2A28]'}`}>{e.text}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-[#7D7973] uppercase tracking-[0.2em]">{TYPE_CONFIG[e.type]?.label}</span>
+                              <span className="w-1 h-1 rounded-full bg-[#D1CFC7]"></span>
+                              <span className="text-[10px] font-medium text-[#7D7973] tracking-wider">{e.member}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+  // 🌟 👆👆 貼到這裡結束 👆👆 🌟
   const RoutinesView = () => {
+    const RoutinesView = () => {
+    const [isAdding, setIsAdding] = useState(false);
+    const [newName, setNewName] = useState('');
+    const [newInterval, setNewInterval] = useState(30);
+
+    const handleAddRoutine = async () => {
+      if (!newName.trim()) return;
+      const { data, error } = await supabase.from('routines').insert([{
+        name: newName,
+        interval_days: newInterval,
+      }]).select();
+      
+      if (!error && data) {
+        setRoutines(prev => [...prev, data[0]]);
+        setIsAdding(false);
+        setNewName('');
+        setNewInterval(30);
+        showToast('✅ 週期事務已建立');
+      } else {
+        showToast('❌ 建立失敗，請重試');
+      }
+    };
+
+    const handleDeleteRoutine = async (id) => {
+      if (window.confirm('確定要刪除這個週期設定嗎？未來的任務將不再自動產生。')) {
+        const { error } = await supabase.from('routines').delete().eq('id', id);
+        if (!error) {
+          setRoutines(prev => prev.filter(r => r.id !== id));
+          showToast('🗑️ 週期事務已刪除');
+        }
+      }
+    };
+
+    return (
+      <div className="px-6 pb-32 pt-6 animate-in fade-in duration-300">
+        <div className="flex items-end justify-between mb-8 pb-4 border-b-2 border-[#2C2A28]">
+          <h2 className="text-[32px] font-bold text-[#2C2A28] leading-none tracking-wider">Routine<br/>Tasks</h2>
+          <span className="text-[12px] font-bold text-[#7D7973] tracking-[0.2em] uppercase">週期設定</span>
+        </div>
+
+        <div className="space-y-4">
+          {routines.length === 0 && !isAdding ? (
+            <div className="bg-[#FBF9F6]/80 backdrop-blur-sm border border-[#E3DFD5] border-dashed rounded-xl p-10 text-center flex flex-col items-center justify-center shadow-sm">
+              <RotateCw size={28} strokeWidth={1.5} className="text-[#D1CFC7] mb-3" />
+              <p className="text-[#7D7973] text-[14px] tracking-widest font-medium m-0">目前沒有週期事務</p>
+            </div>
+          ) : (
+            routines.map(r => (
+              <div key={r.id} className="bg-[#FBF9F6] p-5 rounded-xl border border-[#E3DFD5] shadow-sm flex justify-between items-center group transition-all hover:border-[#D1CFC7]">
+                <div>
+                  <div className="text-[16px] font-bold text-[#2C2A28] mb-1.5">{r.name}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-[#7D7973] uppercase tracking-widest bg-[#F2EFE9] px-2 py-1 rounded-md">每 {r.interval_days} 天執行</span>
+                  </div>
+                </div>
+                <button onClick={() => handleDeleteRoutine(r.id)} className="text-[#D1CFC7] hover:text-[#A84C3D] w-8 h-8 flex items-center justify-center rounded-lg bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><Trash2 size={16} strokeWidth={2.5} /></button>
+              </div>
+            ))
+          )}
+        </div>
+
+        {!isAdding ? (
+          <button onClick={() => setIsAdding(true)} className="w-full mt-6 py-4 border-2 border-dashed border-[#E3DFD5] text-[#7D7973] rounded-xl flex items-center justify-center gap-2 font-bold text-[13px] hover:bg-[#F2EFE9] transition-colors tracking-widest active:scale-[0.99]"><Plus size={18} strokeWidth={2.5} /> 新增週期事務</button>
+        ) : (
+          <div className="mt-6 bg-[#F2EFE9] p-5 rounded-xl border border-[#E3DFD5] space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div>
+              <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">事務名稱</label>
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="例：更換冷氣濾網" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-4 py-3.5 text-[14px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">執行週期 (天)</label>
+              <div className="relative">
+                <input type="number" value={newInterval} onChange={e => setNewInterval(Number(e.target.value))} min="1" className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl pl-4 pr-10 py-3.5 text-[14px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#566B56]" />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[14px] font-bold text-[#7D7973]">天</span>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button onClick={() => { setIsAdding(false); setNewName(''); setNewInterval(30); }} className="flex-[1] h-[48px] bg-[#E3DFD5] text-[#7D7973] rounded-xl flex items-center justify-center text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest">取消</button>
+              <button onClick={handleAddRoutine} disabled={!newName.trim() || newInterval < 1} className="flex-[2] h-[48px] bg-[#2C2A28] disabled:bg-[#D1CFC7] disabled:text-[#FBF9F6] text-[#FBF9F6] rounded-xl flex items-center justify-center gap-2 text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest"><Check size={16} strokeWidth={3} /> 確認建立</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
     return (
       <div className="px-5 pb-32 pt-2 animate-in fade-in duration-300">
         <h2 className="text-[22px] font-bold text-[#2C2A28] tracking-wide mb-6 px-1">週期事務追蹤</h2>
@@ -480,22 +661,143 @@ export default function FamilyHub() {
   };
 
   const AiModal = () => {
-    const [input, setInput] = useState('');
+    const [text, setText] = useState('');
+    const [type, setType] = useState('todo');
+    const [date, setDate] = useState(fmtDate(TODAY));
+    const [time, setTime] = useState('');
+    const [member, setMember] = useState('全家');
+    const [mood, setMood] = useState('😊');
+
+    const moodOptions = ['😊', '😄', '🥰', '😌', '🙂', '😴', '😢', '😤'];
+
     if (!isAiModalOpen) return null;
+
+    const handleManualSubmit = async () => {
+      // 確保有填寫內容 (心情分類除外，心情可以只發表情)
+      if (!text.trim() && type !== 'mood') return;
+
+      let finalText = text;
+      let finalMood = null;
+      let finalMember = member;
+      let finalDate = date;
+
+      if (type === 'mood') {
+        finalMood = mood;
+        finalText = text || '紀錄當下心情...';
+        // 心情會自動綁定給操作的本人，如果還沒綁定 LINE 則預設為家人
+        const me = members.find(m => m.line_user_id === currentUserLineId);
+        finalMember = me ? me.name : '家人'; 
+        finalDate = fmtDate(TODAY); // 心情強制記錄在今天
+      } else {
+        // 將時間優雅地組合進文字中
+        if (time) {
+          if (type === 'schedule') finalText = `${time} ${text}`;
+          else if (type === 'remind') finalText = `${text} (${time} 截止)`;
+        }
+      }
+
+      const { data, error } = await supabase.from('events').insert([{ 
+        date: finalDate, 
+        type, 
+        text: finalText, 
+        member: finalMember, 
+        mood: finalMood 
+      }]).select();
+
+      if (!error && data) {
+        setEvents(prev => [...prev, data[0]].sort((a, b) => {
+          if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
+          return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
+        }));
+        setSelectedDate(finalDate);
+        setIsAiModalOpen(false);
+        // 重置表單狀態
+        setText(''); setTime(''); setType('todo'); setMember('全家'); setMood('😊');
+        showToast('✅ 已存入手札');
+      } else {
+        showToast('❌ 儲存失敗');
+      }
+    };
+
     return (
       <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex items-end justify-center bg-[#2C2A28]/40 backdrop-blur-sm p-0 transition-opacity">
         <div className="bg-[#FBF9F6] w-full max-w-[480px] rounded-t-3xl rounded-b-none shadow-2xl flex flex-col animate-in slide-in-from-bottom-full duration-300">
           <div className="p-6 relative" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 32px)' }}>
             <button onClick={() => setIsAiModalOpen(false)} className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-[#7D7973] bg-[#F2EFE9] active:bg-[#E3DFD5] transition-colors"><X size={18} strokeWidth={2}/></button>
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-9 h-9 rounded-lg bg-[#2C2A28] flex items-center justify-center shadow-md"><Sparkles size={16} className="text-[#FBF9F6]" strokeWidth={2} /></div>
-              <span className="text-[20px] font-bold text-[#2C2A28] tracking-wide">AI 手札助理</span>
+            
+            <div className="flex items-center gap-2.5 mb-5 border-b border-[#E3DFD5] border-dashed pb-4">
+              <div className="w-9 h-9 rounded-lg bg-[#2C2A28] flex items-center justify-center shadow-md"><PenLine size={18} className="text-[#FBF9F6]" strokeWidth={2.5} /></div>
+              <span className="text-[20px] font-bold text-[#2C2A28] tracking-wide">建立記事</span>
             </div>
-            <p className="text-[13px] text-[#7D7973] mb-6 tracking-widest leading-relaxed">寫下生活瑣事，自動蓋上時間與分類章。</p>
-            <div className="relative mb-2">
-              <textarea autoFocus value={input} onChange={(e) => setInput(e.target.value)} placeholder="「明天要去超市買鮮奶，爸爸負責」" className="w-full bg-[#F2EFE9] border border-[#E3DFD5] rounded-xl p-5 pb-16 text-[16px] font-medium text-[#2C2A28] placeholder:text-[#D1CFC7] focus:outline-none focus:border-[#7D7973] resize-none h-40"></textarea>
-              <button onClick={() => { if(input.trim()) handleAiSubmit(input); }} disabled={!input.trim()} className="absolute right-3 bottom-3 bg-[#2C2A28] disabled:bg-[#E3DFD5] disabled:text-[#7D7973] text-[#FBF9F6] py-2.5 px-6 rounded-lg shadow-sm flex items-center gap-2 text-[14px] font-bold transition-all active:scale-95 disabled:scale-100 tracking-widest">寫入</button>
+
+            <div className="space-y-5 mb-6">
+              
+              {/* 🌟 1. 動態分類選擇 (採用橫向滾動的方塊設計) */}
+              <div>
+                <label className="block text-[11px] font-bold text-[#7D7973] mb-2 uppercase tracking-widest">選擇分類</label>
+                <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                  {Object.entries(TYPE_CONFIG).filter(([k]) => k !== 'routine').map(([k, v]) => {
+                    const Icon = v.icon;
+                    const isSelected = type === k;
+                    return (
+                      <button 
+                        key={k} 
+                        onClick={() => { setType(k); setTime(''); }}
+                        className={`snap-start whitespace-nowrap flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-bold transition-all border ${isSelected ? 'bg-[#2C2A28] text-[#FBF9F6] border-[#2C2A28] shadow-md' : 'bg-[#F2EFE9] text-[#7D7973] border-[#E3DFD5]'}`}
+                      >
+                        <Icon size={14} strokeWidth={isSelected ? 2.5 : 2} />
+                        {v.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* 🌟 2. 文字輸入框 */}
+              <div>
+                <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">{type === 'mood' ? '想說些什麼？(選填)' : '事項內容'}</label>
+                <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={type === 'mood' ? '今天過得如何...' : '例：去超市買牛奶'} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-4 py-3.5 text-[15px] font-medium text-[#2C2A28] placeholder:text-[#D1CFC7] focus:outline-none focus:border-[#A84C3D] transition-colors" />
+              </div>
+
+              {/* 🌟 3. 動態顯示區 (根據分類切換) */}
+              {type === 'mood' ? (
+                <div className="animate-in fade-in zoom-in-95 duration-200">
+                  <label className="block text-[11px] font-bold text-[#7D7973] mb-2 uppercase tracking-widest">當下心情</label>
+                  <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                    {moodOptions.map(m => (
+                      <button key={m} onClick={() => setMood(m)} className={`snap-start min-w-[44px] h-[44px] rounded-xl flex items-center justify-center text-[22px] transition-all border ${mood === m ? 'bg-[#FBF9F6] border-[#A84C3D] scale-105 shadow-sm' : 'bg-[#F2EFE9] border-[#E3DFD5] grayscale opacity-50 hover:opacity-100 hover:grayscale-0'}`}>{m}</button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-5 animate-in fade-in duration-200">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">日期</label>
+                      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3 py-3 text-[14px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#A84C3D] transition-colors" />
+                    </div>
+                    {/* 只有在「行程」或「提醒」時，時間欄位才會滑順地出現 */}
+                    {(type === 'schedule' || type === 'remind') && (
+                      <div className="flex-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                        <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">時間 (選填)</label>
+                        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full bg-[#FBF9F6] border border-[#E3DFD5] rounded-xl px-3 py-3 text-[14px] font-medium text-[#2C2A28] focus:outline-none focus:border-[#A84C3D] transition-colors" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#7D7973] mb-1.5 uppercase tracking-widest">關聯成員</label>
+                    <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                      {['全家', ...members.map(m => m.name)].map(m => (
+                        <button key={m} onClick={() => setMember(m)} className={`snap-start whitespace-nowrap px-4 py-2 text-[13px] font-bold rounded-xl transition-all border ${member === m ? 'bg-[#2C2A28] text-[#FBF9F6] border-[#2C2A28] shadow-sm' : 'bg-[#F2EFE9] text-[#7D7973] border-[#E3DFD5]'}`}>{m}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+
+            <button onClick={handleManualSubmit} disabled={!text.trim() && type !== 'mood'} className="w-full h-[52px] bg-[#2C2A28] disabled:bg-[#D1CFC7] disabled:text-[#FBF9F6] text-[#FBF9F6] rounded-xl flex items-center justify-center gap-2 text-[15px] font-bold active:scale-[0.98] transition-transform tracking-widest"><Check size={18} strokeWidth={3} /> 儲存記事</button>
           </div>
         </div>
       </div>
@@ -667,7 +969,7 @@ export default function FamilyHub() {
         )}
 
         <main className={`flex-1 overflow-y-auto overflow-x-hidden relative z-10 scroll-smooth ${hideScrollbar}`}>
-          {activeTab === 'board' ? <BoardView /> : <RoutinesView />}
+          {activeTab === 'board' ? <BoardView /> : activeTab === 'weekly' ? <WeeklyPlannerView /> : <RoutinesView />}
         </main>
 
         <button 
