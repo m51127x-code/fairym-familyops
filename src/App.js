@@ -192,11 +192,8 @@ export default function FamilyHub() {
       else if (/買|採買|超市|補/.test(lower)) type = 'shop';
       else if (/醫|看診|回診|健康|吃藥/.test(lower)) type = 'health';
       else if (/處理|寄|領|包裹|整理|設定|做|洗|拿|換/.test(lower)) type = 'todo';
-    }
       // 🌟 如果什麼動作都沒有 (例如：「老公最棒了」)，就歸為留言紀錄！
-      else {
-        type = 'note';
-      }
+      // (預設值已在上方設為 'note'，無需額外 else)
     }
     
     // 抓取負責人
