@@ -39,8 +39,6 @@ const TYPE_CONFIG = {
   note: { label: '紀錄', color: '#9CA3AF', icon: PenLine }, // 🌟 新增：專門用來放純文字留言
 };
 
-const PRIORITY = { remind: 1, schedule: 2, todo: 3, shop: 4, health: 5, routine: 6, mood: 7, note: 8 };
-
 // 🌟 新增這行：定義系統排序的緊急度 (數字越小越上面)
 const PRIORITY = { remind: 1, schedule: 2, todo: 3, shop: 4, health: 5, routine: 6, mood: 7, note: 8 };
 
@@ -320,9 +318,8 @@ export default function FamilyHub() {
                 <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))} className="p-1.5 border border-[#E3DFD5] rounded-lg text-[#7D7973] hover:bg-[#F2EFE9] active:scale-90 transition-all flex items-center justify-center"><ChevronRight size={16} strokeWidth={2}/></button>
               </div>
             </div>
-            
-            <div className="grid grid-cols-4 gap-y-3 gap-x-1.5 pt-4 border-t border-[#E3DFD5] border-dashed relative z-10">
-              {Object.keys(TYPE_CONFIG).map(type => (
+
+<div className="grid grid-cols-4 gap-y-3 gap-x-1.5 pt-4 border-t border-[#E3DFD5] border-dashed relative z-10">              {Object.keys(TYPE_CONFIG).map(type => (
                 <div key={type} className="flex flex-col items-center justify-center py-2 rounded-lg hover:bg-[#F2EFE9] cursor-pointer transition-colors active:bg-[#E3DFD5]" onClick={() => setFilter(type)}>
                   <span className="text-[18px] font-bold leading-none" style={{ color: stats[type] > 0 ? TYPE_CONFIG[type].color : '#D1CFC7' }}>{stats[type]}</span>
                   <span className="text-[10px] font-medium text-[#7D7973] mt-1.5 leading-none">{TYPE_CONFIG[type].label}</span>
@@ -999,3 +996,4 @@ export default function FamilyHub() {
     </div>
   );
 }
+}}
