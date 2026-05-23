@@ -1,3 +1,29 @@
+/* 將此段加入您的 global.css 或 index.css */
+
+/* 1. 殺掉 iOS 的橡皮筋回彈效應 (Overscroll Bounce) */
+html, body {
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+  background-color: #F2EFE9; /* 讓底色與您的 APP 頂部一致，避免滑動時露出白底 */
+}
+
+/* 2. 殺掉長按選取文字與原生的彈出選單 */
+* {
+  -webkit-touch-callout: none; /* 禁用長按彈出的選單 */
+  -webkit-user-select: none;   /* 禁用文字選取 */
+  user-select: none;
+}
+
+/* 3. 殺掉點擊按鈕時的半透明藍色/灰色閃爍 */
+a, button, div {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 4. 允許需要輸入文字的地方可以正常點擊與選取 */
+input, textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
