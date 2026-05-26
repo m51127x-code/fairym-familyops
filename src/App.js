@@ -473,8 +473,7 @@ export default function FamilyHub() {
     return (
       <div className="px-6 pb-32 pt-6 animate-in fade-in duration-400">
         <div className="flex items-end justify-between mb-10 pb-4 border-b-2 border-[#233142]">
-<h2 className="text-[34px] font-serif-jp font-bold text-[#233142] leading-none pr-2">Weekly<br/><span className="text-[28px] font-serif-jp normal-case tracking-widest">Planner</span></h2>            <span className="text-[11px] font-bold text-[#8E8E93] tracking-[0.2em] uppercase bg-white border border-[#EAEAEA] shadow-sm px-2.5 py-1.5 rounded-lg">本週手帳</span>
-        </div>
+<h2 className="text-[34px] font-editorial italic font-bold text-[#233142] leading-none pr-2">Weekly<br/><span className="text-[28px] font-serif-jp normal-case tracking-widest">Planner</span></h2>        </div>
 
         <div className="space-y-12">
           {weekDays.map((day) => (
@@ -728,8 +727,7 @@ export default function FamilyHub() {
     return (
       <div className="px-5 pb-32 pt-6 animate-in fade-in duration-400 relative min-h-full">
         <div className="flex items-end justify-between mb-8 pb-4 border-b-2 border-[#233142]">
-<h2 className="text-[34px] font-serif-jp font-bold text-[#233142] leading-none pr-2">Routine<br/><span className="text-[28px] font-serif-jp normal-case tracking-widest">Tracker</span></h2>          <span className="text-[11px] font-bold text-[#8E8E93] tracking-[0.2em] uppercase bg-white border border-[#EAEAEA] shadow-sm px-2.5 py-1.5 rounded-lg">進階追蹤</span>
-        </div>
+<h2 className="text-[34px] font-editorial italic font-bold text-[#233142] leading-none pr-2">Routine<br/><span className="text-[28px] font-serif-jp normal-case tracking-widest">Tracker</span></h2>        </div>
 
         <div className="space-y-6">
           {routines.length === 0 && !isAdding ? (
