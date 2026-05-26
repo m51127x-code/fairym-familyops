@@ -445,73 +445,163 @@ export default function FamilyHub() {
   };
 
   // ==============================================================
-  // 2. 本週手帳 (WeeklyPlannerView)
+  // 2. 本週手帳 (WeeklyPlannerView) — redesigned
   // ==============================================================
   const WeeklyPlannerView = () => {
+    const DAY_LABELS_TW = ['日', '一', '二', '三', '四', '五', '六'];
+
     const weekDays = useMemo(() => {
       const days = [];
-      const curr = new Date(selectedDate); 
+      const curr = new Date(selectedDate);
       const dayIndex = curr.getDay() === 0 ? 6 : curr.getDay() - 1;
-      const first = curr.getDate() - dayIndex; 
-      
+      const first = curr.getDate() - dayIndex;
       for (let i = 0; i < 7; i++) {
         const d = new Date(curr.getFullYear(), curr.getMonth(), first + i);
         const dateStr = fmtDate(d);
         days.push({
           dateStr,
-          dayOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()],
+          dayLabel: DAY_LABELS_TW[d.getDay()],
           dateNum: d.getDate(),
+          isToday: dateStr === fmtDate(TODAY),
+          isWeekend: d.getDay() === 0 || d.getDay() === 6,
           events: events.filter(e => e.date === dateStr).sort((a,b) => {
-              if(a.is_done !== b.is_done) return a.is_done ? 1 : -1;
-              return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
+            if(a.is_done !== b.is_done) return a.is_done ? 1 : -1;
+            return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
           })
         });
       }
       return days;
     }, [selectedDate, events]);
 
+    const activeDay = weekDays.find(d => d.dateStr === selectedDate) || weekDays[0];
+    const weekLabel = (() => {
+      const s = new Date(weekDays[0]?.dateStr);
+      const e = new Date(weekDays[6]?.dateStr);
+      return `${s.getMonth()+1}月 ${s.getDate()}日 — ${e.getDate()}日`;
+    })();
+
     return (
-      <div className="px-6 pb-32 pt-6 animate-in fade-in duration-400">
-        <div className="flex items-end justify-between mb-10 pb-4 border-b-2 border-[#233142]">
-<h2 className="text-[34px] font-editorial italic font-bold text-[#233142] leading-none pr-2">Weekly<br/><span className="text-[28px] font-serif-jp normal-case tracking-widest">Planner</span></h2>        </div>
+      <div className="flex flex-col h-full animate-in fade-in duration-300">
+        {/* 週標題 + 月份 */}
+        <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-[#EAEAEA]">
+          <div>
+            <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-[0.25em] font-num mb-0.5">Weekly Planner</p>
+            <h2 className="text-[18px] font-serif-jp font-bold text-[#233142] tracking-wide">{weekLabel}</h2>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setSelectedDate(shiftDays(selectedDate, -7))}
+              className="w-8 h-8 rounded-full bg-white border border-[#EAEAEA] flex items-center justify-center shadow-sm active:scale-90 transition-all">
+              <ChevronLeft size={16} strokeWidth={2.5} className="text-[#8E8E93]" />
+            </button>
+            <button onClick={() => setSelectedDate(fmtDate(TODAY))}
+              className="px-3 h-8 rounded-full bg-white border border-[#EAEAEA] text-[11px] font-bold text-[#8E8E93] shadow-sm active:scale-90 transition-all tracking-wider">
+              今週
+            </button>
+            <button onClick={() => setSelectedDate(shiftDays(selectedDate, 7))}
+              className="w-8 h-8 rounded-full bg-white border border-[#EAEAEA] flex items-center justify-center shadow-sm active:scale-90 transition-all">
+              <ChevronRight size={16} strokeWidth={2.5} className="text-[#8E8E93]" />
+            </button>
+          </div>
+        </div>
 
-        <div className="space-y-12">
-          {weekDays.map((day) => (
-            <div key={day.dateStr} className="relative">
-              <div className="flex items-baseline gap-3 mb-5">
-                <span className={`text-[28px] font-editorial italic leading-none ${day.dateStr === fmtDate(TODAY) ? 'text-[#D68C7A]' : 'text-[#233142]'}`}>{String(day.dateNum).padStart(2,'0')}</span>
-                <span className={`text-[12px] font-num font-bold tracking-[0.2em] uppercase ${day.dateStr === fmtDate(TODAY) ? 'text-[#D68C7A]' : 'text-[#A0A0A0]'}`}>{day.dayOfWeek}</span>
-                {day.dateStr === fmtDate(TODAY) && <span className="ml-auto text-[9px] bg-[#D68C7A] text-white px-2 py-1 rounded-md tracking-[0.2em] uppercase font-num font-bold shadow-sm">Today</span>}
-              </div>
+        {/* 橫向7天 tab */}
+        <div className="shrink-0 px-3 pt-3 pb-2">
+          <div className="grid grid-cols-7 gap-1">
+            {weekDays.map(day => {
+              const isSelected = day.dateStr === selectedDate;
+              return (
+                <button key={day.dateStr}
+                  onClick={() => setSelectedDate(day.dateStr)}
+                  className={`flex flex-col items-center py-2 rounded-[14px] transition-all active:scale-95 relative
+                    ${isSelected ? 'bg-[#233142] shadow-md' : day.isToday ? 'bg-[#D68C7A]/10' : 'bg-white border border-[#EAEAEA]'}`}>
+                  <span className={`text-[10px] font-bold tracking-wider mb-1
+                    ${isSelected ? 'text-white/70' : day.isWeekend ? 'text-[#D68C7A]' : 'text-[#A0A0A0]'}`}>
+                    {day.dayLabel}
+                  </span>
+                  <span className={`text-[17px] font-editorial italic leading-none
+                    ${isSelected ? 'text-white' : day.isToday ? 'text-[#D68C7A]' : 'text-[#233142]'}`}>
+                    {day.dateNum}
+                  </span>
+                  {/* 事件點 */}
+                  {day.events.length > 0 && (
+                    <div className="flex gap-0.5 mt-1.5 flex-wrap justify-center px-1">
+                      {day.events.slice(0,3).map((ev, i) => (
+                        <div key={i} className="w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: isSelected ? 'rgba(255,255,255,0.6)' : (TYPE_CONFIG[ev.type]?.color || '#A0A0A0') }} />
+                      ))}
+                    </div>
+                  )}
+                  {day.events.length === 0 && <div className="h-4" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-              {day.events.length === 0 ? (
-                <div className="pl-12 text-[13px] text-[#C4C4C4] font-medium tracking-widest italic font-serif-jp">這天是一張白紙...</div>
-              ) : (
-                <div className="space-y-5 pl-10 border-l border-[#EAEAEA] border-dashed ml-3 relative">
-                  {day.events.map(e => {
-                    const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
-                    return (
-                      <div key={e.id} className="relative group cursor-pointer tap-highlight-transparent" onClick={() => setEditingEvent(e)}>
-                        <div className={`flex items-start gap-4 transition-all ${e.is_done ? 'opacity-50 grayscale-[0.5]' : ''}`}>
-                          <div className="mt-1 w-6 h-6 flex items-center justify-center rounded-full bg-white border border-[#EAEAEA] shadow-[0_2px_4px_rgba(0,0,0,0.02)]" onClick={(event) => handleToggleDone(event, e)}>
-                            {e.is_done ? <Check size={12} className="text-[#233142]" strokeWidth={3}/> : <TypeIcon size={12} className="text-[#A0A0A0]" />}
-                          </div>
-                          <div className="flex-1 pb-5 border-b border-[#EAEAEA] border-dashed">
-                            <span className={`text-[16px] font-bold tracking-wide leading-snug block mb-2.5 ${e.is_done ? 'line-through text-[#8E8E93]' : 'text-[#233142]'}`}>{e.text}</span>
-                            <div className="flex items-center gap-2.5">
-                              <span className={`text-[9px] font-bold uppercase tracking-[0.2em] px-2 py-0.5 rounded-md ${TYPE_CONFIG[e.type]?.bg || 'bg-[#F5F5F5] text-[#8E8E93]'}`}>{TYPE_CONFIG[e.type]?.label}</span>
-                              <span className="w-1 h-1 rounded-full bg-[#D1CFC7]"></span>
-                              <span className="text-[11px] font-medium text-[#8E8E93] tracking-widest">{e.member}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+        {/* 選中日事件清單 */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scroll px-5 pb-28 pt-1">
+          {/* 日期大標 */}
+          <div className="flex items-baseline gap-2 py-3 mb-2">
+            <span className={`text-[40px] font-editorial italic leading-none ${activeDay?.isToday ? 'text-[#D68C7A]' : 'text-[#233142]'}`}>
+              {activeDay?.dateNum}
+            </span>
+            <span className="text-[14px] font-serif-jp font-bold text-[#8E8E93]">
+              {activeDay && `（週${activeDay.dayLabel}）`}
+            </span>
+            {activeDay?.isToday && (
+              <span className="ml-1 text-[9px] bg-[#D68C7A] text-white px-2 py-1 rounded-md tracking-[0.2em] uppercase font-num font-bold shadow-sm">Today</span>
+            )}
+            {holidays[selectedDate] && (
+              <span className="text-[9px] text-white bg-[#D68C7A] px-2 py-1 rounded-md tracking-widest font-bold shadow-sm">{holidays[selectedDate]}</span>
+            )}
+          </div>
+
+          {activeDay?.events.length === 0 ? (
+            <div className="flex flex-col items-center justify-center pt-12 pb-6">
+              <Leaf size={28} strokeWidth={1.5} className="text-[#D1CFC7] mb-3" />
+              <p className="text-[#C4C4C4] text-[13px] font-medium tracking-widest italic font-serif-jp">這天是一張白紙...</p>
+              <button onClick={() => { setIsAiModalOpen(true); }}
+                className="mt-4 flex items-center gap-2 px-4 py-2 bg-white border border-dashed border-[#D1CFC7] rounded-[14px] text-[12px] font-bold text-[#A0A0A0] active:scale-95 transition-all">
+                <Plus size={14} strokeWidth={2.5} /> 新增事項
+              </button>
             </div>
-          ))}
+          ) : (
+            <div className="relative">
+              <div className="absolute left-[19px] top-2 bottom-2 z-0" style={{ width: '1px', borderLeft: '1.5px dashed #E3DFD5' }} />
+              <div className="space-y-3 relative">
+                {activeDay.events.map(e => {
+                  const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
+                  return (
+                    <div key={e.id} className={`relative pl-[44px] group cursor-pointer active:scale-[0.99] transition-all ${e.is_done ? 'opacity-50' : ''}`}
+                      onClick={() => setEditingEvent(e)}>
+                      <button onClick={(ev) => handleToggleDone(ev, e)}
+                        className={`absolute left-[7px] top-[12px] w-[26px] h-[26px] rounded-[8px] border flex items-center justify-center z-10 transition-all active:scale-90
+                          ${e.is_done ? 'bg-[#233142] border-[#233142]' : 'bg-white border-[#DDDBD5]'}`}
+                        style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                        {e.is_done
+                          ? <Check size={12} strokeWidth={3} className="text-white" />
+                          : e.type === 'mood'
+                            ? <span style={{ fontSize: 11, lineHeight: 1 }}>{e.mood}</span>
+                            : <TypeIcon size={11} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color }} />}
+                      </button>
+                      <div className="bg-white px-4 py-3 rounded-[16px] border border-[#EAEAEA] shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[9px] font-bold tracking-[0.18em] uppercase"
+                            style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
+                            {TYPE_CONFIG[e.type]?.label}
+                          </span>
+                          <span className="text-[11px] text-[#C4C4C4]">{e.member}</span>
+                        </div>
+                        <p className={`text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}>
+                          {e.text}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -649,15 +739,23 @@ export default function FamilyHub() {
                   r.logs.map(log => (
                     <div key={log.id} className="bg-[#F9F8F6] border border-[#EAEAEA] p-3.5 rounded-[16px] shadow-[0_2px_4px_rgba(0,0,0,0.01)]">
                       {editingLogId === log.id ? (
-                        <div className="flex flex-col gap-2">
-                           <div className="flex gap-2">
-                              <input type="date" value={editDate} onChange={e=>setEditDate(e.target.value)} className="bg-white border border-[#EAEAEA] text-[12px] font-bold p-2.5 rounded-xl text-[#233142] outline-none focus:border-[#233142]"/>
-                              <input autoFocus value={editNote} onChange={e=>setEditNote(e.target.value)} placeholder="備註..." className="flex-1 bg-white border border-[#EAEAEA] text-[13px] p-2.5 rounded-xl text-[#233142] outline-none focus:border-[#233142]"/>
-                           </div>
-                           <div className="flex justify-end gap-2 mt-1">
-                              <button onClick={() => setEditingLogId(null)} className="text-[11px] font-bold text-[#8E8E93] px-4 py-2 bg-[#EAEAEA]/50 rounded-xl hover:bg-[#EAEAEA] transition-colors tracking-widest">取消</button>
-                              <button onClick={handleUpdateLog} className="text-[11px] font-bold text-white px-4 py-2 bg-[#233142] rounded-xl shadow-sm tracking-widest">儲存</button>
-                           </div>
+                        <div className="flex flex-col gap-2.5">
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#8E8E93] mb-1 uppercase tracking-widest">日期</label>
+                            <input type="date" value={editDate} onChange={e=>setEditDate(e.target.value)}
+                              className="w-full bg-white border border-[#EAEAEA] text-[13px] font-bold p-2.5 rounded-xl text-[#233142] outline-none focus:border-[#233142]"
+                              style={{ boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#8E8E93] mb-1 uppercase tracking-widest">備註</label>
+                            <input value={editNote} onChange={e=>setEditNote(e.target.value)} placeholder="備註..."
+                              className="w-full bg-white border border-[#EAEAEA] text-[13px] p-2.5 rounded-xl text-[#233142] outline-none focus:border-[#233142]"
+                              style={{ boxSizing: 'border-box' }} />
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => setEditingLogId(null)} className="flex-1 text-[11px] font-bold text-[#8E8E93] px-3 py-2 bg-[#EAEAEA]/50 rounded-xl hover:bg-[#EAEAEA] transition-colors tracking-widest">取消</button>
+                            <button onClick={handleUpdateLog} className="flex-[2] text-[11px] font-bold text-white px-3 py-2 bg-[#233142] rounded-xl shadow-sm tracking-widest active:scale-[0.98]">儲存</button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex justify-between items-start gap-3">
@@ -678,14 +776,26 @@ export default function FamilyHub() {
                 {!isAddingLog ? (
                   <button onClick={() => setIsAddingLog(true)} className="w-full py-3 mt-3 border border-dashed border-[#A0A0A0] text-[#8E8E93] rounded-[16px] text-[12px] font-bold tracking-widest hover:bg-[#F9F8F6] transition-colors flex items-center justify-center gap-1.5 active:scale-[0.98]"><Plus size={14}/> 補登歷史紀錄</button>
                 ) : (
-                  <div className="bg-white border border-[#EAEAEA] p-3.5 rounded-[16px] flex flex-col gap-3 mt-3 shadow-md animate-in zoom-in-95 duration-200">
-                    <div className="flex gap-2">
-                        <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} className="bg-[#F9F8F6] border border-[#EAEAEA] text-[12px] font-bold p-2.5 rounded-xl text-[#233142] outline-none focus:border-[#233142]"/>
-                        <input autoFocus value={logNote} onChange={e => setLogNote(e.target.value)} onKeyDown={e => { if(e.key === 'Enter') handleLogRoutine(logNote, logDate); }} placeholder="輸入備註..." className="flex-1 bg-[#F9F8F6] border border-[#EAEAEA] text-[13px] p-2.5 rounded-xl text-[#233142] outline-none focus:border-[#233142]" />
+                  <div className="bg-white border border-[#EAEAEA] p-4 rounded-[16px] flex flex-col gap-3 mt-3 shadow-md animate-in zoom-in-95 duration-200">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#8E8E93] mb-1.5 uppercase tracking-widest">日期</label>
+                      <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)}
+                        className="w-full bg-[#F9F8F6] border border-[#EAEAEA] text-[14px] font-bold p-3 rounded-[12px] text-[#233142] outline-none focus:border-[#233142]"
+                        style={{ boxSizing: 'border-box' }} />
                     </div>
-                    <div className="flex justify-end gap-2 mt-1">
-                        <button onClick={() => { setIsAddingLog(false); setLogNote(''); setLogDate(fmtDate(TODAY)); }} className="text-[11px] font-bold text-[#8E8E93] px-4 py-2 bg-[#F9F8F6] rounded-xl hover:bg-[#EAEAEA] transition-colors tracking-widest">取消</button>
-                        <button onClick={() => handleLogRoutine(logNote, logDate)} className="text-[11px] font-bold text-white px-4 py-2 bg-[#233142] rounded-xl shadow-sm tracking-widest">加入紀錄</button>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#8E8E93] mb-1.5 uppercase tracking-widest">備註（選填）</label>
+                      <input value={logNote} onChange={e => setLogNote(e.target.value)}
+                        onKeyDown={e => { if(e.key === 'Enter') handleLogRoutine(logNote, logDate); }}
+                        placeholder="輸入備註..."
+                        className="w-full bg-[#F9F8F6] border border-[#EAEAEA] text-[14px] p-3 rounded-[12px] text-[#233142] outline-none focus:border-[#233142]"
+                        style={{ boxSizing: 'border-box' }} />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => { setIsAddingLog(false); setLogNote(''); setLogDate(fmtDate(TODAY)); }}
+                        className="flex-1 text-[12px] font-bold text-[#8E8E93] py-2.5 bg-[#F9F8F6] rounded-[12px] hover:bg-[#EAEAEA] transition-colors tracking-widest">取消</button>
+                      <button onClick={() => handleLogRoutine(logNote, logDate)}
+                        className="flex-[2] text-[12px] font-bold text-white py-2.5 bg-[#233142] rounded-[12px] shadow-sm tracking-widest active:scale-[0.98]">加入紀錄</button>
                     </div>
                   </div>
                 )}
@@ -750,14 +860,18 @@ export default function FamilyHub() {
               <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">任務名稱</label>
               <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="例：定期保養車子" className={inputStyle} />
             </div>
-            <div className="flex gap-4">
-              <div className="flex-[1.5]">
-                <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">上次完成日</label>
-                <input type="date" value={newLastDate} onChange={e => setNewLastDate(e.target.value)} className={inputStyle} />
-              </div>
-              <div className="flex-1">
-                <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">間隔 (天)</label>
-                <input type="number" value={newInterval} onChange={e => setNewInterval(Number(e.target.value))} min="1" className={inputStyle} />
+            <div>
+              <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">上次完成日</label>
+              <input type="date" value={newLastDate} onChange={e => setNewLastDate(e.target.value)}
+                className={inputStyle} style={{ boxSizing: 'border-box', width: '100%' }} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">間隔天數</label>
+              <div className="flex items-center gap-3">
+                <input type="number" value={newInterval} onChange={e => setNewInterval(Number(e.target.value))} min="1"
+                  className="w-28 bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] outline-none"
+                  style={{ boxSizing: 'border-box' }} />
+                <span className="text-[14px] font-bold text-[#8E8E93]">天</span>
               </div>
             </div>
             <div className="flex gap-3 pt-3">
@@ -810,103 +924,115 @@ export default function FamilyHub() {
       handleUpdateEvent({ ...editingEvent, type, text: finalText, date, member, mood: finalMood });
     };
 
+    const isOtherDate = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
+
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm transition-opacity" onClick={() => setEditingEvent(null)}>
-        <div className="bg-[#F9F8F6] w-full max-w-[480px] max-h-[85vh] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-x-hidden" onClick={e => e.stopPropagation()}>
-          <DragHeader className="px-6 pb-2 border-b border-[#EAEAEA]">
-             <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#233142] flex items-center justify-center shadow-md"><PenLine size={20} className="text-white" strokeWidth={2} /></div>
-                  <span className="text-[22px] font-serif-jp font-bold text-[#233142] tracking-widest">編輯記事</span>
-                </div>
-                <button onClick={() => setEditingEvent(null)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 hover:bg-[#D0D0D0]/80 active:scale-90 transition-all"><X size={18} strokeWidth={2.5}/></button>
-             </div>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => setEditingEvent(null)}>
+        <div
+          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-hidden"
+          style={{ maxHeight: 'calc(92dvh - env(safe-area-inset-bottom, 0px))' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <DragHeader className="px-5 pb-2 border-b border-[#EAEAEA] shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#233142] flex items-center justify-center shadow-md"><PenLine size={18} className="text-white" strokeWidth={2} /></div>
+                <span className="text-[20px] font-serif-jp font-bold text-[#233142] tracking-widest">編輯記事</span>
+              </div>
+              <button onClick={() => setEditingEvent(null)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 active:scale-90 transition-all"><X size={18} strokeWidth={2.5}/></button>
+            </div>
           </DragHeader>
 
-          <div className="px-6 pt-6 pb-[calc(24px+env(safe-area-inset-bottom))] overflow-y-auto flex-1 hide-scroll">
-            <div className="space-y-6 mb-8">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scroll px-5 pt-5" style={{ paddingBottom: '8px' }}>
+            <div className="space-y-5">
+              {/* 分類 */}
               <div>
-                <label className="block text-[11px] font-bold text-[#8E8E93] mb-3 uppercase tracking-widest">變更分類</label>
-                <div className={`flex gap-3 overflow-x-auto pb-2 snap-x ${hideScrollbar}`}>
+                <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">變更分類</label>
+                <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
                   {Object.entries(TYPE_CONFIG).filter(([k]) => k !== 'routine').map(([k, v]) => {
                     const Icon = v.icon; const isSelected = type === k;
                     return (
-                      <button key={k} onClick={() => { setType(k); if(k!=='schedule'&&k!=='remind') setTime(''); }} className={`snap-start whitespace-nowrap flex items-center gap-2 px-4 py-3 rounded-[16px] text-[13px] font-bold transition-all border ${isSelected ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm hover:bg-[#F9F8F6]'}`}>
-                        <Icon size={16} strokeWidth={isSelected ? 2.5 : 2} /> {v.label}
+                      <button key={k} onClick={() => { setType(k); if(k!=='schedule'&&k!=='remind') setTime(''); }}
+                        className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-[12px] text-[12px] font-bold transition-all border ${isSelected ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>
+                        <Icon size={14} strokeWidth={isSelected ? 2.5 : 2} /> {v.label}
                       </button>
-                    )
+                    );
                   })}
                 </div>
               </div>
 
+              {/* 內容 */}
               <div>
-                <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">事項內容</label>
+                <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">事項內容</label>
                 <input value={text} onChange={(e) => setText(e.target.value)} className={inputStyle} />
               </div>
 
               {type === 'mood' ? (
-                <div className="animate-in fade-in zoom-in-95 duration-200">
-                  <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">當下心情</label>
-                  <div className={`flex gap-3 overflow-x-auto pb-2 snap-x ${hideScrollbar}`}>
+                <div>
+                  <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">當下心情</label>
+                  <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
                     {moodOptions.map(m => (
-                      <button key={m} onClick={() => setMood(m)} className={`snap-start min-w-[52px] h-[52px] rounded-[16px] flex items-center justify-center text-[24px] transition-all border ${mood === m ? 'bg-white border-[#D68C7A] scale-105 shadow-[0_4px_12px_rgba(214,140,122,0.15)]' : 'bg-[#EAEAEA]/40 border-transparent grayscale opacity-50'}`}>{m}</button>
+                      <button key={m} onClick={() => setMood(m)}
+                        className={`snap-start shrink-0 w-[48px] h-[48px] rounded-[14px] flex items-center justify-center text-[22px] transition-all border ${mood === m ? 'bg-white border-[#D68C7A] scale-105 shadow-[0_4px_12px_rgba(214,140,122,0.15)]' : 'bg-[#EAEAEA]/40 border-transparent grayscale opacity-50'}`}>{m}
+                      </button>
                     ))}
                   </div>
                 </div>
               ) : (
-                <div className="space-y-5 animate-in fade-in duration-200">
-  <div>
-    <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">日期</label>
-    <div className="grid grid-cols-4 gap-2">
-      {[
-        { label: '今天', offset: 0 },
-        { label: '明天', offset: 1 },
-        { label: '後天', offset: 2 },
-        { label: '其他', offset: null },
-      ].map(({ label, offset }) => {
-        const ds = offset !== null ? shiftDays(TODAY, offset) : null;
-        const isOtherSelected = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
-        const isSelected = offset !== null ? date === ds : isOtherSelected;
-        return (
-          <button key={label}
-            onClick={() => { if(offset !== null) setDate(ds); else { const el = document.getElementById('edit-date-input'); if(el) { el.style.display='block'; el.focus(); el.click(); } } }}
-            className={`py-2.5 rounded-[12px] text-[13px] font-bold border transition-all active:scale-95
-              ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-            {label}
-          </button>
-        );
-      })}
-    </div>
-    <input id="edit-date-input" type="date" value={date} onChange={e => { setDate(e.target.value); e.target.style.display='none'; }}
-      style={{ display: 'none', maxWidth: '100%', boxSizing: 'border-box' }}
-      className="mt-2 w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] outline-none" />
-    {date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2) && (
-      <p className="text-[12px] font-bold text-[#D68C7A] mt-2 pl-1">{date}</p>
-    )}
-  </div>
-  {(type === 'schedule' || type === 'remind') && (
-    <div className="animate-in fade-in duration-200">
-      <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">時間（選填）</label>
-      <input type="time" value={time} onChange={e => setTime(e.target.value)}
-        style={{ maxWidth: '100%', boxSizing: 'border-box' }}
-        className="w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] transition-all outline-none shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]" />
-    </div>
-  )}
-  <div>
-    <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">關聯成員</label>
-                    <div className={`flex gap-3 overflow-x-auto pb-2 snap-x ${hideScrollbar}`}>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest">日期</label>
+                      {(type === 'schedule' || type === 'remind') && (
+                        <label className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest">時間（選填）</label>
+                      )}
+                    </div>
+                    <div className={`grid gap-2 ${(type === 'schedule' || type === 'remind') ? 'grid-cols-[1fr_auto]' : 'grid-cols-1'}`}>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[{ label: '今天', offset: 0 }, { label: '明天', offset: 1 }, { label: '後天', offset: 2 }, { label: '其他', offset: null }].map(({ label, offset }) => {
+                          const ds = offset !== null ? shiftDays(TODAY, offset) : null;
+                          const isSelected = offset !== null ? date === ds : isOtherDate;
+                          return (
+                            <button key={label}
+                              onClick={() => { if (offset !== null) { setDate(ds); } else { const el = document.getElementById('edit-date-input'); if (el) { el.style.display = 'block'; el.focus(); } } }}
+                              className={`py-2 rounded-[10px] text-[12px] font-bold border transition-all active:scale-95 ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {(type === 'schedule' || type === 'remind') && (
+                        <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                          className="w-[110px] shrink-0 bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[10px] px-2 py-2 text-[14px] font-medium text-[#233142] outline-none"
+                          style={{ boxSizing: 'border-box' }} />
+                      )}
+                    </div>
+                    <input id="edit-date-input" type="date" value={date}
+                      onChange={e => { setDate(e.target.value); e.target.style.display = 'none'; }}
+                      style={{ display: 'none', width: '100%', boxSizing: 'border-box' }}
+                      className="mt-2 bg-[#F9F8F6] border border-[#EAEAEA] rounded-[10px] px-3 py-2 text-[14px] text-[#233142] outline-none" />
+                    {isOtherDate && <p className="text-[12px] font-bold text-[#D68C7A] mt-1.5 pl-0.5">{date}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">關聯成員</label>
+                    <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
                       {['全家', ...members.map(m => m.name)].map(m => (
-                        <button key={m} onClick={() => setMember(m)} className={`snap-start whitespace-nowrap px-5 py-3 text-[13px] font-bold rounded-[16px] transition-all border ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm hover:bg-[#F9F8F6]'}`}>{m}</button>
+                        <button key={m} onClick={() => setMember(m)}
+                          className={`snap-start shrink-0 whitespace-nowrap px-4 py-2.5 text-[13px] font-bold rounded-[12px] transition-all border ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>{m}
+                        </button>
                       ))}
                     </div>
                   </div>
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => handleDeleteEvent(editingEvent.id)} className="w-[64px] h-[54px] bg-white text-[#C85A5A] rounded-[16px] font-bold flex items-center justify-center active:scale-95 transition-all shadow-sm border border-[#EAEAEA] hover:bg-[#FDF5F5]"><Trash2 size={20} strokeWidth={2} /></button>
-              <button onClick={handleSave} disabled={!text.trim() && type !== 'mood'} className="flex-1 h-[54px] bg-[#233142] disabled:bg-[#D1CFC7] text-white rounded-[16px] text-[15px] font-bold active:scale-[0.98] transition-transform flex items-center justify-center tracking-widest shadow-[0_4px_16px_rgba(35,49,66,0.2)]">儲存變更</button>
+          <div className="shrink-0 px-5 pt-3 bg-[#F9F8F6] border-t border-[#EAEAEA]" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}>
+            <div className="flex gap-3">
+              <button onClick={() => handleDeleteEvent(editingEvent.id)} className="w-[52px] h-[52px] bg-white text-[#C85A5A] rounded-[14px] font-bold flex items-center justify-center active:scale-95 transition-all shadow-sm border border-[#EAEAEA]"><Trash2 size={18} strokeWidth={2} /></button>
+              <button onClick={handleSave} disabled={!text.trim() && type !== 'mood'} className="flex-1 h-[52px] bg-[#233142] disabled:bg-[#D1CFC7] text-white rounded-[14px] text-[15px] font-bold active:scale-[0.98] transition-transform flex items-center justify-center tracking-widest shadow-[0_4px_16px_rgba(35,49,66,0.2)]">儲存變更</button>
             </div>
           </div>
         </div>
@@ -949,101 +1075,129 @@ export default function FamilyHub() {
       } else { showToast('❌ 儲存失敗'); }
     };
 
+    const isOtherDate = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
+
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm transition-opacity" onClick={() => setIsAiModalOpen(false)}>
-        <div className="bg-[#F9F8F6] w-full max-w-[480px] max-h-[85vh] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-x-hidden" onClick={e => e.stopPropagation()}>
-          <DragHeader className="px-6 pb-2 border-b border-[#EAEAEA]">
-             <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#233142] flex items-center justify-center shadow-md"><PenLine size={20} className="text-white" strokeWidth={2} /></div>
-                  <span className="text-[22px] font-serif-jp font-bold text-[#233142] tracking-widest">建立記事</span>
-                </div>
-                <button onClick={() => setIsAiModalOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 hover:bg-[#D0D0D0]/80 active:scale-90 transition-all"><X size={18} strokeWidth={2.5}/></button>
-             </div>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => setIsAiModalOpen(false)}>
+        <div
+          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-hidden"
+          style={{ maxHeight: 'calc(92dvh - env(safe-area-inset-bottom, 0px))' }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <DragHeader className="px-5 pb-2 border-b border-[#EAEAEA] shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#233142] flex items-center justify-center shadow-md"><PenLine size={18} className="text-white" strokeWidth={2} /></div>
+                <span className="text-[20px] font-serif-jp font-bold text-[#233142] tracking-widest">建立記事</span>
+              </div>
+              <button onClick={() => setIsAiModalOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 active:scale-90 transition-all"><X size={18} strokeWidth={2.5}/></button>
+            </div>
           </DragHeader>
 
-          <div className="px-6 pt-6 pb-[calc(24px+env(safe-area-inset-bottom))] overflow-y-auto flex-1 hide-scroll">
-            <div className="space-y-6 mb-8">
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scroll px-5 pt-5" style={{ paddingBottom: '8px' }}>
+            <div className="space-y-5">
+
+              {/* 分類 */}
               <div>
-                <label className="block text-[11px] font-bold text-[#8E8E93] mb-3 uppercase tracking-widest">選擇分類</label>
-                <div className={`flex gap-3 overflow-x-auto pb-2 snap-x ${hideScrollbar}`}>
+                <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">選擇分類</label>
+                <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
                   {Object.entries(TYPE_CONFIG).filter(([k]) => k !== 'routine').map(([k, v]) => {
                     const Icon = v.icon; const isSelected = type === k;
                     return (
-                      <button key={k} onClick={() => { setType(k); setTime(''); }} className={`snap-start whitespace-nowrap flex items-center gap-2 px-4 py-3 rounded-[16px] text-[13px] font-bold transition-all border ${isSelected ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm hover:bg-[#F9F8F6]'}`}>
-                        <Icon size={16} strokeWidth={isSelected ? 2.5 : 2} /> {v.label}
+                      <button key={k} onClick={() => { setType(k); setTime(''); }}
+                        className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-[12px] text-[12px] font-bold transition-all border ${isSelected ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>
+                        <Icon size={14} strokeWidth={isSelected ? 2.5 : 2} /> {v.label}
                       </button>
-                    )
+                    );
                   })}
                 </div>
               </div>
 
+              {/* 內容 */}
               <div>
-                <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">{type === 'mood' ? '想說些什麼？(選填)' : '事項內容'}</label>
-                <input value={text} onChange={(e) => setText(e.target.value)} placeholder={type === 'mood' ? '今天過得如何...' : '例：去超市買牛奶'} className={inputStyle} />
+                <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">{type === 'mood' ? '想說些什麼？(選填)' : '事項內容'}</label>
+                <input value={text} onChange={(e) => setText(e.target.value)}
+                  placeholder={type === 'mood' ? '今天過得如何...' : '例：去超市買牛奶'}
+                  className={inputStyle} />
               </div>
 
               {type === 'mood' ? (
-                <div className="animate-in fade-in zoom-in-95 duration-200">
-                  <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">當下心情</label>
-                  <div className={`flex gap-3 overflow-x-auto pb-2 snap-x ${hideScrollbar}`}>
+                <div>
+                  <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">當下心情</label>
+                  <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
                     {moodOptions.map(m => (
-                      <button key={m} onClick={() => setMood(m)} className={`snap-start min-w-[52px] h-[52px] rounded-[16px] flex items-center justify-center text-[24px] transition-all border ${mood === m ? 'bg-white border-[#D68C7A] scale-105 shadow-[0_4px_12px_rgba(214,140,122,0.15)]' : 'bg-[#EAEAEA]/40 border-transparent grayscale opacity-50'}`}>{m}</button>
+                      <button key={m} onClick={() => setMood(m)}
+                        className={`snap-start shrink-0 w-[48px] h-[48px] rounded-[14px] flex items-center justify-center text-[22px] transition-all border ${mood === m ? 'bg-white border-[#D68C7A] scale-105 shadow-[0_4px_12px_rgba(214,140,122,0.15)]' : 'bg-[#EAEAEA]/40 border-transparent grayscale opacity-50'}`}>{m}
+                      </button>
                     ))}
                   </div>
                 </div>
               ) : (
-                <div className="space-y-5 animate-in fade-in duration-200">
-  <div>
-    <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">日期</label>
-    <div className="grid grid-cols-4 gap-2">
-      {[
-        { label: '今天', offset: 0 },
-        { label: '明天', offset: 1 },
-        { label: '後天', offset: 2 },
-        { label: '其他', offset: null },
-      ].map(({ label, offset }) => {
-        const ds = offset !== null ? shiftDays(TODAY, offset) : null;
-        const isOtherSelected = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
-        const isSelected = offset !== null ? date === ds : isOtherSelected;
-        return (
-          <button key={label}
-            onClick={() => { if(offset !== null) setDate(ds); else { const el = document.getElementById('ai-date-input'); if(el) { el.style.display='block'; el.focus(); el.click(); } } }}
-            className={`py-2.5 rounded-[12px] text-[13px] font-bold border transition-all active:scale-95
-              ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-            {label}
-          </button>
-        );
-      })}
-    </div>
-    <input id="ai-date-input" type="date" value={date} onChange={e => { setDate(e.target.value); e.target.style.display='none'; }}
-      style={{ display: 'none', maxWidth: '100%', boxSizing: 'border-box' }}
-      className="mt-2 w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] outline-none" />
-    {date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2) && (
-      <p className="text-[12px] font-bold text-[#D68C7A] mt-2 pl-1">{date}</p>
-    )}
-  </div>
-  {(type === 'schedule' || type === 'remind') && (
-    <div className="animate-in fade-in duration-200">
-      <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">時間（選填）</label>
-      <input type="time" value={time} onChange={e => setTime(e.target.value)}
-        style={{ maxWidth: '100%', boxSizing: 'border-box' }}
-        className="w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] transition-all outline-none shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]" />
-    </div>
-  )}
-  <div>
-    <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">關聯成員</label>
-                    <div className={`flex gap-3 overflow-x-auto pb-2 snap-x ${hideScrollbar}`}>
+                <div className="space-y-4">
+                  {/* 日期 + 時間 同一區塊 */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest">日期</label>
+                      {(type === 'schedule' || type === 'remind') && (
+                        <label className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest">時間（選填）</label>
+                      )}
+                    </div>
+                    <div className={`grid gap-2 ${(type === 'schedule' || type === 'remind') ? 'grid-cols-[1fr_auto]' : 'grid-cols-1'}`}>
+                      {/* 日期按鈕群 */}
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[{ label: '今天', offset: 0 }, { label: '明天', offset: 1 }, { label: '後天', offset: 2 }, { label: '其他', offset: null }].map(({ label, offset }) => {
+                          const ds = offset !== null ? shiftDays(TODAY, offset) : null;
+                          const isSelected = offset !== null ? date === ds : isOtherDate;
+                          return (
+                            <button key={label}
+                              onClick={() => { if (offset !== null) { setDate(ds); } else { const el = document.getElementById('ai-date-input'); if (el) { el.style.display = 'block'; el.focus(); } } }}
+                              className={`py-2 rounded-[10px] text-[12px] font-bold border transition-all active:scale-95 ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {/* 時間 input */}
+                      {(type === 'schedule' || type === 'remind') && (
+                        <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                          className="w-[110px] shrink-0 bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[10px] px-2 py-2 text-[14px] font-medium text-[#233142] outline-none"
+                          style={{ boxSizing: 'border-box' }} />
+                      )}
+                    </div>
+                    {/* 隱藏 date picker */}
+                    <input id="ai-date-input" type="date" value={date}
+                      onChange={e => { setDate(e.target.value); e.target.style.display = 'none'; }}
+                      style={{ display: 'none', width: '100%', boxSizing: 'border-box' }}
+                      className="mt-2 bg-[#F9F8F6] border border-[#EAEAEA] rounded-[10px] px-3 py-2 text-[14px] text-[#233142] outline-none" />
+                    {isOtherDate && (
+                      <p className="text-[12px] font-bold text-[#D68C7A] mt-1.5 pl-0.5">{date}</p>
+                    )}
+                  </div>
+
+                  {/* 關聯成員 */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">關聯成員</label>
+                    <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
                       {['全家', ...members.map(m => m.name)].map(m => (
-                        <button key={m} onClick={() => setMember(m)} className={`snap-start whitespace-nowrap px-5 py-3 text-[13px] font-bold rounded-[16px] transition-all border ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm hover:bg-[#F9F8F6]'}`}>{m}</button>
+                        <button key={m} onClick={() => setMember(m)}
+                          className={`snap-start shrink-0 whitespace-nowrap px-4 py-2.5 text-[13px] font-bold rounded-[12px] transition-all border ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>{m}
+                        </button>
                       ))}
                     </div>
                   </div>
                 </div>
               )}
             </div>
+          </div>
 
-            <button onClick={handleManualSubmit} disabled={!text.trim() && type !== 'mood'} className="w-full h-[54px] bg-[#233142] disabled:bg-[#D1CFC7] disabled:text-[#F9F8F6] text-white rounded-[16px] flex items-center justify-center gap-2 text-[15px] font-bold active:scale-[0.98] transition-transform tracking-widest shadow-[0_4px_16px_rgba(35,49,66,0.2)]"><Check size={18} strokeWidth={3} /> 儲存記事</button>
+          {/* Footer button - always visible */}
+          <div className="shrink-0 px-5 pt-3 bg-[#F9F8F6] border-t border-[#EAEAEA]" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}>
+            <button onClick={handleManualSubmit} disabled={!text.trim() && type !== 'mood'}
+              className="w-full h-[52px] bg-[#233142] disabled:bg-[#D1CFC7] disabled:text-[#F9F8F6] text-white rounded-[16px] flex items-center justify-center gap-2 text-[15px] font-bold active:scale-[0.98] transition-transform tracking-widest shadow-[0_4px_16px_rgba(35,49,66,0.2)]">
+              <Check size={18} strokeWidth={3} /> 儲存記事
+            </button>
           </div>
         </div>
       </div>
