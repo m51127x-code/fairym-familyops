@@ -856,21 +856,43 @@ export default function FamilyHub() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-6 animate-in fade-in duration-200">
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">日期</label>
-                      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputStyle} />
-                    </div>
-                    {(type === 'schedule' || type === 'remind') && (
-                      <div className="flex-1 animate-in fade-in slide-in-from-left-2 duration-200">
-                        <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">時間 (選填)</label>
-                        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputStyle} />
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">關聯成員</label>
+                <div className="space-y-5 animate-in fade-in duration-200">
+  <div>
+    <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">日期</label>
+    <div className="grid grid-cols-4 gap-2">
+      {[
+        { label: '今天', offset: 0 },
+        { label: '明天', offset: 1 },
+        { label: '後天', offset: 2 },
+        { label: '其他', offset: null },
+      ].map(({ label, offset }) => {
+        const ds = offset !== null ? shiftDays(TODAY, offset) : null;
+        const isSelected = offset !== null ? date === ds : date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
+        return (
+          <button key={label}
+            onClick={() => { if(offset !== null) setDate(ds); else { const el = document.getElementById('edit-date-input'); if(el) el.showPicker?.() || el.click(); } }}
+            className={`py-2.5 rounded-[12px] text-[13px] font-bold border transition-all active:scale-95
+              ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
+            {label}
+          </button>
+        );
+      })}
+    </div>
+    <input id="edit-date-input" type="date" value={date} onChange={e => setDate(e.target.value)}
+      className="sr-only" tabIndex={-1} />
+    {date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2) && (
+      <p className="text-[12px] font-bold text-[#D68C7A] mt-2 pl-1">{date}</p>
+    )}
+  </div>
+  {(type === 'schedule' || type === 'remind') && (
+    <div className="animate-in fade-in duration-200">
+      <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">時間（選填）</label>
+      <input type="time" value={time} onChange={e => setTime(e.target.value)}
+        className={inputStyle} />
+    </div>
+  )}
+  <div>
+    <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">關聯成員</label>
                     <div className={`flex gap-3 overflow-x-auto pb-2 snap-x ${hideScrollbar}`}>
                       {['全家', ...members.map(m => m.name)].map(m => (
                         <button key={m} onClick={() => setMember(m)} className={`snap-start whitespace-nowrap px-5 py-3 text-[13px] font-bold rounded-[16px] transition-all border ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm hover:bg-[#F9F8F6]'}`}>{m}</button>
@@ -970,21 +992,43 @@ export default function FamilyHub() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-6 animate-in fade-in duration-200">
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">日期</label>
-                      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputStyle} />
-                    </div>
-                    {(type === 'schedule' || type === 'remind') && (
-                      <div className="flex-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">時間 (選填)</label>
-                        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputStyle} />
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">關聯成員</label>
+                <div className="space-y-5 animate-in fade-in duration-200">
+  <div>
+    <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">日期</label>
+    <div className="grid grid-cols-4 gap-2">
+      {[
+        { label: '今天', offset: 0 },
+        { label: '明天', offset: 1 },
+        { label: '後天', offset: 2 },
+        { label: '其他', offset: null },
+      ].map(({ label, offset }) => {
+        const ds = offset !== null ? shiftDays(TODAY, offset) : null;
+        const isSelected = offset !== null ? date === ds : date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
+        return (
+          <button key={label}
+            onClick={() => { if(offset !== null) setDate(ds); else { const el = document.getElementById('ai-date-input'); if(el) el.showPicker?.() || el.click(); } }}
+            className={`py-2.5 rounded-[12px] text-[13px] font-bold border transition-all active:scale-95
+              ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
+            {label}
+          </button>
+        );
+      })}
+    </div>
+    <input id="ai-date-input" type="date" value={date} onChange={e => setDate(e.target.value)}
+      className="sr-only" tabIndex={-1} />
+    {date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2) && (
+      <p className="text-[12px] font-bold text-[#D68C7A] mt-2 pl-1">{date}</p>
+    )}
+  </div>
+  {(type === 'schedule' || type === 'remind') && (
+    <div className="animate-in fade-in duration-200">
+      <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">時間（選填）</label>
+      <input type="time" value={time} onChange={e => setTime(e.target.value)}
+        className={inputStyle} />
+    </div>
+  )}
+  <div>
+    <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">關聯成員</label>
                     <div className={`flex gap-3 overflow-x-auto pb-2 snap-x ${hideScrollbar}`}>
                       {['全家', ...members.map(m => m.name)].map(m => (
                         <button key={m} onClick={() => setMember(m)} className={`snap-start whitespace-nowrap px-5 py-3 text-[13px] font-bold rounded-[16px] transition-all border ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm hover:bg-[#F9F8F6]'}`}>{m}</button>
