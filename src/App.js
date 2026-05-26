@@ -15,6 +15,11 @@ const fmtDate = (date) => {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
+const fmtDateChinese = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+};
 const shiftDays = (date, days) => {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
@@ -445,7 +450,7 @@ export default function FamilyHub() {
   };
 
   // ==============================================================
-  // 2. 本週手帳 (WeeklyPlannerView) — redesigned
+  // 2. 本週手帳 (WeeklyPlannerView) — 全週攤開版
   // ==============================================================
   const WeeklyPlannerView = () => {
     const DAY_LABELS_TW = ['日', '一', '二', '三', '四', '五', '六'];
@@ -462,8 +467,10 @@ export default function FamilyHub() {
           dateStr,
           dayLabel: DAY_LABELS_TW[d.getDay()],
           dateNum: d.getDate(),
+          monthNum: d.getMonth() + 1,
           isToday: dateStr === fmtDate(TODAY),
           isWeekend: d.getDay() === 0 || d.getDay() === 6,
+          holiday: holidays[dateStr] || null,
           events: events.filter(e => e.date === dateStr).sort((a,b) => {
             if(a.is_done !== b.is_done) return a.is_done ? 1 : -1;
             return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
@@ -471,18 +478,19 @@ export default function FamilyHub() {
         });
       }
       return days;
-    }, [selectedDate, events]);
+    }, [selectedDate, events, holidays]);
 
-    const activeDay = weekDays.find(d => d.dateStr === selectedDate) || weekDays[0];
     const weekLabel = (() => {
-      const s = new Date(weekDays[0]?.dateStr);
-      const e = new Date(weekDays[6]?.dateStr);
-      return `${s.getMonth()+1}月 ${s.getDate()}日 — ${e.getDate()}日`;
+      if (!weekDays.length) return '';
+      const s = new Date(weekDays[0].dateStr);
+      const e = new Date(weekDays[6].dateStr);
+      if (s.getMonth() === e.getMonth()) return `${s.getMonth()+1}月 ${s.getDate()}日 — ${e.getDate()}日`;
+      return `${s.getMonth()+1}月${s.getDate()}日 — ${e.getMonth()+1}月${e.getDate()}日`;
     })();
 
     return (
       <div className="flex flex-col h-full animate-in fade-in duration-300">
-        {/* 週標題 + 月份 */}
+        {/* 週標題 */}
         <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-[#EAEAEA]">
           <div>
             <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-[0.25em] font-num mb-0.5">Weekly Planner</p>
@@ -504,104 +512,85 @@ export default function FamilyHub() {
           </div>
         </div>
 
-        {/* 橫向7天 tab */}
-        <div className="shrink-0 px-3 pt-3 pb-2">
-          <div className="grid grid-cols-7 gap-1">
-            {weekDays.map(day => {
-              const isSelected = day.dateStr === selectedDate;
+        {/* 全週攤開 */}
+        <div className={`flex-1 overflow-y-auto overflow-x-hidden px-5 pb-28 pt-4 ${hideScrollbar}`}>
+          <div className="space-y-6">
+            {weekDays.map((day) => {
+              const isRed = day.isWeekend || !!day.holiday;
               return (
-                <button key={day.dateStr}
-                  onClick={() => setSelectedDate(day.dateStr)}
-                  className={`flex flex-col items-center py-2 rounded-[14px] transition-all active:scale-95 relative
-                    ${isSelected ? 'bg-[#233142] shadow-md' : day.isToday ? 'bg-[#D68C7A]/10' : 'bg-white border border-[#EAEAEA]'}`}>
-                  <span className={`text-[10px] font-bold tracking-wider mb-1
-                    ${isSelected ? 'text-white/70' : day.isWeekend ? 'text-[#D68C7A]' : 'text-[#A0A0A0]'}`}>
-                    {day.dayLabel}
-                  </span>
-                  <span className={`text-[17px] font-editorial italic leading-none
-                    ${isSelected ? 'text-white' : day.isToday ? 'text-[#D68C7A]' : 'text-[#233142]'}`}>
-                    {day.dateNum}
-                  </span>
-                  {/* 事件點 */}
-                  {day.events.length > 0 && (
-                    <div className="flex gap-0.5 mt-1.5 flex-wrap justify-center px-1">
-                      {day.events.slice(0,3).map((ev, i) => (
-                        <div key={i} className="w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: isSelected ? 'rgba(255,255,255,0.6)' : (TYPE_CONFIG[ev.type]?.color || '#A0A0A0') }} />
-                      ))}
+                <div key={day.dateStr}>
+                  {/* 每日標題列 */}
+                  <div className="flex items-baseline gap-2 mb-3 pb-2 border-b border-dashed border-[#E3DFD5]">
+                    <span className={`text-[36px] font-editorial italic leading-none ${isRed || day.isToday ? 'text-[#D68C7A]' : 'text-[#233142]'}`}>
+                      {day.dateNum}
+                    </span>
+                    <span className="text-[13px] font-serif-jp font-bold text-[#8E8E93]">週{day.dayLabel}</span>
+                    {day.isToday && (
+                      <span className="text-[9px] bg-[#D68C7A] text-white px-2 py-0.5 rounded-md tracking-[0.2em] uppercase font-num font-bold shadow-sm -translate-y-0.5">Today</span>
+                    )}
+                    {day.holiday && (
+                      <span className="text-[9px] text-white bg-[#D68C7A] px-2 py-0.5 rounded-md tracking-widest font-bold shadow-sm -translate-y-0.5">{day.holiday}</span>
+                    )}
+                    <span className="ml-auto text-[11px] font-num text-[#C4C4C4]">{day.monthNum}/{day.dateNum}</span>
+                  </div>
+
+                  {/* 事件 */}
+                  {day.events.length === 0 ? (
+                    <div className="flex items-center gap-2 py-2 pl-1">
+                      <Leaf size={14} strokeWidth={1.5} className="text-[#D1CFC7]" />
+                      <p className="text-[#C4C4C4] text-[12px] font-medium tracking-widest italic font-serif-jp">這天是一張白紙...</p>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="absolute left-[19px] top-2 bottom-2 z-0"
+                        style={{ width: '1px', borderLeft: '1.5px dashed #E3DFD5' }} />
+                      <div className="space-y-3 relative">
+                        {day.events.map((e) => {
+                          const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
+                          return (
+                            <div key={e.id}
+                              className={`relative pl-[46px] pr-1 group cursor-pointer tap-highlight-transparent active:scale-[0.99] transition-all ${e.is_done ? 'opacity-55 grayscale-[0.2]' : ''}`}
+                              onClick={() => setEditingEvent(e)}>
+                              <button
+                                onClick={(ev) => handleToggleDone(ev, e)}
+                                className={`absolute left-[7px] top-[12px] w-[26px] h-[26px] rounded-[8px] border flex items-center justify-center z-10 transition-all active:scale-90
+                                  ${e.is_done ? 'bg-[#233142] border-[#233142]' : 'bg-white border-[#DDDBD5]'}`}
+                                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                                {e.is_done
+                                  ? <Check size={12} strokeWidth={3} className="text-white" />
+                                  : e.type === 'mood'
+                                    ? <span style={{ fontSize: 11, lineHeight: 1 }}>{e.mood}</span>
+                                    : <TypeIcon size={11} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color }} />
+                                }
+                              </button>
+                              <div className="bg-white px-4 py-3 rounded-[18px] border border-[#EAEAEA] shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase"
+                                    style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
+                                    {TYPE_CONFIG[e.type]?.label}
+                                  </span>
+                                  <Bell size={12} strokeWidth={2} className="text-[#D1CFC7]" onClick={ev => ev.stopPropagation()} />
+                                </div>
+                                <p className={`text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
+                                  style={{ fontFamily: 'Noto Sans TC, PingFang TC, sans-serif', letterSpacing: '0.01em' }}>
+                                  {e.text}
+                                </p>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-[5px] h-[5px] rounded-[2px]"
+                                    style={{ background: e.is_done ? '#D1CFC7' : '#D68C7A' }} />
+                                  <span className="text-[11px] text-[#8E8E93]" style={{ letterSpacing: '0.04em' }}>{e.member}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
-                  {day.events.length === 0 && <div className="h-4" />}
-                </button>
+                </div>
               );
             })}
           </div>
-        </div>
-
-        {/* 選中日事件清單 */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scroll px-5 pb-28 pt-1">
-          {/* 日期大標 */}
-          <div className="flex items-baseline gap-2 py-3 mb-2">
-            <span className={`text-[40px] font-editorial italic leading-none ${activeDay?.isToday ? 'text-[#D68C7A]' : 'text-[#233142]'}`}>
-              {activeDay?.dateNum}
-            </span>
-            <span className="text-[14px] font-serif-jp font-bold text-[#8E8E93]">
-              {activeDay && `（週${activeDay.dayLabel}）`}
-            </span>
-            {activeDay?.isToday && (
-              <span className="ml-1 text-[9px] bg-[#D68C7A] text-white px-2 py-1 rounded-md tracking-[0.2em] uppercase font-num font-bold shadow-sm">Today</span>
-            )}
-            {holidays[selectedDate] && (
-              <span className="text-[9px] text-white bg-[#D68C7A] px-2 py-1 rounded-md tracking-widest font-bold shadow-sm">{holidays[selectedDate]}</span>
-            )}
-          </div>
-
-          {activeDay?.events.length === 0 ? (
-            <div className="flex flex-col items-center justify-center pt-12 pb-6">
-              <Leaf size={28} strokeWidth={1.5} className="text-[#D1CFC7] mb-3" />
-              <p className="text-[#C4C4C4] text-[13px] font-medium tracking-widest italic font-serif-jp">這天是一張白紙...</p>
-              <button onClick={() => { setIsAiModalOpen(true); }}
-                className="mt-4 flex items-center gap-2 px-4 py-2 bg-white border border-dashed border-[#D1CFC7] rounded-[14px] text-[12px] font-bold text-[#A0A0A0] active:scale-95 transition-all">
-                <Plus size={14} strokeWidth={2.5} /> 新增事項
-              </button>
-            </div>
-          ) : (
-            <div className="relative">
-              <div className="absolute left-[19px] top-2 bottom-2 z-0" style={{ width: '1px', borderLeft: '1.5px dashed #E3DFD5' }} />
-              <div className="space-y-3 relative">
-                {activeDay.events.map(e => {
-                  const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
-                  return (
-                    <div key={e.id} className={`relative pl-[44px] group cursor-pointer active:scale-[0.99] transition-all ${e.is_done ? 'opacity-50' : ''}`}
-                      onClick={() => setEditingEvent(e)}>
-                      <button onClick={(ev) => handleToggleDone(ev, e)}
-                        className={`absolute left-[7px] top-[12px] w-[26px] h-[26px] rounded-[8px] border flex items-center justify-center z-10 transition-all active:scale-90
-                          ${e.is_done ? 'bg-[#233142] border-[#233142]' : 'bg-white border-[#DDDBD5]'}`}
-                        style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                        {e.is_done
-                          ? <Check size={12} strokeWidth={3} className="text-white" />
-                          : e.type === 'mood'
-                            ? <span style={{ fontSize: 11, lineHeight: 1 }}>{e.mood}</span>
-                            : <TypeIcon size={11} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color }} />}
-                      </button>
-                      <div className="bg-white px-4 py-3 rounded-[16px] border border-[#EAEAEA] shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[9px] font-bold tracking-[0.18em] uppercase"
-                            style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
-                            {TYPE_CONFIG[e.type]?.label}
-                          </span>
-                          <span className="text-[11px] text-[#C4C4C4]">{e.member}</span>
-                        </div>
-                        <p className={`text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}>
-                          {e.text}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -708,8 +697,8 @@ export default function FamilyHub() {
 
         <div className="mb-6">
           <div className="flex justify-between text-[10px] font-bold text-[#A0A0A0] mb-2.5 uppercase tracking-widest font-num">
-            <span>Last: {status.lastDate}</span>
-            <span>Next: {status.nextDate}</span>
+            <span>上次 {fmtDateChinese(status.lastDate)}</span>
+            <span>下次 {fmtDateChinese(status.nextDate)}</span>
           </div>
           <div className="w-full bg-[#F9F8F6] h-[8px] rounded-full overflow-hidden shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] border border-[#EAEAEA]">
               <div className={`h-full rounded-full transition-all duration-1000 ease-out ${status.daysLeft <= 0 ? 'bg-[#D68C7A]' : isUrgent ? 'bg-[#C49553]' : 'bg-[#233142]'}`} style={{ width: `${status.progress}%` }}></div>
@@ -742,9 +731,15 @@ export default function FamilyHub() {
                         <div className="flex flex-col gap-2.5">
                           <div>
                             <label className="block text-[10px] font-bold text-[#8E8E93] mb-1 uppercase tracking-widest">日期</label>
-                            <input type="date" value={editDate} onChange={e=>setEditDate(e.target.value)}
-                              className="w-full bg-white border border-[#EAEAEA] text-[13px] font-bold p-2.5 rounded-xl text-[#233142] outline-none focus:border-[#233142]"
-                              style={{ boxSizing: 'border-box' }} />
+                            <div className="relative overflow-hidden rounded-xl">
+                              <div
+                                onClick={() => { const el = document.getElementById(`edit-log-date-${log.id}`); if (el) el.showPicker?.() || el.focus(); }}
+                                className="w-full bg-white border border-[#EAEAEA] text-[13px] font-bold p-2.5 rounded-xl text-[#233142] text-center cursor-pointer">
+                                {fmtDateChinese(editDate)}
+                              </div>
+                              <input id={`edit-log-date-${log.id}`} type="date" value={editDate} onChange={e=>setEditDate(e.target.value)}
+                                style={{ position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
+                            </div>
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-[#8E8E93] mb-1 uppercase tracking-widest">備註</label>
@@ -760,7 +755,7 @@ export default function FamilyHub() {
                       ) : (
                         <div className="flex justify-between items-start gap-3">
                           <div className="flex flex-col gap-1.5 flex-1 pl-1">
-                            <span className="text-[11px] font-num font-bold text-[#D68C7A] tracking-widest">{log.date}</span>
+                            <span className="text-[11px] font-num font-bold text-[#D68C7A] tracking-widest">{fmtDateChinese(log.date)}</span>
                             <span className="text-[14px] font-medium text-[#233142] break-words leading-snug">{log.note || <span className="text-[#D1CFC7] italic font-serif-jp text-[13px]">無備註</span>}</span>
                           </div>
                           <div className="flex gap-1.5 shrink-0">
@@ -779,9 +774,15 @@ export default function FamilyHub() {
                   <div className="bg-white border border-[#EAEAEA] p-4 rounded-[16px] flex flex-col gap-3 mt-3 shadow-md animate-in zoom-in-95 duration-200">
                     <div>
                       <label className="block text-[10px] font-bold text-[#8E8E93] mb-1.5 uppercase tracking-widest">日期</label>
-                      <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)}
-                        className="w-full bg-[#F9F8F6] border border-[#EAEAEA] text-[14px] font-bold p-3 rounded-[12px] text-[#233142] outline-none focus:border-[#233142]"
-                        style={{ boxSizing: 'border-box' }} />
+                      <div className="relative overflow-hidden rounded-[12px]">
+                        <div
+                          onClick={() => { const el = document.getElementById(`add-log-date-${r.id}`); if (el) el.showPicker?.() || el.focus(); }}
+                          className="w-full bg-[#F9F8F6] border border-[#EAEAEA] text-[14px] font-bold p-3 rounded-[12px] text-[#233142] text-center cursor-pointer">
+                          {fmtDateChinese(logDate)}
+                        </div>
+                        <input id={`add-log-date-${r.id}`} type="date" value={logDate} onChange={e => setLogDate(e.target.value)}
+                          style={{ position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-[#8E8E93] mb-1.5 uppercase tracking-widest">備註（選填）</label>
@@ -836,8 +837,12 @@ export default function FamilyHub() {
 
     return (
       <div className="px-5 pb-32 pt-6 animate-in fade-in duration-400 relative min-h-full">
-        <div className="flex items-end justify-between mb-8 pb-4 border-b-2 border-[#233142]">
-<h2 className="text-[34px] font-editorial italic font-bold text-[#233142] leading-none pr-2">Routine<br/><span className="text-[28px] font-serif-jp normal-case tracking-widest">Tracker</span></h2>        </div>
+        <div className="flex items-end justify-between mb-8 pb-4 border-b border-[#EAEAEA]">
+          <div>
+            <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-[0.25em] font-num mb-0.5">Routine Tracker</p>
+            <h2 className="text-[34px] font-editorial italic font-bold text-[#233142] leading-none">Routine<br/><span className="text-[28px] font-serif-jp normal-case tracking-widest">Tracker</span></h2>
+          </div>
+        </div>
 
         <div className="space-y-6">
           {routines.length === 0 && !isAdding ? (
@@ -862,8 +867,16 @@ export default function FamilyHub() {
             </div>
             <div>
               <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">上次完成日</label>
-              <input type="date" value={newLastDate} onChange={e => setNewLastDate(e.target.value)}
-                className={inputStyle} style={{ boxSizing: 'border-box', width: '100%' }} />
+              <div className="relative overflow-hidden rounded-[16px]">
+                <div
+                  onClick={() => { const el = document.getElementById('new-routine-date-input'); if (el) el.showPicker?.() || el.focus(); }}
+                  className={`${inputStyle} cursor-pointer text-center`}>
+                  {fmtDateChinese(newLastDate)}
+                </div>
+                <input id="new-routine-date-input" type="date" value={newLastDate}
+                  onChange={e => setNewLastDate(e.target.value)}
+                  style={{ position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
+              </div>
             </div>
             <div>
               <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">間隔天數</label>
