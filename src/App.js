@@ -812,7 +812,7 @@ export default function FamilyHub() {
 
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm transition-opacity" onClick={() => setEditingEvent(null)}>
-        <div className="bg-[#F9F8F6] w-full max-w-[480px] max-h-[85vh] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal" onClick={e => e.stopPropagation()}>
+        <div className="bg-[#F9F8F6] w-full max-w-[480px] max-h-[85vh] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-x-hidden" onClick={e => e.stopPropagation()}>
           <DragHeader className="px-6 pb-2 border-b border-[#EAEAEA]">
              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
@@ -865,10 +865,11 @@ export default function FamilyHub() {
         { label: '其他', offset: null },
       ].map(({ label, offset }) => {
         const ds = offset !== null ? shiftDays(TODAY, offset) : null;
-        const isSelected = offset !== null ? date === ds : date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
+        const isOtherSelected = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
+        const isSelected = offset !== null ? date === ds : isOtherSelected;
         return (
           <button key={label}
-            onClick={() => { if(offset !== null) setDate(ds); else { const el = document.getElementById('edit-date-input'); if(el) el.showPicker?.() || el.click(); } }}
+            onClick={() => { if(offset !== null) setDate(ds); else { const el = document.getElementById('edit-date-input'); if(el) { el.style.display='block'; el.focus(); el.click(); } } }}
             className={`py-2.5 rounded-[12px] text-[13px] font-bold border transition-all active:scale-95
               ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
             {label}
@@ -876,8 +877,9 @@ export default function FamilyHub() {
         );
       })}
     </div>
-    <input id="edit-date-input" type="date" value={date} onChange={e => setDate(e.target.value)}
-      className="sr-only" tabIndex={-1} />
+    <input id="edit-date-input" type="date" value={date} onChange={e => { setDate(e.target.value); e.target.style.display='none'; }}
+      style={{ display: 'none', maxWidth: '100%', boxSizing: 'border-box' }}
+      className="mt-2 w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] outline-none" />
     {date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2) && (
       <p className="text-[12px] font-bold text-[#D68C7A] mt-2 pl-1">{date}</p>
     )}
@@ -886,7 +888,8 @@ export default function FamilyHub() {
     <div className="animate-in fade-in duration-200">
       <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">時間（選填）</label>
       <input type="time" value={time} onChange={e => setTime(e.target.value)}
-        className={inputStyle} />
+        style={{ maxWidth: '100%', boxSizing: 'border-box' }}
+        className="w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] transition-all outline-none shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]" />
     </div>
   )}
   <div>
@@ -913,7 +916,7 @@ export default function FamilyHub() {
 
   const AiModal = () => {
     const [text, setText] = useState('');
-    const [type, setType] = useState('todo');
+    const [type, setType] = useState('schedule');
     const [date, setDate] = useState(fmtDate(TODAY));
     const [time, setTime] = useState('');
     const [member, setMember] = useState('全家');
@@ -941,14 +944,14 @@ export default function FamilyHub() {
           return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
         }));
         setSelectedDate(finalDate); setIsAiModalOpen(false);
-        setText(''); setTime(''); setType('todo'); setMember('全家'); setMood('😊');
+        setText(''); setTime(''); setType('schedule'); setMember('全家'); setMood('😊');
         showToast('✅ 已存入手札');
       } else { showToast('❌ 儲存失敗'); }
     };
 
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm transition-opacity" onClick={() => setIsAiModalOpen(false)}>
-        <div className="bg-[#F9F8F6] w-full max-w-[480px] max-h-[85vh] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal" onClick={e => e.stopPropagation()}>
+        <div className="bg-[#F9F8F6] w-full max-w-[480px] max-h-[85vh] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-x-hidden" onClick={e => e.stopPropagation()}>
           <DragHeader className="px-6 pb-2 border-b border-[#EAEAEA]">
              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
@@ -977,7 +980,7 @@ export default function FamilyHub() {
 
               <div>
                 <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">{type === 'mood' ? '想說些什麼？(選填)' : '事項內容'}</label>
-                <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={type === 'mood' ? '今天過得如何...' : '例：去超市買牛奶'} className={inputStyle} />
+                <input value={text} onChange={(e) => setText(e.target.value)} placeholder={type === 'mood' ? '今天過得如何...' : '例：去超市買牛奶'} className={inputStyle} />
               </div>
 
               {type === 'mood' ? (
@@ -1001,10 +1004,11 @@ export default function FamilyHub() {
         { label: '其他', offset: null },
       ].map(({ label, offset }) => {
         const ds = offset !== null ? shiftDays(TODAY, offset) : null;
-        const isSelected = offset !== null ? date === ds : date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
+        const isOtherSelected = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
+        const isSelected = offset !== null ? date === ds : isOtherSelected;
         return (
           <button key={label}
-            onClick={() => { if(offset !== null) setDate(ds); else { const el = document.getElementById('ai-date-input'); if(el) el.showPicker?.() || el.click(); } }}
+            onClick={() => { if(offset !== null) setDate(ds); else { const el = document.getElementById('ai-date-input'); if(el) { el.style.display='block'; el.focus(); el.click(); } } }}
             className={`py-2.5 rounded-[12px] text-[13px] font-bold border transition-all active:scale-95
               ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
             {label}
@@ -1012,8 +1016,9 @@ export default function FamilyHub() {
         );
       })}
     </div>
-    <input id="ai-date-input" type="date" value={date} onChange={e => setDate(e.target.value)}
-      className="sr-only" tabIndex={-1} />
+    <input id="ai-date-input" type="date" value={date} onChange={e => { setDate(e.target.value); e.target.style.display='none'; }}
+      style={{ display: 'none', maxWidth: '100%', boxSizing: 'border-box' }}
+      className="mt-2 w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] outline-none" />
     {date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2) && (
       <p className="text-[12px] font-bold text-[#D68C7A] mt-2 pl-1">{date}</p>
     )}
@@ -1022,7 +1027,8 @@ export default function FamilyHub() {
     <div className="animate-in fade-in duration-200">
       <label className="block text-[11px] font-bold text-[#8E8E93] mb-2.5 uppercase tracking-widest">時間（選填）</label>
       <input type="time" value={time} onChange={e => setTime(e.target.value)}
-        className={inputStyle} />
+        style={{ maxWidth: '100%', boxSizing: 'border-box' }}
+        className="w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] transition-all outline-none shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]" />
     </div>
   )}
   <div>
