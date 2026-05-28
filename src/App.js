@@ -123,7 +123,135 @@ if (typeof document !== 'undefined' && !document.getElementById('familyhub-style
 // 質感共用輸入框
 const inputStyle = "w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] placeholder:text-[#D1CFC7] transition-all outline-none shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]";
 
-// 彈窗上方拖曳小把手
+// 純按鈕日期/時間選擇器（不用任何 input[type=date/time]，跨平台一致）
+const HOUR_OPTIONS = Array.from({length:24}, (_,i) => String(i).padStart(2,'0'));
+const MIN_OPTIONS = ['00','15','30','45'];
+
+const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
+  const [showCal, setShowCal] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = new Date(date || fmtDate(TODAY));
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+
+  const quickDates = [
+    { label: '今天', d: shiftDays(TODAY, 0) },
+    { label: '明天', d: shiftDays(TODAY, 1) },
+    { label: '後天', d: shiftDays(TODAY, 2) },
+  ];
+  const isQuick = quickDates.some(q => q.d === date);
+
+  // 月曆 grid
+  const calDays = useMemo(() => {
+    const year = calMonth.getFullYear(), month = calMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+    return cells;
+  }, [calMonth]);
+
+  const calLabel = `${calMonth.getFullYear()}年${calMonth.getMonth()+1}月`;
+  const displayDate = date ? fmtDateChinese(date) : '選擇日期';
+  const displayTime = time || '未設定';
+
+  return (
+    <div className="space-y-2">
+      {/* 快選按鈕列 */}
+      <div className="flex gap-1.5">
+        {quickDates.map(q => (
+          <button key={q.label} onClick={() => { setDate(q.d); setShowCal(false); }}
+            className={`flex-1 h-[40px] rounded-[10px] text-[12px] font-bold border transition-all active:scale-95
+              ${date === q.d ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
+            {q.label}
+          </button>
+        ))}
+        <button onClick={() => { setShowCal(v => !v); setShowTimePicker(false); }}
+          className={`flex-1 h-[40px] rounded-[10px] text-[12px] font-bold border transition-all active:scale-95
+            ${showCal || (!isQuick) ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
+          {(!isQuick && date) ? date.slice(5).replace('-', '/') : '其他'}
+        </button>
+      </div>
+
+      {/* 月曆 */}
+      {showCal && (
+        <div className="bg-white border border-[#EAEAEA] rounded-[16px] p-4 shadow-[0_4px_20px_rgba(0,0,0,0.06)] animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth()-1, 1))}
+              className="w-8 h-8 rounded-full bg-[#F9F8F6] flex items-center justify-center active:scale-90"><ChevronLeft size={15} strokeWidth={2.5} className="text-[#8E8E93]"/></button>
+            <span className="text-[13px] font-bold text-[#233142]">{calLabel}</span>
+            <button onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth()+1, 1))}
+              className="w-8 h-8 rounded-full bg-[#F9F8F6] flex items-center justify-center active:scale-90"><ChevronRight size={15} strokeWidth={2.5} className="text-[#8E8E93]"/></button>
+          </div>
+          <div className="grid grid-cols-7 gap-0.5 mb-1">
+            {['日','一','二','三','四','五','六'].map(d => (
+              <div key={d} className="text-center text-[10px] font-bold text-[#C4C4C4] py-1">{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-0.5">
+            {calDays.map((d, i) => {
+              if (!d) return <div key={`e${i}`} />;
+              const ds = fmtDate(d);
+              const isSelected = ds === date;
+              const isToday = ds === fmtDate(TODAY);
+              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+              return (
+                <button key={ds} onClick={() => { setDate(ds); setShowCal(false); }}
+                  className={`aspect-square rounded-[8px] flex items-center justify-center text-[13px] font-bold transition-all active:scale-90
+                    ${isSelected ? 'bg-[#233142] text-white' : isToday ? 'bg-[#D68C7A]/15 text-[#D68C7A]' : isWeekend ? 'text-[#D68C7A] hover:bg-[#F9F8F6]' : 'text-[#233142] hover:bg-[#F9F8F6]'}`}>
+                  {d.getDate()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 時間選擇 */}
+      {showTime && (
+        <div>
+          <button onClick={() => { setShowTimePicker(v => !v); setShowCal(false); }}
+            className={`w-full h-[44px] rounded-[12px] border text-[13px] font-bold flex items-center gap-2 px-4 transition-all
+              ${showTimePicker || time ? 'bg-white border-[#233142] text-[#233142]' : 'bg-[#F9F8F6] border-[#EAEAEA] text-[#8E8E93]'}`}>
+            <Clock size={14} className="shrink-0 text-[#A0A0A0]" />
+            <span>{time ? `${time}` : '設定時間（選填）'}</span>
+            {time && <button className="ml-auto text-[#A0A0A0]" onClick={e => { e.stopPropagation(); setTime(''); }}><X size={13}/></button>}
+          </button>
+          {showTimePicker && (
+            <div className="bg-white border border-[#EAEAEA] rounded-[16px] p-4 mt-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.06)] animate-in fade-in zoom-in-95 duration-150">
+              <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest mb-2">選擇時間</p>
+              <div className="flex gap-2">
+                <div className={`flex-1 overflow-y-auto ${hideScrollbar}`} style={{ maxHeight: 160 }}>
+                  <p className="text-[10px] text-center text-[#C4C4C4] mb-1">時</p>
+                  {HOUR_OPTIONS.map(h => {
+                    const cur = time ? time.split(':')[0] : '';
+                    return (
+                      <button key={h} onClick={() => { const m = time ? time.split(':')[1] || '00' : '00'; setTime(`${h}:${m}`); }}
+                        className={`w-full py-1.5 rounded-[8px] text-[13px] font-bold text-center transition-all ${cur === h ? 'bg-[#233142] text-white' : 'text-[#233142] hover:bg-[#F9F8F6]'}`}>{h}</button>
+                    );
+                  })}
+                </div>
+                <div className="w-px bg-[#EAEAEA]" />
+                <div className="flex-1">
+                  <p className="text-[10px] text-center text-[#C4C4C4] mb-1">分</p>
+                  {MIN_OPTIONS.map(m => {
+                    const cur = time ? time.split(':')[1] : '';
+                    return (
+                      <button key={m} onClick={() => { const h = time ? time.split(':')[0] || '00' : '00'; setTime(`${h}:${m}`); setShowTimePicker(false); }}
+                        className={`w-full py-1.5 rounded-[8px] text-[13px] font-bold text-center transition-all ${cur === m ? 'bg-[#233142] text-white' : 'text-[#233142] hover:bg-[#F9F8F6]'}`}>{m}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 const DragHeader = ({ children, className = '' }) => (
   <div className={`w-full shrink-0 bg-white rounded-t-[32px] ${className}`}>
       <div className="w-full pt-4 pb-3 flex justify-center items-center">
@@ -664,8 +792,10 @@ export default function FamilyHub() {
     const handleLogRoutine = async (noteToSave, dateToSave) => {
       triggerVibration(10);
       const finalNote = noteToSave.trim() || '';
+      // last_done_at 是 timestamptz，需要完整 ISO 格式
+      const isoDate = dateToSave.includes('T') ? dateToSave : `${dateToSave}T00:00:00`;
       const { data, error } = await supabase.from('routine_logs').insert([{
-          routine_name: r.name, last_done_at: dateToSave, note: finalNote
+          routine_name: r.name, last_done_at: isoDate, note: finalNote
       }]).select();
 
       if (!error && data) {
@@ -678,13 +808,14 @@ export default function FamilyHub() {
           }));
           setIsAddingLog(false); setLogNote(''); setLogDate(fmtDate(TODAY));
           showToast(`✅ 紀錄已儲存`);
-      } else { showToast('❌ 紀錄失敗'); }
+      } else { showToast('❌ 紀錄失敗'); console.error('log error:', error); }
     };
 
     const handleUpdateLog = async () => {
       triggerVibration(10);
       const finalNote = editNote.trim() || '';
-      const { error } = await supabase.from('routine_logs').update({ last_done_at: editDate, note: finalNote }).eq('id', editingLogId);
+      const isoDate = editDate.includes('T') ? editDate : `${editDate}T00:00:00`;
+      const { error } = await supabase.from('routine_logs').update({ last_done_at: isoDate, note: finalNote }).eq('id', editingLogId);
       if (!error) {
         setRoutines(prev => prev.map(rt => {
             if (rt.id === r.id) {
@@ -761,8 +892,7 @@ export default function FamilyHub() {
                         <div className="flex flex-col gap-2.5">
                           <div>
                             <label className="block text-[10px] font-bold text-[#8E8E93] mb-1 uppercase tracking-widest">日期</label>
-                            <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
-                              className="date-input" />
+                            <DateTimePicker date={editDate} setDate={setEditDate} time="" setTime={() => {}} showTime={false} />
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-[#8E8E93] mb-1 uppercase tracking-widest">備註</label>
@@ -797,8 +927,7 @@ export default function FamilyHub() {
                   <div className="bg-white border border-[#EAEAEA] p-4 rounded-[16px] flex flex-col gap-3 mt-3 shadow-md animate-in zoom-in-95 duration-200">
                     <div>
                       <label className="block text-[10px] font-bold text-[#8E8E93] mb-1.5 uppercase tracking-widest">日期</label>
-                      <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)}
-                        className="date-input" />
+                      <DateTimePicker date={logDate} setDate={setLogDate} time="" setTime={() => {}} showTime={false} />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-[#8E8E93] mb-1.5 uppercase tracking-widest">備註（選填）</label>
@@ -883,8 +1012,7 @@ export default function FamilyHub() {
             </div>
             <div>
               <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">上次完成日</label>
-              <input type="date" value={newLastDate} onChange={e => setNewLastDate(e.target.value)}
-                className="date-input" />
+              <DateTimePicker date={newLastDate} setDate={setNewLastDate} time="" setTime={() => {}} showTime={false} />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">間隔天數</label>
@@ -1002,41 +1130,8 @@ export default function FamilyHub() {
               ) : (
                 <div className="space-y-4">
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest">日期</label>
-                      {(type === 'schedule' || type === 'remind') && (
-                        <label className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest">時間（選填）</label>
-                      )}
-                    </div>
-                    {/* 日期快選 */}
-                    <div className="grid grid-cols-4 gap-1.5 mb-2">
-                      {[{ label: '今天', offset: 0 }, { label: '明天', offset: 1 }, { label: '後天', offset: 2 }].map(({ label, offset }) => {
-                        const ds = shiftDays(TODAY, offset);
-                        return (
-                          <button key={label} onClick={() => setDate(ds)}
-                            className={`h-[42px] rounded-[10px] text-[12px] font-bold border transition-all active:scale-95 ${date === ds ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-                            {label}
-                          </button>
-                        );
-                      })}
-                      <div className={`h-[42px] rounded-[10px] text-[12px] font-bold border flex items-center justify-center ${isOtherDate ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-                        其他
-                      </div>
-                    </div>
-                    <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                      className="date-input" />
-                    {(type === 'schedule' || type === 'remind') && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <Clock size={14} className="text-[#A0A0A0] shrink-0" />
-                        <input type="time" value={time} onChange={e => setTime(e.target.value)}
-                          className="time-input" />
-                        {time && (
-                          <button onClick={() => setTime('')} className="text-[#A0A0A0] hover:text-[#D68C7A] transition-colors">
-                            <X size={14}/>
-                          </button>
-                        )}
-                      </div>
-                    )}
+                    <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">日期{(type==='schedule'||type==='remind') ? ' & 時間' : ''}</label>
+                    <DateTimePicker date={date} setDate={setDate} time={time} setTime={setTime} showTime={type==='schedule'||type==='remind'} />
                   </div>
 
                   <div>
@@ -1161,45 +1256,10 @@ export default function FamilyHub() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* 日期 + 時間 同一區塊 */}
+                  {/* 日期 + 時間 */}
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest">日期</label>
-                      {(type === 'schedule' || type === 'remind') && (
-                        <label className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest">時間（選填）</label>
-                      )}
-                    </div>
-                    {/* 日期快選 */}
-                    <div className="grid grid-cols-4 gap-1.5 mb-2">
-                      {[{ label: '今天', offset: 0 }, { label: '明天', offset: 1 }, { label: '後天', offset: 2 }].map(({ label, offset }) => {
-                        const ds = shiftDays(TODAY, offset);
-                        return (
-                          <button key={label} onClick={() => setDate(ds)}
-                            className={`h-[42px] rounded-[10px] text-[12px] font-bold border transition-all active:scale-95 ${date === ds ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-                            {label}
-                          </button>
-                        );
-                      })}
-                      <div className={`h-[42px] rounded-[10px] text-[12px] font-bold border flex items-center justify-center ${isOtherDate ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-                        其他
-                      </div>
-                    </div>
-                    {/* 日期 input 直接顯示（點擊觸發原生選擇器） */}
-                    <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                      className="date-input" />
-                    {/* 時間 */}
-                    {(type === 'schedule' || type === 'remind') && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <Clock size={14} className="text-[#A0A0A0] shrink-0" />
-                        <input type="time" value={time} onChange={e => setTime(e.target.value)}
-                          className="time-input" />
-                        {time && (
-                          <button onClick={() => setTime('')} className="text-[#A0A0A0] hover:text-[#D68C7A] transition-colors">
-                            <X size={14}/>
-                          </button>
-                        )}
-                      </div>
-                    )}
+                    <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">日期{(type==='schedule'||type==='remind') ? ' & 時間' : ''}</label>
+                    <DateTimePicker date={date} setDate={setDate} time={time} setTime={setTime} showTime={type==='schedule'||type==='remind'} />
                   </div>
 
                   {/* 關聯成員 */}
