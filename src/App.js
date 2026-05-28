@@ -1187,7 +1187,15 @@ export default function FamilyHub() {
     const handleManualSubmit = async () => {
       if (!text.trim() && type !== 'mood') return;
       let finalText = text; let finalMember = member; let finalDate = date;
-      const insertRow = { date: finalDate, type, text: finalText, member: finalMember };
+      const insertRow = {
+  title: finalText,
+  text: finalText,
+  type,
+  member: finalMember,
+  date: finalDate,
+  time: time || null,
+  is_done: false,
+};
 
       if (type === 'mood') {
         insertRow.mood = mood;
