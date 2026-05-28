@@ -388,13 +388,20 @@ export default function FamilyHub() {
   };
 
   const handleUpdateEvent = async (updatedEvent) => {
-    const { error } = await supabase.from('events').update(updatedEvent).eq('id', updatedEvent.id);
+    // 只送 Supabase events 表確定有的欄位，避免 400
+    const { id, date, type, text, member, is_done } = updatedEvent;
+    const payload = { date, type, text, member, is_done };
+    if (updatedEvent.type === 'mood' && updatedEvent.mood) payload.mood = updatedEvent.mood;
+    const { error } = await supabase.from('events').update(payload).eq('id', id);
     if (!error) { 
-      setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e).sort((a,b) => {
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, ...payload } : e).sort((a,b) => {
         if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
         return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
       })); 
       setEditingEvent(null); showToast('✅ 手札已更新'); 
+    } else {
+      console.error('update error:', JSON.stringify(error));
+      showToast('❌ 更新失敗');
     }
   };
 
@@ -1064,13 +1071,20 @@ export default function FamilyHub() {
 
     const handleSave = () => {
       if (!text.trim() && type !== 'mood') return;
-      let finalText = text; let finalMood = null;
-      if (type === 'mood') { finalMood = mood; finalText = text || '紀錄當下心情...'; } 
-      else if (time) {
-        if (type === 'schedule') finalText = `${time} ${text}`;
-        else if (type === 'remind') finalText = `${text} (${time} 截止)`;
+      let finalText = text;
+      const updateRow = { ...editingEvent, type, text: finalText, date, member };
+      // 只有心情類型才送 mood 欄位
+      if (type === 'mood') {
+        updateRow.mood = mood;
+        updateRow.text = text || '紀錄當下心情...';
+      } else {
+        delete updateRow.mood; // 確保不送 mood
+        if (time) {
+          if (type === 'schedule') updateRow.text = `${time} ${text}`;
+          else if (type === 'remind') updateRow.text = `${text} (${time} 截止)`;
+        }
       }
-      handleUpdateEvent({ ...editingEvent, type, text: finalText, date, member, mood: finalMood });
+      handleUpdateEvent(updateRow);
     };
 
     const isOtherDate = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
@@ -1172,27 +1186,35 @@ export default function FamilyHub() {
 
     const handleManualSubmit = async () => {
       if (!text.trim() && type !== 'mood') return;
-      let finalText = text; let finalMood = null; let finalMember = member; let finalDate = date;
+      let finalText = text; let finalMember = member; let finalDate = date;
+      const insertRow = { date: finalDate, type, text: finalText, member: finalMember };
+
       if (type === 'mood') {
-        finalMood = mood; finalText = text || '紀錄當下心情...';
+        insertRow.mood = mood;
+        insertRow.text = text || '紀錄當下心情...';
         const me = members.find(m => m.line_user_id === currentUserLineId);
-        finalMember = me ? me.name : '家人'; finalDate = fmtDate(TODAY);
+        insertRow.member = me ? me.name : '家人';
+        insertRow.date = fmtDate(TODAY);
       } else {
         if (time) {
-          if (type === 'schedule') finalText = `${time} ${text}`;
-          else if (type === 'remind') finalText = `${text} (${time} 截止)`;
+          if (type === 'schedule') insertRow.text = `${time} ${text}`;
+          else if (type === 'remind') insertRow.text = `${text} (${time} 截止)`;
         }
       }
-      const { data, error } = await supabase.from('events').insert([{ date: finalDate, type, text: finalText, member: finalMember, mood: finalMood }]).select();
+
+      const { data, error } = await supabase.from('events').insert([insertRow]).select();
       if (!error && data) {
         setEvents(prev => [...prev, data[0]].sort((a, b) => {
           if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
           return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
         }));
-        setSelectedDate(finalDate); setIsAiModalOpen(false);
+        setSelectedDate(insertRow.date); setIsAiModalOpen(false);
         setText(''); setTime(''); setType('schedule'); setMember('全家'); setMood('😊');
         showToast('✅ 已存入手札');
-      } else { showToast('❌ 儲存失敗'); }
+      } else {
+        console.error('insert error:', JSON.stringify(error));
+        showToast('❌ 儲存失敗');
+      }
     };
 
     const isOtherDate = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
