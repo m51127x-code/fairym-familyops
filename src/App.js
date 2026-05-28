@@ -176,9 +176,113 @@ if (typeof document !== 'undefined' && !document.getElementById('familyhub-style
 // 質感共用輸入框
 const inputStyle = "w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] placeholder:text-[#D1CFC7] transition-all outline-none shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]";
 
-// 純按鈕日期/時間選擇器（不用任何 input[type=date/time]，跨平台一致）
-const HOUR_OPTIONS = Array.from({length:24}, (_,i) => String(i).padStart(2,'0'));
-const MIN_OPTIONS = ['00','15','30','45'];
+// 純按鈕日期/時間選擇器：日期用快速選擇，時間用 Apple 鬧鐘式滾輪，不超出手機框
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MIN_OPTIONS = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+
+const TimeWheelPicker = ({ time, setTime }) => {
+  const [draftHour, setDraftHour] = useState(() => (time ? time.split(':')[0] : '09'));
+  const [draftMinute, setDraftMinute] = useState(() => (time ? time.split(':')[1] : '00'));
+
+  useEffect(() => {
+    if (time) {
+      const [h, m] = time.split(':');
+      setDraftHour(h || '09');
+      setDraftMinute(m || '00');
+    }
+  }, [time]);
+
+  const applyTime = (h, m) => {
+    const next = `${h}:${m}`;
+    setDraftHour(h);
+    setDraftMinute(m);
+    setTime(next);
+  };
+
+  const quickTimes = [
+    { label: '早上', value: '09:00' },
+    { label: '中午', value: '12:00' },
+    { label: '下午', value: '15:00' },
+    { label: '晚上', value: '19:00' },
+  ];
+
+  const renderColumn = (items, selected, onPick, label) => (
+    <div className="min-w-0 flex-1">
+      <p className="text-center text-[10px] font-bold text-[#C4C4C4] tracking-[0.18em] mb-1">{label}</p>
+      <div
+        className={`relative overflow-y-auto overscroll-contain snap-y snap-mandatory rounded-[18px] bg-[#F9F8F6] border border-[#EAEAEA] ${hideScrollbar}`}
+        style={{
+          height: 'clamp(150px, 32dvh, 210px)',
+          maxHeight: '210px',
+        }}
+      >
+        <div className="h-[48px]" />
+        {items.map(item => {
+          const isSelected = item === selected;
+          return (
+            <button
+              type="button"
+              key={item}
+              onClick={() => onPick(item)}
+              className={`snap-center w-full h-[44px] flex items-center justify-center rounded-[14px] text-[clamp(18px,5.6vw,28px)] font-num font-bold transition-all ${
+                isSelected
+                  ? 'text-[#233142] bg-white shadow-[0_2px_10px_rgba(35,49,66,0.08)] scale-[1.02]'
+                  : 'text-[#A0A0A0]'
+              }`}
+            >
+              {item}
+            </button>
+          );
+        })}
+        <div className="h-[48px]" />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="w-full max-w-full overflow-hidden">
+      <div className="grid grid-cols-4 gap-1.5 mb-3">
+        {quickTimes.map(q => (
+          <button
+            type="button"
+            key={q.value}
+            onClick={() => {
+              const [h, m] = q.value.split(':');
+              applyTime(h, m);
+            }}
+            className={`h-[38px] min-w-0 rounded-[11px] text-[12px] font-bold border transition-all active:scale-95 ${
+              time === q.value
+                ? 'bg-[#233142] text-white border-[#233142]'
+                : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
+            }`}
+          >
+            {q.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="relative w-full overflow-hidden rounded-[22px] bg-white border border-[#EAEAEA] p-3 shadow-[0_4px_18px_rgba(0,0,0,0.04)]">
+        <div
+          className="pointer-events-none absolute left-3 right-3 top-1/2 -translate-y-1/2 h-[44px] rounded-[16px] border-y border-[#EAEAEA] bg-[#233142]/[0.03]"
+          aria-hidden="true"
+        />
+        <div className="grid grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] items-center gap-1 w-full max-w-full">
+          {renderColumn(HOUR_OPTIONS, draftHour, h => applyTime(h, draftMinute), '時')}
+          <div className="text-center text-[clamp(20px,6vw,30px)] font-num font-bold text-[#233142] pb-1">:</div>
+          {renderColumn(MIN_OPTIONS, draftMinute, m => applyTime(draftHour, m), '分')}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setTime('')}
+        className="w-full h-[36px] mt-2 rounded-[12px] text-[12px] font-bold tracking-widest bg-[#F9F8F6] border border-[#EAEAEA] text-[#8E8E93] active:scale-[0.98] transition-all"
+      >
+        不設定時間
+      </button>
+    </div>
+  );
+};
 
 const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
   const [showCustomDate, setShowCustomDate] = useState(false);
@@ -189,6 +293,7 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
     { label: '今天', d: shiftDays(TODAY, 0) },
     { label: '明天', d: shiftDays(TODAY, 1) },
     { label: '後天', d: shiftDays(TODAY, 2) },
+    { label: '週末', d: shiftDays(TODAY, (6 - TODAY.getDay() + 7) % 7 || 7) },
   ];
   const isQuick = quickDates.some(q => q.d === safeDate);
 
@@ -198,38 +303,38 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
   };
 
   return (
-    <div className="space-y-3">
-      <div className="bg-white border border-[#EAEAEA] rounded-[18px] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
-        <div className="flex items-center justify-between mb-3">
+    <div className="space-y-3 w-full max-w-full overflow-hidden">
+      <div className="bg-white border border-[#EAEAEA] rounded-[18px] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)] overflow-hidden">
+        <div className="flex items-center justify-between mb-3 min-w-0">
           <button
             type="button"
             onClick={() => moveDate(-1)}
-            className="w-9 h-9 rounded-full bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center active:scale-90 transition-all"
+            className="shrink-0 w-9 h-9 rounded-full bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center active:scale-90 transition-all"
           >
             <ChevronLeft size={15} strokeWidth={2.5} className="text-[#8E8E93]" />
           </button>
 
-          <div className="text-center">
+          <div className="text-center min-w-0 px-2">
             <p className="text-[10px] font-bold text-[#A0A0A0] tracking-[0.22em] uppercase mb-0.5 font-num">Selected Date</p>
-            <p className="text-[15px] font-bold text-[#233142] tracking-wide">{fmtDateChinese(safeDate)}</p>
+            <p className="text-[clamp(13px,3.8vw,15px)] font-bold text-[#233142] tracking-wide truncate">{fmtDateChinese(safeDate)}</p>
           </div>
 
           <button
             type="button"
             onClick={() => moveDate(1)}
-            className="w-9 h-9 rounded-full bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center active:scale-90 transition-all"
+            className="shrink-0 w-9 h-9 rounded-full bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center active:scale-90 transition-all"
           >
             <ChevronRight size={15} strokeWidth={2.5} className="text-[#8E8E93]" />
           </button>
         </div>
 
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-5 gap-1.5">
           {quickDates.map(q => (
             <button
               type="button"
               key={q.label}
               onClick={() => { setDate(q.d); setShowCustomDate(false); }}
-              className={`h-[38px] rounded-[11px] text-[12px] font-bold border transition-all active:scale-95 ${
+              className={`h-[38px] min-w-0 rounded-[11px] text-[clamp(10px,3.2vw,12px)] font-bold border transition-all active:scale-95 ${
                 safeDate === q.d ? 'bg-[#233142] text-white border-[#233142]' : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
               }`}
             >
@@ -240,7 +345,7 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
           <button
             type="button"
             onClick={() => setShowCustomDate(v => !v)}
-            className={`h-[38px] rounded-[11px] text-[12px] font-bold border transition-all active:scale-95 ${
+            className={`h-[38px] min-w-0 rounded-[11px] text-[clamp(10px,3.2vw,12px)] font-bold border transition-all active:scale-95 ${
               showCustomDate || !isQuick ? 'bg-[#D68C7A] text-white border-[#D68C7A]' : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
             }`}
           >
@@ -261,19 +366,19 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
       </div>
 
       {showTime && (
-        <div>
+        <div className="w-full max-w-full overflow-hidden">
           <button
             type="button"
             onClick={() => setShowTimePicker(v => !v)}
-            className={`w-full h-[44px] rounded-[14px] border text-[13px] font-bold flex items-center gap-2 px-4 transition-all ${
+            className={`w-full h-[46px] rounded-[14px] border text-[13px] font-bold flex items-center gap-2 px-4 transition-all ${
               showTimePicker || time ? 'bg-white border-[#233142] text-[#233142]' : 'bg-[#F9F8F6] border-[#EAEAEA] text-[#8E8E93]'
             }`}
           >
-            <Clock size={14} className="shrink-0 text-[#A0A0A0]" />
-            <span>{time || '設定時間（選填）'}</span>
+            <Clock size={15} className="shrink-0 text-[#A0A0A0]" />
+            <span className="truncate">{time ? `提醒時間 ${time}` : '設定時間（選填）'}</span>
             {time && (
               <span
-                className="ml-auto text-[#A0A0A0]"
+                className="ml-auto shrink-0 text-[#A0A0A0] w-7 h-7 flex items-center justify-center rounded-full bg-[#F9F8F6]"
                 onClick={e => { e.stopPropagation(); setTime(''); }}
               >
                 <X size={13}/>
@@ -282,26 +387,8 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
           </button>
 
           {showTimePicker && (
-            <div className="bg-white border border-[#EAEAEA] rounded-[16px] p-4 mt-2 shadow-[0_4px_20px_rgba(0,0,0,0.06)] animate-in fade-in zoom-in-95 duration-150">
-              <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest mb-2">選擇時間</p>
-              <div className="grid grid-cols-4 gap-1.5">
-                {['08:00','09:00','10:00','12:00','14:00','15:00','18:00','20:00'].map(t => (
-                  <button
-                    type="button"
-                    key={t}
-                    onClick={() => { setTime(t); setShowTimePicker(false); }}
-                    className={`h-[34px] rounded-[10px] text-[12px] font-bold border active:scale-95 transition-all ${time === t ? 'bg-[#233142] text-white border-[#233142]' : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'}`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="time"
-                value={time || ''}
-                onChange={e => setTime(e.target.value)}
-                className="w-full h-[42px] mt-3 bg-[#F9F8F6] border border-[#EAEAEA] rounded-[12px] px-3 text-[14px] font-bold text-[#233142] outline-none focus:border-[#233142]"
-              />
+            <div className="mt-2 animate-in fade-in zoom-in-95 duration-150">
+              <TimeWheelPicker time={time} setTime={setTime} />
             </div>
           )}
         </div>
@@ -336,6 +423,8 @@ export default function FamilyHub() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [currentUserLineId, setCurrentUserLineId] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false); 
+  const [notifyEvent, setNotifyEvent] = useState(null);
+  const [isSendingNotify, setIsSendingNotify] = useState(false);
 
   const unboundLineUsers = useMemo(() => {
     const unbound = lineUsers.filter(lu => !lu.is_ignored && !members.some(m => m.line_user_id === lu.user_id));
@@ -482,6 +571,41 @@ export default function FamilyHub() {
     if (!error) { setEvents(prev => prev.filter(e => e.id !== eventId)); setEditingEvent(null); showToast('🗑️ 記事已刪除'); }
   };
 
+  const handleSendNotify = async (mode) => {
+    if (!notifyEvent || isSendingNotify) return;
+    setIsSendingNotify(true);
+    triggerVibration(10);
+
+    try {
+      const response = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: notifyEvent, mode }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || 'LINE 通知發送失敗');
+
+      const privateCount = result?.result?.privateCount || 0;
+      const groupSent = Boolean(result?.result?.group);
+      const label = mode === 'group'
+        ? '已發送到群組'
+        : mode === 'private'
+          ? `已私訊 ${privateCount || ''} 位成員`
+          : groupSent
+            ? `已發送群組與私訊${privateCount ? `（${privateCount} 位）` : ''}`
+            : '已發送提醒';
+
+      showToast(`🔔 ${label}`);
+      setNotifyEvent(null);
+    } catch (err) {
+      console.error('notify error:', err);
+      showToast(`❌ ${err?.message || '通知失敗，請稍後再試'}`);
+    } finally {
+      setIsSendingNotify(false);
+    }
+  };
+
   const handleToggleDone = async (e, ev) => {
     e.stopPropagation();
     triggerVibration(15);
@@ -530,6 +654,104 @@ export default function FamilyHub() {
       console.error('toggle error:', error);
       showToast(`❌ 狀態更新失敗：${error?.message || '請重試'}`);
     }
+  };
+
+  const NotifySheet = () => {
+    if (!notifyEvent) return null;
+
+    const title = notifyEvent.text || notifyEvent.title || '未命名事項';
+    const member = notifyEvent.member || '全家';
+    const isFamily = member === '全家';
+    const privateLabel = isFamily ? '私訊所有家人' : `私訊 ${member}`;
+    const bothLabel = isFamily ? '群組 + 私訊所有家人' : `群組 + 私訊 ${member}`;
+    const typeLabel = TYPE_CONFIG[notifyEvent.type]?.label || '事項';
+
+    return (
+      <div className="fixed inset-0 z-[60] flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => !isSendingNotify && setNotifyEvent(null)}>
+        <div
+          className="w-full max-w-[480px] bg-[#F9F8F6] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.18)] spring-modal overflow-hidden"
+          style={{ maxHeight: 'calc(86dvh - env(safe-area-inset-bottom, 0px))' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <DragHeader className="px-5 pb-2 border-b border-[#EAEAEA]">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-[#D68C7A] flex items-center justify-center shadow-md shrink-0">
+                  <Bell size={17} className="text-white" strokeWidth={2.5} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[18px] font-serif-jp font-bold text-[#233142] tracking-widest truncate">發送 LINE 提醒</p>
+                  <p className="text-[10px] font-bold text-[#8E8E93] tracking-[0.18em] uppercase font-num mt-0.5">Notification</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isSendingNotify}
+                onClick={() => setNotifyEvent(null)}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 active:scale-90 transition-all disabled:opacity-50 shrink-0"
+              >
+                <X size={18} strokeWidth={2.5}/>
+              </button>
+            </div>
+          </DragHeader>
+
+          <div className="px-5 pt-5 space-y-4" style={{ paddingBottom: 'calc(18px + env(safe-area-inset-bottom, 0px))' }}>
+            <div className="bg-white border border-[#EAEAEA] rounded-[20px] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-bold tracking-[0.18em] uppercase" style={{ color: TYPE_CONFIG[notifyEvent.type]?.color || '#8E8E93' }}>{typeLabel}</span>
+                <span className="w-1 h-1 rounded-full bg-[#D1CFC7]" />
+                <span className="text-[11px] text-[#8E8E93] font-bold">{fmtDateChinese(notifyEvent.date)}</span>
+              </div>
+              <p className="text-[16px] font-bold text-[#233142] leading-snug break-words mb-3">{title}</p>
+              <div className="flex items-center gap-1.5">
+                <div className="w-[6px] h-[6px] rounded-[2px] bg-[#D68C7A]" />
+                <span className="text-[12px] font-bold text-[#8E8E93]">負責：{member}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                disabled={isSendingNotify}
+                onClick={() => handleSendNotify('group')}
+                className="w-full h-[52px] rounded-[16px] bg-white border border-[#EAEAEA] text-[#233142] text-[14px] font-bold tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 shadow-sm"
+              >
+                <Users size={17} strokeWidth={2.5} /> 發到家庭群組
+              </button>
+              {notifyEvent.type !== 'mood' && (
+                <>
+                  <button
+                    type="button"
+                    disabled={isSendingNotify}
+                    onClick={() => handleSendNotify('private')}
+                    className="w-full h-[52px] rounded-[16px] bg-white border border-[#EAEAEA] text-[#233142] text-[14px] font-bold tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 shadow-sm"
+                  >
+                    <Bell size={17} strokeWidth={2.5} /> {privateLabel}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSendingNotify}
+                    onClick={() => handleSendNotify('both')}
+                    className="w-full h-[54px] rounded-[16px] bg-[#233142] text-white text-[14px] font-bold tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 shadow-[0_4px_16px_rgba(35,49,66,0.2)]"
+                  >
+                    <Sparkles size={17} strokeWidth={2.5} /> {bothLabel}
+                  </button>
+                </>
+              )}
+            </div>
+
+            <button
+              type="button"
+              disabled={isSendingNotify}
+              onClick={() => setNotifyEvent(null)}
+              className="w-full h-[42px] rounded-[14px] text-[12px] font-bold tracking-widest text-[#8E8E93] bg-[#F9F8F6] active:scale-[0.98] disabled:opacity-60"
+            >
+              {isSendingNotify ? '發送中...' : '取消'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // ==============================================================
@@ -679,7 +901,14 @@ export default function FamilyHub() {
                               style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
                               {TYPE_CONFIG[e.type]?.label}
                             </span>
-                            <Bell size={12} strokeWidth={2} className="text-[#D1CFC7]" onClick={ev => ev.stopPropagation()} />
+                            <button
+                              type="button"
+                              onClick={(ev) => { ev.stopPropagation(); triggerVibration(8); setNotifyEvent(e); }}
+                              className="w-11 h-11 -mr-2 -my-2 rounded-[14px] bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center text-[#A0A0A0] hover:text-[#D68C7A] active:scale-95 transition-all shrink-0"
+                              aria-label="發送 LINE 提醒"
+                            >
+                              <Bell size={16} strokeWidth={2.5} />
+                            </button>
                           </div>
 
                           <p className={`text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
@@ -826,7 +1055,14 @@ export default function FamilyHub() {
                                     style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
                                     {TYPE_CONFIG[e.type]?.label}
                                   </span>
-                                  <Bell size={12} strokeWidth={2} className="text-[#D1CFC7]" onClick={ev => ev.stopPropagation()} />
+                                  <button
+                              type="button"
+                              onClick={(ev) => { ev.stopPropagation(); triggerVibration(8); setNotifyEvent(e); }}
+                              className="w-11 h-11 -mr-2 -my-2 rounded-[14px] bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center text-[#A0A0A0] hover:text-[#D68C7A] active:scale-95 transition-all shrink-0"
+                              aria-label="發送 LINE 提醒"
+                            >
+                              <Bell size={16} strokeWidth={2.5} />
+                            </button>
                                 </div>
                                 <p className={`text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
                                   style={{ fontFamily: 'Noto Sans TC, PingFang TC, sans-serif', letterSpacing: '0.01em' }}>
@@ -1621,6 +1857,7 @@ export default function FamilyHub() {
         <AiModal />
         <MemberModal />
         <EventEditModal />
+        <NotifySheet />
 
         {toast && (
           <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 bg-[#233142]/95 backdrop-blur-xl text-white text-[13px] font-bold tracking-widest px-6 py-3.5 rounded-[16px] shadow-[0_10px_30px_rgba(35,49,66,0.2)] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
