@@ -81,6 +81,36 @@ const GLOBAL_CSS = `
   
   @keyframes springSlideUp { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }
   .spring-modal { animation: springSlideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+
+  /* 統一 date/time input 外觀，所有瀏覽器 */
+  .date-input, .time-input {
+    display: block;
+    width: 100%;
+    height: 48px;
+    padding: 0 16px;
+    background: #F9F8F6;
+    border: 1.5px solid #EAEAEA;
+    border-radius: 14px;
+    font-size: 15px;
+    font-family: inherit;
+    font-weight: 600;
+    color: #233142;
+    cursor: pointer;
+    outline: none;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color 0.15s;
+  }
+  .date-input:focus, .time-input:focus {
+    border-color: #233142;
+    background: #fff;
+  }
+  .time-input { width: 130px; text-align: center; padding: 0 8px; }
+  /* Chrome/Safari: 隱藏 calendar icon，保留點擊功能 */
+  .date-input::-webkit-calendar-picker-indicator { opacity: 0; width: 100%; position: absolute; left: 0; cursor: pointer; }
+  .time-input::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: pointer; }
+  .date-input { position: relative; }
 `;
 
 if (typeof document !== 'undefined' && !document.getElementById('familyhub-style')) {
@@ -731,15 +761,8 @@ export default function FamilyHub() {
                         <div className="flex flex-col gap-2.5">
                           <div>
                             <label className="block text-[10px] font-bold text-[#8E8E93] mb-1 uppercase tracking-widest">日期</label>
-                            <div className="relative">
-                              <div className="h-[48px] bg-white border border-[#EAEAEA] rounded-xl px-4 flex items-center gap-2 pointer-events-none">
-                                <CalendarDays size={14} className="text-[#A0A0A0] shrink-0" />
-                                <span className="text-[13px] font-bold text-[#233142]">{fmtDateChinese(editDate)}</span>
-                              </div>
-                              <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                style={{ fontSize: '16px' }} />
-                            </div>
+                            <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                              className="date-input" />
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-[#8E8E93] mb-1 uppercase tracking-widest">備註</label>
@@ -774,15 +797,8 @@ export default function FamilyHub() {
                   <div className="bg-white border border-[#EAEAEA] p-4 rounded-[16px] flex flex-col gap-3 mt-3 shadow-md animate-in zoom-in-95 duration-200">
                     <div>
                       <label className="block text-[10px] font-bold text-[#8E8E93] mb-1.5 uppercase tracking-widest">日期</label>
-                      <div className="relative">
-                        <div className="h-[48px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[12px] px-4 flex items-center gap-2 pointer-events-none">
-                          <CalendarDays size={14} className="text-[#A0A0A0] shrink-0" />
-                          <span className="text-[14px] font-bold text-[#233142]">{fmtDateChinese(logDate)}</span>
-                        </div>
-                        <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          style={{ fontSize: '16px' }} />
-                      </div>
+                      <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)}
+                        className="date-input" />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-[#8E8E93] mb-1.5 uppercase tracking-widest">備註（選填）</label>
@@ -867,15 +883,8 @@ export default function FamilyHub() {
             </div>
             <div>
               <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">上次完成日</label>
-              <div className="relative">
-                <div className="h-[52px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[16px] px-4 flex items-center gap-2 pointer-events-none">
-                  <CalendarDays size={15} className="text-[#A0A0A0] shrink-0" />
-                  <span className="text-[15px] font-medium text-[#233142]">{fmtDateChinese(newLastDate)}</span>
-                </div>
-                <input type="date" value={newLastDate} onChange={e => setNewLastDate(e.target.value)}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  style={{ fontSize: '16px' }} />
-              </div>
+              <input type="date" value={newLastDate} onChange={e => setNewLastDate(e.target.value)}
+                className="date-input" />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">間隔天數</label>
@@ -999,42 +1008,33 @@ export default function FamilyHub() {
                         <label className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest">時間（選填）</label>
                       )}
                     </div>
-                    {/* 日期快選 + 其他（overlay 模式） */}
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {[{ label: '今天', offset: 0 }, { label: '明天', offset: 1 }, { label: '後天', offset: 2 }, { label: '其他', offset: null }].map(({ label, offset }) => {
-                        const ds = offset !== null ? shiftDays(TODAY, offset) : null;
-                        const isSelected = offset !== null ? date === ds : isOtherDate;
-                        if (offset !== null) {
-                          return (
-                            <button key={label} onClick={() => setDate(ds)}
-                              className={`h-[42px] rounded-[10px] text-[12px] font-bold border transition-all active:scale-95 ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-                              {label}
-                            </button>
-                          );
-                        }
+                    {/* 日期快選 */}
+                    <div className="grid grid-cols-4 gap-1.5 mb-2">
+                      {[{ label: '今天', offset: 0 }, { label: '明天', offset: 1 }, { label: '後天', offset: 2 }].map(({ label, offset }) => {
+                        const ds = shiftDays(TODAY, offset);
                         return (
-                          <div key={label} className="relative">
-                            <div className={`h-[42px] rounded-[10px] text-[12px] font-bold border flex items-center justify-center pointer-events-none ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-                              {isSelected ? fmtDateChinese(date).replace(/\d{4}年/, '') : '其他'}
-                            </div>
-                            <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                              style={{ fontSize: '16px' }} />
-                          </div>
+                          <button key={label} onClick={() => setDate(ds)}
+                            className={`h-[42px] rounded-[10px] text-[12px] font-bold border transition-all active:scale-95 ${date === ds ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
+                            {label}
+                          </button>
                         );
                       })}
+                      <div className={`h-[42px] rounded-[10px] text-[12px] font-bold border flex items-center justify-center ${isOtherDate ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
+                        其他
+                      </div>
                     </div>
-                    {/* 時間（overlay 模式） */}
+                    <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                      className="date-input" />
                     {(type === 'schedule' || type === 'remind') && (
-                      <div className="relative mt-2">
-                        <div className="h-[44px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[12px] px-4 flex items-center gap-2 pointer-events-none">
-                          <Clock size={14} className="text-[#A0A0A0] shrink-0" />
-                          <span className="text-[14px] font-medium text-[#233142]">{time || '點選設定時間'}</span>
-                          {time && <button className="ml-auto text-[#A0A0A0] pointer-events-auto z-10 relative" onClick={e => { e.stopPropagation(); setTime(''); }}><X size={14}/></button>}
-                        </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Clock size={14} className="text-[#A0A0A0] shrink-0" />
                         <input type="time" value={time} onChange={e => setTime(e.target.value)}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          style={{ fontSize: '16px' }} />
+                          className="time-input" />
+                        {time && (
+                          <button onClick={() => setTime('')} className="text-[#A0A0A0] hover:text-[#D68C7A] transition-colors">
+                            <X size={14}/>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1169,42 +1169,35 @@ export default function FamilyHub() {
                         <label className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest">時間（選填）</label>
                       )}
                     </div>
-                    {/* 日期快選 + 其他（overlay 模式，iOS 相容） */}
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {[{ label: '今天', offset: 0 }, { label: '明天', offset: 1 }, { label: '後天', offset: 2 }, { label: '其他', offset: null }].map(({ label, offset }) => {
-                        const ds = offset !== null ? shiftDays(TODAY, offset) : null;
-                        const isSelected = offset !== null ? date === ds : isOtherDate;
-                        if (offset !== null) {
-                          return (
-                            <button key={label} onClick={() => setDate(ds)}
-                              className={`h-[42px] rounded-[10px] text-[12px] font-bold border transition-all active:scale-95 ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-                              {label}
-                            </button>
-                          );
-                        }
+                    {/* 日期快選 */}
+                    <div className="grid grid-cols-4 gap-1.5 mb-2">
+                      {[{ label: '今天', offset: 0 }, { label: '明天', offset: 1 }, { label: '後天', offset: 2 }].map(({ label, offset }) => {
+                        const ds = shiftDays(TODAY, offset);
                         return (
-                          <div key={label} className="relative">
-                            <div className={`h-[42px] rounded-[10px] text-[12px] font-bold border flex items-center justify-center pointer-events-none ${isSelected ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-                              {isSelected ? fmtDateChinese(date).replace(/\d{4}年/, '') : '其他'}
-                            </div>
-                            <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                              style={{ fontSize: '16px' }} />
-                          </div>
+                          <button key={label} onClick={() => setDate(ds)}
+                            className={`h-[42px] rounded-[10px] text-[12px] font-bold border transition-all active:scale-95 ${date === ds ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
+                            {label}
+                          </button>
                         );
                       })}
+                      <div className={`h-[42px] rounded-[10px] text-[12px] font-bold border flex items-center justify-center ${isOtherDate ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
+                        其他
+                      </div>
                     </div>
-                    {/* 時間選擇（overlay 模式） */}
+                    {/* 日期 input 直接顯示（點擊觸發原生選擇器） */}
+                    <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                      className="date-input" />
+                    {/* 時間 */}
                     {(type === 'schedule' || type === 'remind') && (
-                      <div className="relative mt-2">
-                        <div className="h-[44px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[12px] px-4 flex items-center gap-2 pointer-events-none">
-                          <Clock size={14} className="text-[#A0A0A0] shrink-0" />
-                          <span className="text-[14px] font-medium text-[#233142]">{time || '點選設定時間'}</span>
-                          {time && <button className="ml-auto text-[#A0A0A0] pointer-events-auto z-10 relative" onClick={e => { e.stopPropagation(); setTime(''); }}><X size={14}/></button>}
-                        </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Clock size={14} className="text-[#A0A0A0] shrink-0" />
                         <input type="time" value={time} onChange={e => setTime(e.target.value)}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          style={{ fontSize: '16px' }} />
+                          className="time-input" />
+                        {time && (
+                          <button onClick={() => setTime('')} className="text-[#A0A0A0] hover:text-[#D68C7A] transition-colors">
+                            <X size={14}/>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
