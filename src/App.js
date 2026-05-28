@@ -293,7 +293,6 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
     { label: '今天', d: shiftDays(TODAY, 0) },
     { label: '明天', d: shiftDays(TODAY, 1) },
     { label: '後天', d: shiftDays(TODAY, 2) },
-    { label: '週末', d: shiftDays(TODAY, (6 - TODAY.getDay() + 7) % 7 || 7) },
   ];
   const isQuick = quickDates.some(q => q.d === safeDate);
 
@@ -328,7 +327,7 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
           </button>
         </div>
 
-        <div className="grid grid-cols-5 gap-1.5">
+        <div className="grid grid-cols-4 gap-1.5">
           {quickDates.map(q => (
             <button
               type="button"
@@ -656,99 +655,67 @@ export default function FamilyHub() {
     }
   };
 
-  const NotifySheet = () => {
-    if (!notifyEvent) return null;
+  const NotifyActionPanel = ({ event }) => {
+    if (!event) return null;
 
-    const title = notifyEvent.text || notifyEvent.title || '未命名事項';
-    const member = notifyEvent.member || '全家';
-    const isFamily = member === '全家';
-    const privateLabel = isFamily ? '私訊所有家人' : `私訊 ${member}`;
-    const bothLabel = isFamily ? '群組 + 私訊所有家人' : `群組 + 私訊 ${member}`;
-    const typeLabel = TYPE_CONFIG[notifyEvent.type]?.label || '事項';
+    const member = event.member || '全家';
+    const isAllMembers = member === '全家';
+    const helperText = isAllMembers ? '私訊所有已綁定成員' : `私訊 ${member}`;
+    const isMood = event.type === 'mood';
+
+    const actionButtonClass = "h-[38px] min-w-0 rounded-[12px] border border-[#EAEAEA] bg-white text-[#233142] text-[12px] font-bold tracking-widest active:scale-[0.97] transition-all disabled:opacity-50 shadow-[0_1px_4px_rgba(0,0,0,0.02)]";
 
     return (
-      <div className="fixed inset-0 z-[60] flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => !isSendingNotify && setNotifyEvent(null)}>
-        <div
-          className="w-full max-w-[480px] bg-[#F9F8F6] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.18)] spring-modal overflow-hidden"
-          style={{ maxHeight: 'calc(86dvh - env(safe-area-inset-bottom, 0px))' }}
-          onClick={e => e.stopPropagation()}
-        >
-          <DragHeader className="px-5 pb-2 border-b border-[#EAEAEA]">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-[#D68C7A] flex items-center justify-center shadow-md shrink-0">
-                  <Bell size={17} className="text-white" strokeWidth={2.5} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[18px] font-serif-jp font-bold text-[#233142] tracking-widest truncate">發送 LINE 提醒</p>
-                  <p className="text-[10px] font-bold text-[#8E8E93] tracking-[0.18em] uppercase font-num mt-0.5">Notification</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                disabled={isSendingNotify}
-                onClick={() => setNotifyEvent(null)}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 active:scale-90 transition-all disabled:opacity-50 shrink-0"
-              >
-                <X size={18} strokeWidth={2.5}/>
-              </button>
-            </div>
-          </DragHeader>
-
-          <div className="px-5 pt-5 space-y-4" style={{ paddingBottom: 'calc(18px + env(safe-area-inset-bottom, 0px))' }}>
-            <div className="bg-white border border-[#EAEAEA] rounded-[20px] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] font-bold tracking-[0.18em] uppercase" style={{ color: TYPE_CONFIG[notifyEvent.type]?.color || '#8E8E93' }}>{typeLabel}</span>
-                <span className="w-1 h-1 rounded-full bg-[#D1CFC7]" />
-                <span className="text-[11px] text-[#8E8E93] font-bold">{fmtDateChinese(notifyEvent.date)}</span>
-              </div>
-              <p className="text-[16px] font-bold text-[#233142] leading-snug break-words mb-3">{title}</p>
-              <div className="flex items-center gap-1.5">
-                <div className="w-[6px] h-[6px] rounded-[2px] bg-[#D68C7A]" />
-                <span className="text-[12px] font-bold text-[#8E8E93]">負責：{member}</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                type="button"
-                disabled={isSendingNotify}
-                onClick={() => handleSendNotify('group')}
-                className="w-full h-[52px] rounded-[16px] bg-white border border-[#EAEAEA] text-[#233142] text-[14px] font-bold tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 shadow-sm"
-              >
-                <Users size={17} strokeWidth={2.5} /> 發到家庭群組
-              </button>
-              {notifyEvent.type !== 'mood' && (
-                <>
-                  <button
-                    type="button"
-                    disabled={isSendingNotify}
-                    onClick={() => handleSendNotify('private')}
-                    className="w-full h-[52px] rounded-[16px] bg-white border border-[#EAEAEA] text-[#233142] text-[14px] font-bold tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 shadow-sm"
-                  >
-                    <Bell size={17} strokeWidth={2.5} /> {privateLabel}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSendingNotify}
-                    onClick={() => handleSendNotify('both')}
-                    className="w-full h-[54px] rounded-[16px] bg-[#233142] text-white text-[14px] font-bold tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-60 shadow-[0_4px_16px_rgba(35,49,66,0.2)]"
-                  >
-                    <Sparkles size={17} strokeWidth={2.5} /> {bothLabel}
-                  </button>
-                </>
-              )}
-            </div>
-
-            <button
-              type="button"
-              disabled={isSendingNotify}
-              onClick={() => setNotifyEvent(null)}
-              className="w-full h-[42px] rounded-[14px] text-[12px] font-bold tracking-widest text-[#8E8E93] bg-[#F9F8F6] active:scale-[0.98] disabled:opacity-60"
-            >
-              {isSendingNotify ? '發送中...' : '取消'}
-            </button>
+      <div
+        className="mt-3 pt-3 border-t border-dashed border-[#EAEAEA] animate-in fade-in slide-in-from-top-1 duration-200"
+        onClick={ev => ev.stopPropagation()}
+      >
+        <div className="flex items-end justify-between gap-3 mb-2">
+          <div className="min-w-0">
+            <p className="text-[11px] font-serif-jp font-bold text-[#233142] tracking-widest leading-none">發送提醒</p>
+            <p className="text-[10px] text-[#A0A0A0] tracking-[0.08em] mt-1 truncate">群組通知 / {helperText}</p>
           </div>
+          <button
+            type="button"
+            disabled={isSendingNotify}
+            onClick={() => setNotifyEvent(null)}
+            className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[#B8B2AA] active:bg-[#F9F8F6] active:scale-95 transition-all disabled:opacity-50"
+            aria-label="收合提醒選單"
+          >
+            <X size={13} strokeWidth={2.4} />
+          </button>
+        </div>
+
+        <div className={`grid gap-1.5 ${isMood ? 'grid-cols-1' : 'grid-cols-3'}`}>
+          <button
+            type="button"
+            disabled={isSendingNotify}
+            onClick={() => handleSendNotify('group')}
+            className={actionButtonClass}
+          >
+            群組
+          </button>
+
+          {!isMood && (
+            <>
+              <button
+                type="button"
+                disabled={isSendingNotify}
+                onClick={() => handleSendNotify('private')}
+                className={actionButtonClass}
+              >
+                私訊
+              </button>
+              <button
+                type="button"
+                disabled={isSendingNotify}
+                onClick={() => handleSendNotify('both')}
+                className="h-[38px] min-w-0 rounded-[12px] border border-[#233142] bg-[#233142] text-white text-[12px] font-bold tracking-widest active:scale-[0.97] transition-all disabled:opacity-50 shadow-[0_2px_10px_rgba(35,49,66,0.12)]"
+              >
+                全部
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -904,7 +871,7 @@ export default function FamilyHub() {
                             <button
                               type="button"
                               onClick={(ev) => { ev.stopPropagation(); triggerVibration(8); setNotifyEvent(e); }}
-                              className="w-11 h-11 -mr-2 -my-2 rounded-[14px] bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center text-[#A0A0A0] hover:text-[#D68C7A] active:scale-95 transition-all shrink-0"
+                              className="w-8 h-8 -mr-1 -my-1 rounded-full bg-transparent flex items-center justify-center text-[#B8B2AA] hover:text-[#D68C7A] active:bg-[#F9F8F6] active:scale-95 transition-all shrink-0"
                               aria-label="發送 LINE 提醒"
                             >
                               <Bell size={16} strokeWidth={2.5} />
@@ -922,6 +889,7 @@ export default function FamilyHub() {
                             <span className="text-[11px] text-[#8E8E93]"
                               style={{ letterSpacing: '0.04em' }}>{e.member}</span>
                           </div>
+                          {notifyEvent?.id === e.id && <NotifyActionPanel event={e} />}
                         </div>
                       </div>
                     )
@@ -1058,7 +1026,7 @@ export default function FamilyHub() {
                                   <button
                               type="button"
                               onClick={(ev) => { ev.stopPropagation(); triggerVibration(8); setNotifyEvent(e); }}
-                              className="w-11 h-11 -mr-2 -my-2 rounded-[14px] bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center text-[#A0A0A0] hover:text-[#D68C7A] active:scale-95 transition-all shrink-0"
+                              className="w-8 h-8 -mr-1 -my-1 rounded-full bg-transparent flex items-center justify-center text-[#B8B2AA] hover:text-[#D68C7A] active:bg-[#F9F8F6] active:scale-95 transition-all shrink-0"
                               aria-label="發送 LINE 提醒"
                             >
                               <Bell size={16} strokeWidth={2.5} />
@@ -1073,6 +1041,7 @@ export default function FamilyHub() {
                                     style={{ background: e.is_done ? '#D1CFC7' : '#D68C7A' }} />
                                   <span className="text-[11px] text-[#8E8E93]" style={{ letterSpacing: '0.04em' }}>{e.member}</span>
                                 </div>
+                                {notifyEvent?.id === e.id && <NotifyActionPanel event={e} />}
                               </div>
                             </div>
                           );
@@ -1857,8 +1826,6 @@ export default function FamilyHub() {
         <AiModal />
         <MemberModal />
         <EventEditModal />
-        <NotifySheet />
-
         {toast && (
           <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 bg-[#233142]/95 backdrop-blur-xl text-white text-[13px] font-bold tracking-widest px-6 py-3.5 rounded-[16px] shadow-[0_10px_30px_rgba(35,49,66,0.2)] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
             <Check size={18} className="text-[#EAEAEA]" strokeWidth={3} />
