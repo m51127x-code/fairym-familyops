@@ -27,9 +27,62 @@ const shiftDays = (date, days) => {
 };
 
 const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_ANON_KEY
+  'https://pmhudmhdxfctmyfmmxhh.supabase.co',
+'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtaHVkbWhkeGZjdG15Zm1teGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjQ5MDQsImV4cCI6MjA5NDY0MDkwNH0.ymAzLChmVVvtkKCw2AIQLfhfodo8vJTONihzufw9CY0'
 );
+
+
+const cleanDateOnly = (value) => {
+  if (!value) return fmtDate(TODAY);
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return fmtDate(value);
+};
+
+const normalizeEvent = (event) => {
+  const content = event?.text || event?.title || '';
+  const done = Boolean(event?.is_done ?? event?.completed ?? false);
+  return {
+    ...event,
+    title: event?.title || content,
+    text: content,
+    date: cleanDateOnly(event?.date),
+    is_done: done,
+    completed: done,
+  };
+};
+
+const buildEventPayload = ({ type, text, member, date, time, mood, currentUserLineId, members, base = {} }) => {
+  const trimmedText = (text || '').trim();
+  const finalType = type || 'todo';
+  const finalDate = cleanDateOnly(date || TODAY);
+  let displayText = trimmedText || TYPE_CONFIG[finalType]?.label || '記事';
+  let finalMember = member || '全家';
+  let finalMood = null;
+
+  if (finalType === 'mood') {
+    const me = members?.find(m => m.line_user_id === currentUserLineId);
+    displayText = trimmedText || '紀錄當下心情...';
+    finalMember = me ? me.name : (member || '家人');
+    finalMood = mood || '😊';
+  } else if (time) {
+    if (finalType === 'schedule') displayText = `${time} ${trimmedText}`.trim();
+    if (finalType === 'remind') displayText = `${trimmedText || '提醒'} (${time} 截止)`;
+  }
+
+  const done = Boolean(base.is_done ?? base.completed ?? false);
+
+  return {
+    title: displayText,
+    text: displayText,
+    type: finalType,
+    member: finalMember,
+    date: finalType === 'mood' ? fmtDate(TODAY) : finalDate,
+    time: finalType === 'schedule' || finalType === 'remind' ? (time || null) : null,
+    mood: finalType === 'mood' ? finalMood : null,
+    is_done: done,
+    completed: done,
+  };
+};
 
 // ==========================================
 // 質感調色盤 (Premium Aesthetic)
@@ -128,123 +181,127 @@ const HOUR_OPTIONS = Array.from({length:24}, (_,i) => String(i).padStart(2,'0'))
 const MIN_OPTIONS = ['00','15','30','45'];
 
 const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
-  const [showCal, setShowCal] = useState(false);
+  const [showCustomDate, setShowCustomDate] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [calMonth, setCalMonth] = useState(() => {
-    const d = new Date(date || fmtDate(TODAY));
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  });
+  const safeDate = cleanDateOnly(date || TODAY);
 
   const quickDates = [
     { label: '今天', d: shiftDays(TODAY, 0) },
     { label: '明天', d: shiftDays(TODAY, 1) },
     { label: '後天', d: shiftDays(TODAY, 2) },
   ];
-  const isQuick = quickDates.some(q => q.d === date);
+  const isQuick = quickDates.some(q => q.d === safeDate);
 
-  // 月曆 grid
-  const calDays = useMemo(() => {
-    const year = calMonth.getFullYear(), month = calMonth.getMonth();
-    const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells = [];
-    for (let i = 0; i < firstDay; i++) cells.push(null);
-    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
-    return cells;
-  }, [calMonth]);
-
-  const calLabel = `${calMonth.getFullYear()}年${calMonth.getMonth()+1}月`;
-  const displayDate = date ? fmtDateChinese(date) : '選擇日期';
-  const displayTime = time || '未設定';
+  const moveDate = (days) => {
+    setDate(shiftDays(safeDate, days));
+    setShowCustomDate(false);
+  };
 
   return (
-    <div className="space-y-2">
-      {/* 快選按鈕列 */}
-      <div className="flex gap-1.5">
-        {quickDates.map(q => (
-          <button key={q.label} onClick={() => { setDate(q.d); setShowCal(false); }}
-            className={`flex-1 h-[40px] rounded-[10px] text-[12px] font-bold border transition-all active:scale-95
-              ${date === q.d ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-            {q.label}
+    <div className="space-y-3">
+      <div className="bg-white border border-[#EAEAEA] rounded-[18px] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+        <div className="flex items-center justify-between mb-3">
+          <button
+            type="button"
+            onClick={() => moveDate(-1)}
+            className="w-9 h-9 rounded-full bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center active:scale-90 transition-all"
+          >
+            <ChevronLeft size={15} strokeWidth={2.5} className="text-[#8E8E93]" />
           </button>
-        ))}
-        <button onClick={() => { setShowCal(v => !v); setShowTimePicker(false); }}
-          className={`flex-1 h-[40px] rounded-[10px] text-[12px] font-bold border transition-all active:scale-95
-            ${showCal || (!isQuick) ? 'bg-[#233142] text-white border-[#233142]' : 'bg-white text-[#8E8E93] border-[#EAEAEA]'}`}>
-          {(!isQuick && date) ? date.slice(5).replace('-', '/') : '其他'}
-        </button>
+
+          <div className="text-center">
+            <p className="text-[10px] font-bold text-[#A0A0A0] tracking-[0.22em] uppercase mb-0.5 font-num">Selected Date</p>
+            <p className="text-[15px] font-bold text-[#233142] tracking-wide">{fmtDateChinese(safeDate)}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => moveDate(1)}
+            className="w-9 h-9 rounded-full bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center active:scale-90 transition-all"
+          >
+            <ChevronRight size={15} strokeWidth={2.5} className="text-[#8E8E93]" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-4 gap-1.5">
+          {quickDates.map(q => (
+            <button
+              type="button"
+              key={q.label}
+              onClick={() => { setDate(q.d); setShowCustomDate(false); }}
+              className={`h-[38px] rounded-[11px] text-[12px] font-bold border transition-all active:scale-95 ${
+                safeDate === q.d ? 'bg-[#233142] text-white border-[#233142]' : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
+              }`}
+            >
+              {q.label}
+            </button>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => setShowCustomDate(v => !v)}
+            className={`h-[38px] rounded-[11px] text-[12px] font-bold border transition-all active:scale-95 ${
+              showCustomDate || !isQuick ? 'bg-[#D68C7A] text-white border-[#D68C7A]' : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
+            }`}
+          >
+            指定
+          </button>
+        </div>
+
+        {showCustomDate && (
+          <div className="mt-3 pt-3 border-t border-dashed border-[#EAEAEA] animate-in fade-in slide-in-from-top-1 duration-150">
+            <input
+              type="date"
+              value={safeDate}
+              onChange={e => setDate(e.target.value)}
+              className="w-full h-[44px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[12px] px-3 text-[14px] font-bold text-[#233142] outline-none focus:border-[#233142]"
+            />
+          </div>
+        )}
       </div>
 
-      {/* 月曆 */}
-      {showCal && (
-        <div className="bg-white border border-[#EAEAEA] rounded-[16px] p-4 shadow-[0_4px_20px_rgba(0,0,0,0.06)] animate-in fade-in zoom-in-95 duration-150">
-          <div className="flex items-center justify-between mb-3">
-            <button onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth()-1, 1))}
-              className="w-8 h-8 rounded-full bg-[#F9F8F6] flex items-center justify-center active:scale-90"><ChevronLeft size={15} strokeWidth={2.5} className="text-[#8E8E93]"/></button>
-            <span className="text-[13px] font-bold text-[#233142]">{calLabel}</span>
-            <button onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth()+1, 1))}
-              className="w-8 h-8 rounded-full bg-[#F9F8F6] flex items-center justify-center active:scale-90"><ChevronRight size={15} strokeWidth={2.5} className="text-[#8E8E93]"/></button>
-          </div>
-          <div className="grid grid-cols-7 gap-0.5 mb-1">
-            {['日','一','二','三','四','五','六'].map(d => (
-              <div key={d} className="text-center text-[10px] font-bold text-[#C4C4C4] py-1">{d}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-0.5">
-            {calDays.map((d, i) => {
-              if (!d) return <div key={`e${i}`} />;
-              const ds = fmtDate(d);
-              const isSelected = ds === date;
-              const isToday = ds === fmtDate(TODAY);
-              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-              return (
-                <button key={ds} onClick={() => { setDate(ds); setShowCal(false); }}
-                  className={`aspect-square rounded-[8px] flex items-center justify-center text-[13px] font-bold transition-all active:scale-90
-                    ${isSelected ? 'bg-[#233142] text-white' : isToday ? 'bg-[#D68C7A]/15 text-[#D68C7A]' : isWeekend ? 'text-[#D68C7A] hover:bg-[#F9F8F6]' : 'text-[#233142] hover:bg-[#F9F8F6]'}`}>
-                  {d.getDate()}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 時間選擇 */}
       {showTime && (
         <div>
-          <button onClick={() => { setShowTimePicker(v => !v); setShowCal(false); }}
-            className={`w-full h-[44px] rounded-[12px] border text-[13px] font-bold flex items-center gap-2 px-4 transition-all
-              ${showTimePicker || time ? 'bg-white border-[#233142] text-[#233142]' : 'bg-[#F9F8F6] border-[#EAEAEA] text-[#8E8E93]'}`}>
+          <button
+            type="button"
+            onClick={() => setShowTimePicker(v => !v)}
+            className={`w-full h-[44px] rounded-[14px] border text-[13px] font-bold flex items-center gap-2 px-4 transition-all ${
+              showTimePicker || time ? 'bg-white border-[#233142] text-[#233142]' : 'bg-[#F9F8F6] border-[#EAEAEA] text-[#8E8E93]'
+            }`}
+          >
             <Clock size={14} className="shrink-0 text-[#A0A0A0]" />
-            <span>{time ? `${time}` : '設定時間（選填）'}</span>
-            {time && <button className="ml-auto text-[#A0A0A0]" onClick={e => { e.stopPropagation(); setTime(''); }}><X size={13}/></button>}
+            <span>{time || '設定時間（選填）'}</span>
+            {time && (
+              <span
+                className="ml-auto text-[#A0A0A0]"
+                onClick={e => { e.stopPropagation(); setTime(''); }}
+              >
+                <X size={13}/>
+              </span>
+            )}
           </button>
+
           {showTimePicker && (
-            <div className="bg-white border border-[#EAEAEA] rounded-[16px] p-4 mt-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.06)] animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white border border-[#EAEAEA] rounded-[16px] p-4 mt-2 shadow-[0_4px_20px_rgba(0,0,0,0.06)] animate-in fade-in zoom-in-95 duration-150">
               <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest mb-2">選擇時間</p>
-              <div className="flex gap-2">
-                <div className={`flex-1 overflow-y-auto ${hideScrollbar}`} style={{ maxHeight: 160 }}>
-                  <p className="text-[10px] text-center text-[#C4C4C4] mb-1">時</p>
-                  {HOUR_OPTIONS.map(h => {
-                    const cur = time ? time.split(':')[0] : '';
-                    return (
-                      <button key={h} onClick={() => { const m = time ? time.split(':')[1] || '00' : '00'; setTime(`${h}:${m}`); }}
-                        className={`w-full py-1.5 rounded-[8px] text-[13px] font-bold text-center transition-all ${cur === h ? 'bg-[#233142] text-white' : 'text-[#233142] hover:bg-[#F9F8F6]'}`}>{h}</button>
-                    );
-                  })}
-                </div>
-                <div className="w-px bg-[#EAEAEA]" />
-                <div className="flex-1">
-                  <p className="text-[10px] text-center text-[#C4C4C4] mb-1">分</p>
-                  {MIN_OPTIONS.map(m => {
-                    const cur = time ? time.split(':')[1] : '';
-                    return (
-                      <button key={m} onClick={() => { const h = time ? time.split(':')[0] || '00' : '00'; setTime(`${h}:${m}`); setShowTimePicker(false); }}
-                        className={`w-full py-1.5 rounded-[8px] text-[13px] font-bold text-center transition-all ${cur === m ? 'bg-[#233142] text-white' : 'text-[#233142] hover:bg-[#F9F8F6]'}`}>{m}</button>
-                    );
-                  })}
-                </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {['08:00','09:00','10:00','12:00','14:00','15:00','18:00','20:00'].map(t => (
+                  <button
+                    type="button"
+                    key={t}
+                    onClick={() => { setTime(t); setShowTimePicker(false); }}
+                    className={`h-[34px] rounded-[10px] text-[12px] font-bold border active:scale-95 transition-all ${time === t ? 'bg-[#233142] text-white border-[#233142]' : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'}`}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
+              <input
+                type="time"
+                value={time || ''}
+                onChange={e => setTime(e.target.value)}
+                className="w-full h-[42px] mt-3 bg-[#F9F8F6] border border-[#EAEAEA] rounded-[12px] px-3 text-[14px] font-bold text-[#233142] outline-none focus:border-[#233142]"
+              />
             </div>
           )}
         </div>
@@ -308,7 +365,7 @@ export default function FamilyHub() {
     setIsRefreshing(true);
     try {
       const { data: eventsData } = await supabase.from('events').select('*').gte('date', '2026-05-22').order('date', { ascending: true });
-      if (eventsData) setEvents(eventsData);
+      if (eventsData) setEvents(eventsData.map(normalizeEvent));
 
       const { data: routinesData } = await supabase.from('routines').select('*').gte('created_at', '2026-05-22T00:00:00Z');
       const { data: logsData } = await supabase.from('routine_logs').select('*');
@@ -388,20 +445,35 @@ export default function FamilyHub() {
   };
 
   const handleUpdateEvent = async (updatedEvent) => {
-    // 只送 Supabase events 表確定有的欄位，避免 400
-    const { id, date, type, text, member, is_done } = updatedEvent;
-    const payload = { date, type, text, member, is_done };
-    if (updatedEvent.type === 'mood' && updatedEvent.mood) payload.mood = updatedEvent.mood;
-    const { error } = await supabase.from('events').update(payload).eq('id', id);
-    if (!error) { 
-      setEvents(prev => prev.map(e => e.id === id ? { ...e, ...payload } : e).sort((a,b) => {
+    const payload = buildEventPayload({
+      type: updatedEvent.type,
+      text: updatedEvent.text,
+      member: updatedEvent.member,
+      date: updatedEvent.date,
+      time: updatedEvent.time,
+      mood: updatedEvent.mood,
+      currentUserLineId,
+      members,
+      base: updatedEvent,
+    });
+
+    const { data, error } = await supabase
+      .from('events')
+      .update(payload)
+      .eq('id', updatedEvent.id)
+      .select();
+
+    if (!error) {
+      const nextEvent = normalizeEvent(data?.[0] || { ...updatedEvent, ...payload });
+      setEvents(prev => prev.map(e => e.id === updatedEvent.id ? nextEvent : e).sort((a,b) => {
         if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
         return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
-      })); 
-      setEditingEvent(null); showToast('✅ 手札已更新'); 
+      }));
+      setEditingEvent(null);
+      showToast('✅ 手札已更新');
     } else {
-      console.error('update error:', JSON.stringify(error));
-      showToast('❌ 更新失敗');
+      console.error('update error:', error);
+      showToast(`❌ 更新失敗：${error?.message || '請稍後再試'}`);
     }
   };
 
@@ -413,30 +485,50 @@ export default function FamilyHub() {
   const handleToggleDone = async (e, ev) => {
     e.stopPropagation();
     triggerVibration(15);
-    const newStatus = !ev.is_done;
-    setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, is_done: newStatus } : item));
-    const { error } = await supabase.from('events').update({ is_done: newStatus }).eq('id', ev.id);
-    
+    const newStatus = !Boolean(ev.is_done ?? ev.completed);
+
+    setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, is_done: newStatus, completed: newStatus } : item));
+
+    const { error } = await supabase
+      .from('events')
+      .update({ is_done: newStatus, completed: newStatus })
+      .eq('id', ev.id);
+
     if (!error) {
       if (newStatus) showToast('✅ 任務已完成');
-      
+
       if (newStatus && ev.is_routine && ev.routine_id) {
         const routine = routines.find(r => r.id === ev.routine_id);
         if (routine) {
-          const nextDate = shiftDays(ev.date, routine.interval_days || 30); 
-          const { data: existing } = await supabase.from('events').select('id').eq('routine_id', routine.id).eq('date', nextDate);
+          const nextDate = shiftDays(ev.date, routine.interval_days || 30);
+          const { data: existing } = await supabase
+            .from('events')
+            .select('id')
+            .eq('routine_id', routine.id)
+            .eq('date', nextDate);
+
           if (!existing || existing.length === 0) {
             await supabase.from('events').insert([{
-              title: ev.text, text: ev.text, type: ev.type, member: ev.member,
-              date: nextDate, is_routine: true, routine_id: routine.id, is_done: false
+              title: ev.text || ev.title || routine.name,
+              text: ev.text || ev.title || routine.name,
+              type: ev.type || 'routine',
+              member: ev.member || routine.member || '全家',
+              date: nextDate,
+              time: null,
+              mood: null,
+              is_routine: true,
+              routine_id: routine.id,
+              is_done: false,
+              completed: false,
             }]);
-            fetchSupabaseData(); 
+            fetchSupabaseData();
           }
         }
       }
     } else {
-      setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, is_done: !newStatus } : item));
-      showToast('網路錯誤，請重試');
+      setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, is_done: !newStatus, completed: !newStatus } : item));
+      console.error('toggle error:', error);
+      showToast(`❌ 狀態更新失敗：${error?.message || '請重試'}`);
     }
   };
 
@@ -799,16 +891,15 @@ export default function FamilyHub() {
     const handleLogRoutine = async (noteToSave, dateToSave) => {
       triggerVibration(10);
       const finalNote = noteToSave.trim() || '';
-      // last_done_at 是 timestamptz，需要完整 ISO 格式
-      const isoDate = dateToSave.includes('T') ? dateToSave : `${dateToSave}T00:00:00`;
+      const finalDate = cleanDateOnly(dateToSave);
       const { data, error } = await supabase.from('routine_logs').insert([{
-          routine_name: r.name, last_done_at: isoDate, note: finalNote
+          routine_name: r.name, member: r.member || null, interval_days: r.interval_days || null, last_done_at: finalDate, note: finalNote
       }]).select();
 
       if (!error && data) {
           setRoutines(prev => prev.map(rt => {
               if (rt.id === r.id) {
-                  const newLogs = [{ id: data[0].id, date: dateToSave, note: finalNote }, ...rt.logs].sort((a, b) => new Date(b.date) - new Date(a.date));
+                  const newLogs = [{ id: data[0].id, date: finalDate, note: finalNote }, ...rt.logs].sort((a, b) => new Date(b.date) - new Date(a.date));
                   return { ...rt, logs: newLogs };
               }
               return rt;
@@ -821,12 +912,12 @@ export default function FamilyHub() {
     const handleUpdateLog = async () => {
       triggerVibration(10);
       const finalNote = editNote.trim() || '';
-      const isoDate = editDate.includes('T') ? editDate : `${editDate}T00:00:00`;
-      const { error } = await supabase.from('routine_logs').update({ last_done_at: isoDate, note: finalNote }).eq('id', editingLogId);
+      const finalDate = cleanDateOnly(editDate);
+      const { error } = await supabase.from('routine_logs').update({ last_done_at: finalDate, note: finalNote }).eq('id', editingLogId);
       if (!error) {
         setRoutines(prev => prev.map(rt => {
             if (rt.id === r.id) {
-                const newLogs = rt.logs.map(l => l.id === editingLogId ? { ...l, date: editDate, note: finalNote } : l).sort((a, b) => new Date(b.date) - new Date(a.date));
+                const newLogs = rt.logs.map(l => l.id === editingLogId ? { ...l, date: finalDate, note: finalNote } : l).sort((a, b) => new Date(b.date) - new Date(a.date));
                 return { ...rt, logs: newLogs };
             }
             return rt;
@@ -966,17 +1057,46 @@ export default function FamilyHub() {
     const [newLastDate, setNewLastDate] = useState(fmtDate(TODAY)); 
 
     const handleAddRoutine = async () => {
-      if (!newName.trim()) return;
-      
-      const { data, error } = await supabase.from('routines').insert([{ name: newName, interval_days: newInterval }]).select();
-      
-      if (!error && data) {
-        const newRoutine = { ...data[0], logs: [] };
-        if (newLastDate) newRoutine.logs.push({ id: Date.now(), date: newLastDate, note: '初始設定' });
-        
-        setRoutines(prev => [...prev, newRoutine]);
-        setIsAdding(false); setNewName(''); setNewInterval(30); setNewLastDate(fmtDate(TODAY));
+      if (!newName.trim() || Number(newInterval) < 1) return;
+      const routinePayload = {
+        name: newName.trim(),
+        interval_days: Number(newInterval),
+        member: null,
+        category: 'routine',
+        active: true,
+      };
+
+      const { data, error } = await supabase.from('routines').insert([routinePayload]).select();
+
+      if (!error && data?.length) {
+        const createdRoutine = { ...data[0], logs: [] };
+
+        if (newLastDate) {
+          const finalDate = cleanDateOnly(newLastDate);
+          const { data: logData, error: logError } = await supabase.from('routine_logs').insert([{
+            routine_name: createdRoutine.name,
+            member: createdRoutine.member || null,
+            interval_days: createdRoutine.interval_days,
+            last_done_at: finalDate,
+            note: '初始設定',
+          }]).select();
+
+          if (!logError && logData?.length) {
+            createdRoutine.logs = [{ id: logData[0].id, date: finalDate, note: '初始設定' }];
+          } else if (logError) {
+            console.error('initial routine log error:', logError);
+          }
+        }
+
+        setRoutines(prev => [...prev, createdRoutine]);
+        setIsAdding(false);
+        setNewName('');
+        setNewInterval(30);
+        setNewLastDate(fmtDate(TODAY));
         showToast('✅ 週期卡片已建立');
+      } else {
+        console.error('routine insert error:', error);
+        showToast(`❌ 建立失敗：${error?.message || '請稍後再試'}`);
       }
     };
 
@@ -1053,7 +1173,7 @@ export default function FamilyHub() {
 
     useEffect(() => {
       if (editingEvent) {
-        let initText = editingEvent.text || '';
+        let initText = editingEvent.text || editingEvent.title || '';
         let initTime = '';
         if (editingEvent.type === 'schedule') {
           const match = initText.match(/^(\d{2}:\d{2})\s+(.*)/);
@@ -1071,19 +1191,15 @@ export default function FamilyHub() {
 
     const handleSave = () => {
       if (!text.trim() && type !== 'mood') return;
-      let finalText = text;
-      const updateRow = { ...editingEvent, type, text: finalText, date, member };
-      // 只有心情類型才送 mood 欄位
-      if (type === 'mood') {
-        updateRow.mood = mood;
-        updateRow.text = text || '紀錄當下心情...';
-      } else {
-        delete updateRow.mood; // 確保不送 mood
-        if (time) {
-          if (type === 'schedule') updateRow.text = `${time} ${text}`;
-          else if (type === 'remind') updateRow.text = `${text} (${time} 截止)`;
-        }
-      }
+      const updateRow = {
+        ...editingEvent,
+        type,
+        text: text.trim(),
+        date,
+        time,
+        member,
+        mood: type === 'mood' ? mood : null,
+      };
       handleUpdateEvent(updateRow);
     };
 
@@ -1186,42 +1302,38 @@ export default function FamilyHub() {
 
     const handleManualSubmit = async () => {
       if (!text.trim() && type !== 'mood') return;
-      let finalText = text; let finalMember = member; let finalDate = date;
-      const insertRow = {
-  title: finalText,
-  text: finalText,
-  type,
-  member: finalMember,
-  date: finalDate,
-  time: time || null,
-  is_done: false,
-};
 
-      if (type === 'mood') {
-        insertRow.mood = mood;
-        insertRow.text = text || '紀錄當下心情...';
-        const me = members.find(m => m.line_user_id === currentUserLineId);
-        insertRow.member = me ? me.name : '家人';
-        insertRow.date = fmtDate(TODAY);
-      } else {
-        if (time) {
-          if (type === 'schedule') insertRow.text = `${time} ${text}`;
-          else if (type === 'remind') insertRow.text = `${text} (${time} 截止)`;
-        }
-      }
+      const insertRow = buildEventPayload({
+        type,
+        text,
+        member,
+        date,
+        time,
+        mood,
+        currentUserLineId,
+        members,
+        base: { is_done: false, completed: false },
+      });
 
       const { data, error } = await supabase.from('events').insert([insertRow]).select();
-      if (!error && data) {
-        setEvents(prev => [...prev, data[0]].sort((a, b) => {
+
+      if (!error && data?.length) {
+        const createdEvent = normalizeEvent(data[0]);
+        setEvents(prev => [...prev, createdEvent].sort((a, b) => {
           if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
           return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
         }));
-        setSelectedDate(insertRow.date); setIsAiModalOpen(false);
-        setText(''); setTime(''); setType('schedule'); setMember('全家'); setMood('😊');
+        setSelectedDate(createdEvent.date);
+        setIsAiModalOpen(false);
+        setText('');
+        setTime('');
+        setType('schedule');
+        setMember('全家');
+        setMood('😊');
         showToast('✅ 已存入手札');
       } else {
-        console.error('insert error:', JSON.stringify(error));
-        showToast('❌ 儲存失敗');
+        console.error('insert error:', error);
+        showToast(`❌ 儲存失敗：${error?.message || '請檢查資料表欄位'}`);
       }
     };
 
