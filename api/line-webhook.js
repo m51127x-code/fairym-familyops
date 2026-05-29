@@ -128,7 +128,7 @@ function classifyMessage(message, userRole = "全家", allMembers = []) {
   if (/買|採買|超市|補|衛生紙|洗碗精|菜|牛奶|米/.test(content)) type = "shop";
   else if (/回診|看醫生|牙醫|吃藥|健康|檢查|診所|醫院/.test(content)) type = "health";
   else if (/濾網|加鹽|機油|保養|清潔|換|澆花|倒垃圾/.test(content)) type = "routine";
-  else if (/心情|今天覺得|好累|開心|難過|煩|不錯|累|焦慮|壓力|緊張|興奮|感動|委屈|生氣|煩躁|疲憊|滿足/.test(content)) {
+  else if (/心情|今天覺得|好累|開心|難過|煩|不錯|累|焦慮|壓力|緊張|興奮|感動|委屈|生氣|煩躁|疲憊|滿足|痛苦|好痛/.test(content)) {
     type = "mood";
     const moodMap = { "開心":"😊","快樂":"😄","累":"😴","好累":"😴","煩":"😤","難過":"😢","不錯":"🙂","放鬆":"😌", "焦慮":"😰", "壓力":"🤯" };
     for (const [word, emoji] of Object.entries(moodMap)) {
