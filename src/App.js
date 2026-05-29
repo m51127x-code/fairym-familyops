@@ -234,12 +234,25 @@ const InlineTimePicker = ({ time, setTime }) => {
   };
 
   return (
-    <div className="bg-white border border-[#EAEAEA] rounded-[18px] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)] overflow-hidden">
-      <div className="flex items-center justify-between gap-3 mb-2.5">
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold text-[#A0A0A0] tracking-[0.18em] uppercase font-num mb-0.5">Time</p>
-          <p className="text-[13px] font-bold text-[#233142] tracking-wide">時間（選填）</p>
+    <div className="w-full max-w-full overflow-hidden rounded-[16px] border border-[#EAEAEA] bg-white px-3 py-2.5 shadow-[0_1px_6px_rgba(0,0,0,0.025)]">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="shrink-0 flex items-center gap-1.5 text-[#8E8E93]">
+          <Clock size={14} strokeWidth={2.4} className="text-[#A0A0A0]" />
+          <span className="text-[12px] font-bold tracking-widest">時間</span>
         </div>
+
+        <label className="min-w-0 flex-1 h-[36px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[12px] px-3 flex items-center focus-within:bg-white focus-within:border-[#233142] transition-all">
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="選填 13:17"
+            value={draftTime}
+            onChange={e => handleInput(e.target.value)}
+            onBlur={e => commitTime(e.target.value)}
+            className="min-w-0 w-full bg-transparent outline-none text-[15px] font-num font-bold tracking-[0.02em] text-[#233142] placeholder:text-[#C4C4C4] text-right"
+          />
+        </label>
+
         {time && (
           <button
             type="button"
@@ -252,29 +265,16 @@ const InlineTimePicker = ({ time, setTime }) => {
         )}
       </div>
 
-      <label className="flex items-center gap-2 w-full h-[44px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[14px] px-3 focus-within:bg-white focus-within:border-[#233142] transition-all">
-        <Clock size={15} className="shrink-0 text-[#A0A0A0]" />
-        <input
-          type="text"
-          inputMode="numeric"
-          placeholder="例如 13:17"
-          value={draftTime}
-          onChange={e => handleInput(e.target.value)}
-          onBlur={e => commitTime(e.target.value)}
-          className="min-w-0 flex-1 bg-transparent outline-none text-[15px] font-num font-bold tracking-[0.02em] text-[#233142] placeholder:text-[#CFCFCF]"
-        />
-      </label>
-
-      <div className="grid grid-cols-4 gap-1.5 mt-2.5">
+      <div className={`flex gap-1.5 overflow-x-auto mt-2 ${hideScrollbar}`}>
         {TIME_QUICK_OPTIONS.map(option => (
           <button
             type="button"
             key={option}
             onClick={() => { setDraftTime(option); setTime(option); }}
-            className={`h-[34px] min-w-0 rounded-[11px] text-[12px] font-num font-bold border transition-all active:scale-95 ${
+            className={`shrink-0 h-[30px] px-3 rounded-[10px] text-[11px] font-num font-bold border transition-all active:scale-95 ${
               time === option
                 ? 'bg-[#233142] text-white border-[#233142]'
-                : 'bg-white text-[#8E8E93] border-[#EAEAEA]'
+                : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
             }`}
           >
             {option}
@@ -299,7 +299,7 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
   };
 
   return (
-    <div className="space-y-3 w-full max-w-full overflow-hidden">
+    <div className="space-y-2.5 w-full max-w-full overflow-hidden">
       <div className="bg-white border border-[#EAEAEA] rounded-[18px] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)] overflow-hidden">
         <div className="flex items-center justify-between mb-3 min-w-0">
           <button
