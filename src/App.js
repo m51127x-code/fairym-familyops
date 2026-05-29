@@ -440,6 +440,10 @@ export default function FamilyHub() {
   const [notifyEvent, setNotifyEvent] = useState(null);
   const [isSendingNotify, setIsSendingNotify] = useState(false);
   const [isBriefOpen, setIsBriefOpen] = useState(false);
+  const [briefSeenDate, setBriefSeenDate] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem('fairym_today_brief_seen_date') || '';
+  });
   const [reportSettings, setReportSettings] = useState(null);
   const [isReportSettingsOpen, setIsReportSettingsOpen] = useState(false);
   const [isSavingReportSettings, setIsSavingReportSettings] = useState(false);
@@ -937,72 +941,154 @@ export default function FamilyHub() {
     return { title, timeLabel };
   };
 
+  const getRoutineBriefStatus = (routine) => {
+    const lastLog = routine.logs && routine.logs.length > 0 ? routine.logs[0].date : routine.created_at;
+    const lastDate = new Date(lastLog);
+    const nextDate = new Date(lastDate);
+    nextDate.setDate(nextDate.getDate() + (routine.interval_days || 30));
+    const today = new Date(TODAY);
+    const nextDateOnly = new Date(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const diffDays = Math.ceil((nextDateOnly.getTime() - todayOnly.getTime()) / (1000 * 60 * 60 * 24));
+    return { daysLeft: diffDays, nextDate: fmtDate(nextDate) };
+  };
+
+  const getBriefData = () => {
+    const todayStr = fmtDate(TODAY);
+    const todayItems = events
+      .filter(e => e.date === todayStr && !e.is_done && !e.completed && e.type !== 'mood')
+      .sort((a, b) => (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99));
+
+    const overdueItems = events
+      .filter(e => e.date < todayStr && !e.is_done && !e.completed && e.type !== 'mood')
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const soonRoutines = routines
+      .map(r => ({ ...r, status: getRoutineBriefStatus(r) }))
+      .filter(r => r.status.daysLeft <= 3)
+      .sort((a, b) => a.status.daysLeft - b.status.daysLeft);
+
+    return { todayItems, overdueItems, soonRoutines };
+  };
+
+  const briefData = getBriefData();
+  const hasBriefContent = briefData.todayItems.length > 0 || briefData.overdueItems.length > 0 || briefData.soonRoutines.length > 0;
+  const hasUnreadBrief = hasBriefContent && briefSeenDate !== fmtDate(TODAY);
+
+  const openTodayBrief = () => {
+    setIsBriefOpen(true);
+    if (typeof window !== 'undefined') {
+      const todayKey = fmtDate(TODAY);
+      window.localStorage.setItem('fairym_today_brief_seen_date', todayKey);
+      setBriefSeenDate(todayKey);
+    }
+  };
+
+  const BriefSection = ({ title, count, children }) => {
+    if (!count) return null;
+    return (
+      <section className="py-4 border-b border-[#E6E0D8] last:border-b-0">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-[11px] font-bold tracking-[0.22em] uppercase text-[#8E8E93]">{title}</h4>
+          <span className="text-[11px] font-num font-bold text-[#C4A79D]">{count}</span>
+        </div>
+        <div className="space-y-3">{children}</div>
+      </section>
+    );
+  };
+
+  const BriefEventRow = ({ event, variant = 'today' }) => {
+    const display = getEventDisplay(event);
+    const dateMeta = variant === 'overdue' ? `${fmtDateChinese(event.date)} · 尚未完成` : '今天';
+    const typeLabel = TYPE_CONFIG[event.type]?.label || '事項';
+    return (
+      <div className="flex items-start gap-3">
+        <div className="pt-0.5 shrink-0"><AssigneeInline name={event.member} compact /></div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-bold text-[#233142] leading-snug break-words">{display.title}</p>
+          <p className="text-[11px] text-[#9A9A9A] font-medium mt-1 tracking-[0.04em]">
+            {dateMeta}{display.timeLabel ? ` · ${display.timeLabel}` : ''} · {typeLabel}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  const BriefRoutineRow = ({ routine }) => {
+    const days = routine.status.daysLeft;
+    const statusText = days < 0 ? `已逾期 ${Math.abs(days)} 天` : days === 0 ? '今天到期' : `剩 ${days} 天`;
+    const statusClass = days < 0
+      ? 'text-[#B85C5C] bg-[#F9EFEF] border-[#F1D8D8]'
+      : days === 0
+        ? 'text-[#D68C7A] bg-[#F9F3EE] border-[#EEDBD3]'
+        : 'text-[#5B7586] bg-[#F0F4F8] border-[#DEE8EF]';
+    return (
+      <div className="flex items-start gap-3">
+        <div className="w-6 h-6 rounded-full bg-white border border-[#EAEAEA] flex items-center justify-center shrink-0 mt-0.5">
+          <RotateCw size={12} strokeWidth={2.4} className="text-[#8E8E93]" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[14px] font-bold text-[#233142] leading-snug break-words">{routine.name}</p>
+            <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-[8px] border ${statusClass}`}>{statusText}</span>
+          </div>
+          <p className="text-[11px] text-[#9A9A9A] font-medium mt-1 tracking-[0.04em]">
+            週期 · {routine.member || '全家'} · 下次 {fmtDateChinese(routine.status.nextDate)}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   const TodayBriefModal = () => {
     if (!isBriefOpen) return null;
-    const todayStr = fmtDate(TODAY);
-    const todayItems = events.filter(e => e.date === todayStr && !e.is_done && !e.completed && e.type !== 'mood');
-    const overdueItems = events.filter(e => e.date < todayStr && !e.is_done && !e.completed && e.type !== 'mood');
-    const soonRoutines = routines
-      .map(r => ({ ...r, status: calculateRoutineStatus(r) }))
-      .filter(r => r.status.daysLeft <= 3)
-      .sort((a, b) => a.status.daysLeft - b.status.daysLeft)
-      .slice(0, 4);
-
-    const briefRows = [
-      ...todayItems.slice(0, 4).map(e => ({
-        id: `event-${e.id}`,
-        title: getEventDisplay(e).title,
-        meta: `${TYPE_CONFIG[e.type]?.label || '事項'}${getEventDisplay(e).timeLabel ? ` · ${getEventDisplay(e).timeLabel}` : ''}`,
-        member: e.member,
-        onClick: () => { setSelectedDate(e.date); setIsBriefOpen(false); setEditingEvent(e); },
-      })),
-      ...soonRoutines.map(r => ({
-        id: `routine-${r.id}`,
-        title: r.name,
-        meta: r.status.daysLeft < 0 ? `週期 · 逾期 ${Math.abs(r.status.daysLeft)} 天` : r.status.daysLeft === 0 ? '週期 · 今天到期' : `週期 · 剩 ${r.status.daysLeft} 天`,
-        member: r.member || '全家',
-        onClick: () => { setActiveTab('routines'); setIsBriefOpen(false); },
-      })),
-    ];
+    const { todayItems, overdueItems, soonRoutines } = getBriefData();
 
     return (
       <div className="fixed inset-0 z-[70] flex items-center justify-center px-5 bg-[#1A2532]/28" onClick={() => setIsBriefOpen(false)}>
-        <div className="w-full max-w-[420px] bg-[#F9F8F6] rounded-[28px] shadow-[0_20px_70px_rgba(35,49,66,0.22)] border border-white/70 overflow-hidden modal-stable animate-in fade-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
-          <div className="px-5 pt-5 pb-4 border-b border-[#EAEAEA] bg-white/70">
+        <div className="w-full max-w-[420px] bg-[#F7F3EF] rounded-[28px] shadow-[0_20px_70px_rgba(35,49,66,0.22)] border border-white/70 overflow-hidden modal-stable animate-in fade-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
+          <div className="px-5 pt-5 pb-4 border-b border-[#E6E0D8] bg-[#FBFAF8]">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[10px] font-num font-bold text-[#D68C7A] tracking-[0.26em] uppercase mb-1">Today Brief</p>
-                <h3 className="text-[22px] font-serif-jp font-bold text-[#233142] tracking-wide">今日摘要</h3>
+                <h3 className="text-[23px] font-serif-jp font-bold text-[#233142] tracking-wide">今日佈告</h3>
               </div>
-              <button type="button" onClick={() => setIsBriefOpen(false)} className="w-9 h-9 rounded-full bg-[#F1EFEC] text-[#8E8E93] flex items-center justify-center active:scale-95 transition-all">
+              <button type="button" onClick={() => setIsBriefOpen(false)} className="w-9 h-9 rounded-full bg-[#EFEAE4] text-[#8E8E93] flex items-center justify-center active:scale-95 transition-all">
                 <X size={17} strokeWidth={2.4}/>
               </button>
             </div>
             <p className="text-[13px] text-[#667085] leading-relaxed mt-3">
               {todayItems.length || overdueItems.length || soonRoutines.length
-                ? `今天有 ${todayItems.length} 件事項，${overdueItems.length} 件尚未完成，${soonRoutines.length} 件週期快到。`
+                ? `今天有 ${todayItems.length} 件事項、${overdueItems.length} 件尚未完成，${soonRoutines.length} 件週期需要留意。`
                 : '目前沒有需要特別留意的事項。'}
             </p>
           </div>
 
-          <div className="px-5 py-4 max-h-[58dvh] overflow-y-auto hide-scroll sheet-scroll-stable">
-            {briefRows.length === 0 ? (
-              <div className="py-8 text-center text-[#A0A0A0] text-[13px] font-bold tracking-widest">今天先慢慢來。</div>
-            ) : (
-              <div className="space-y-2.5">
-                {briefRows.map(row => (
-                  <button key={row.id} type="button" onClick={row.onClick} className="w-full text-left bg-white border border-[#EAEAEA] rounded-[18px] px-4 py-3.5 active:scale-[0.99] transition-all shadow-[0_2px_8px_rgba(0,0,0,0.025)]">
-                    <div className="flex items-start gap-3">
-                      <AssigneeInline name={row.member} compact />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[14px] font-bold text-[#233142] leading-snug truncate">{row.title}</p>
-                        <p className="text-[11px] text-[#A0A0A0] font-num font-bold tracking-[0.08em] mt-1">{row.meta}</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
+          <div className="px-5 py-1 max-h-[58dvh] overflow-y-auto hide-scroll sheet-scroll-stable">
+            {!hasBriefContent ? (
+              <div className="py-10 text-center">
+                <Leaf size={24} strokeWidth={1.5} className="text-[#D1CFC7] mx-auto mb-3" />
+                <p className="text-[#A0A0A0] text-[13px] font-bold tracking-widest">今天先慢慢來。</p>
               </div>
+            ) : (
+              <>
+                <BriefSection title="今日事項" count={todayItems.length}>
+                  {todayItems.slice(0, 6).map(e => <BriefEventRow key={e.id} event={e} />)}
+                </BriefSection>
+                <BriefSection title="尚未完成" count={overdueItems.length}>
+                  {overdueItems.slice(0, 6).map(e => <BriefEventRow key={e.id} event={e} variant="overdue" />)}
+                </BriefSection>
+                <BriefSection title="週期提醒" count={soonRoutines.length}>
+                  {soonRoutines.slice(0, 6).map(r => <BriefRoutineRow key={r.id || r.name} routine={r} />)}
+                </BriefSection>
+              </>
             )}
+          </div>
+
+          <div className="px-5 pb-5 pt-3 bg-[#F7F3EF]">
+            <button type="button" onClick={() => setIsBriefOpen(false)} className="w-full h-[42px] rounded-[14px] bg-[#233142] text-white text-[13px] font-bold tracking-widest active:scale-[0.98] transition-all">
+              知道了
+            </button>
           </div>
         </div>
       </div>
@@ -1690,15 +1776,6 @@ export default function FamilyHub() {
         setText(initText); setType(editingEvent.type || 'todo'); setDate(editingEvent.date);
         setTime(initTime); setMember(editingEvent.member || '全家'); setMood(editingEvent.mood || '😊');
 
-        loadScheduledNotificationForEvent(editingEvent.id).then(schedule => {
-          if (schedule) {
-            setScheduleNotifyEnabled(true);
-            setScheduleNotifyMode(schedule.target_mode || 'private');
-          } else {
-            setScheduleNotifyEnabled(false);
-            setScheduleNotifyMode('private');
-          }
-        });
       }
     }, [editingEvent]);
 
@@ -1844,23 +1921,7 @@ export default function FamilyHub() {
           if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
           return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
         }));
-        if (scheduleNotifyEnabled && (type === 'schedule' || type === 'remind') && time) {
-          try {
-            await saveScheduledNotification({
-              eventId: createdEvent.id,
-              date: createdEvent.date,
-              time,
-              enabled: true,
-              targetMode: scheduleNotifyMode,
-            });
-            showToast(`✅ 已存入手札，並設定${getNotificationModeLabel(scheduleNotifyMode)}預約提醒`);
-          } catch (scheduleError) {
-            console.error('schedule notification error:', scheduleError);
-            showToast('✅ 已存入手札，但預約提醒設定失敗');
-          }
-        } else {
-          showToast('✅ 已存入手札');
-        }
+showToast('✅ 已存入手札');
 
         setSelectedDate(createdEvent.date);
         setIsAiModalOpen(false);
@@ -1880,7 +1941,7 @@ export default function FamilyHub() {
     const isOtherDate = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
 
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => setIsAiModalOpen(false)}>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/32" onClick={() => setIsAiModalOpen(false)}>
         <div
           className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal modal-stable overflow-hidden"
           style={{ maxHeight: 'calc(92dvh - env(safe-area-inset-bottom, 0px))' }}
@@ -2024,9 +2085,11 @@ export default function FamilyHub() {
                 ) : (
                   members.map(m => (
                     <div key={m.id} className="flex justify-between items-center p-4 bg-white rounded-[20px] border border-[#EAEAEA] shadow-[0_2px_8px_rgba(44,42,40,0.02)] transition-colors">
-                      <div>
-                        <span className="block text-[16px] font-bold text-[#233142] tracking-wide mb-2">{m.name}</span>
-                        <span className="text-[10px] font-bold tracking-widest text-[#566B56] bg-[#F4F8F4] px-2 py-1 rounded-md border border-[#EAEAEA] shadow-sm inline-block uppercase">{m.role_name}</span>
+                      <div className="min-w-0">
+                        <span className="block text-[16px] font-bold text-[#233142] tracking-wide mb-1 truncate">{m.name}</span>
+                        {m.role_name && (
+                          <span className="block text-[12px] font-medium tracking-wide text-[#8E8E93] truncate">{m.role_name}</span>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <button 
@@ -2227,8 +2290,11 @@ export default function FamilyHub() {
               <RotateCw size={12} strokeWidth={3} className={`text-[#566B56] ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="text-[10px] font-num font-bold text-[#566B56] uppercase tracking-[0.2em]">{isRefreshing ? 'SYNC' : 'SYNC'}</span>
             </button>
-            <button onClick={() => setIsBriefOpen(true)} className="w-[38px] h-[38px] bg-white border-[1.5px] border-[#EAEAEA] rounded-[12px] flex items-center justify-center text-[#D68C7A] shadow-sm hover:bg-[#F9F8F6] active:scale-95 transition-all" aria-label="今日摘要">
+            <button onClick={openTodayBrief} className="relative w-[38px] h-[38px] bg-white border-[1.5px] border-[#EAEAEA] rounded-[12px] flex items-center justify-center text-[#D68C7A] shadow-sm hover:bg-[#F9F8F6] active:scale-95 transition-all" aria-label="今日摘要">
               <Sparkles size={18} strokeWidth={2.3} />
+              {hasUnreadBrief && (
+                <span className="absolute -top-1 -right-1 w-[10px] h-[10px] rounded-full bg-[#D68C7A] border-[2px] border-[#F9F8F6] shadow-sm" />
+              )}
             </button>
             <button onClick={() => setIsMemberModalOpen(true)} className="relative w-[38px] h-[38px] bg-white border-[1.5px] border-[#EAEAEA] rounded-[12px] flex items-center justify-center text-[#233142] shadow-sm hover:bg-[#F9F8F6] active:scale-95 transition-all">
               <Users size={18} strokeWidth={2.5} />
