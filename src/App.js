@@ -1238,7 +1238,9 @@ export default function FamilyHub() {
                           {canComplete && e.is_done
                             ? <Check size={13} strokeWidth={3} className="text-white" />
                             : e.type === 'mood'
-                              ? <span style={{ fontSize: 12, lineHeight: 1 }}>{e.mood}</span>
+                              ? (e.mood
+                                  ? <span style={{ fontSize: 12, lineHeight: 1 }}>{e.mood}</span>
+                                  : <TypeIcon size={12} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color || '#7A6B8D' }} />)
                               : <TypeIcon size={12} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color }} />
                           }
                         </button>
@@ -1400,7 +1402,9 @@ export default function FamilyHub() {
                                 {canComplete && e.is_done
                                   ? <Check size={12} strokeWidth={3} className="text-white" />
                                   : e.type === 'mood'
-                                    ? <span style={{ fontSize: 11, lineHeight: 1 }}>{e.mood}</span>
+                                    ? (e.mood
+                                        ? <span style={{ fontSize: 11, lineHeight: 1 }}>{e.mood}</span>
+                                        : <TypeIcon size={11} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color || '#7A6B8D' }} />)
                                     : <TypeIcon size={11} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color }} />
                                 }
                               </button>
