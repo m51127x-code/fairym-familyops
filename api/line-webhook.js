@@ -56,8 +56,10 @@ const todayWeekday = weekdays[todayDate.getDay()];
    第一關：若句子中包含「前、之前、底前、截止、期限」等時效性字眼，請強制設為 "remind"。並請將期限濃縮至 content 括號中（例如：輸入「明天下午3點前繳電費」，content 需回傳「繳電費 (下午3點前)」）。
    第二關：若包含「去、約、下班後、打球、美甲、看電影、吃飯、上課」等移動或赴約字眼，請設為 "schedule"。
    第三關：若為採買物品、消耗品、超市等，設為 "shop"。
-   第四關：若為看診、醫療、吃藥等，設為 "health"。
-   第五關：若無以上特徵之日常任務（處理、洗、整理等），一律預設為 "todo"。
+   第四關：若為明確醫療行動或健康處理事項，例如：看診、回診、吃藥、買藥、檢查、量血壓、預約診所，設為 "health"。
+   第五關：若是主觀情緒或感受，例如：心情、開心、難過、焦慮、壓力、煩、累、痛苦、崩潰、委屈，設為 "mood"。
+   第六關：若是單純生活紀錄、身體狀態紀錄、天氣觀察，不是待辦事項，例如：mc肚子痛、睡不好、頭暈、不舒服、今天很冷、下雨、天氣很好、好熱，設為 "note"。
+   第七關：若無以上特徵之日常任務（處理、洗、整理、繳費等），才預設為 "todo"。
   5. mood: 如果 type 是 mood，請給一個最適合的 Emoji（如：😊, 😢, 😰, 🤯），否則為 null。
   
   回傳格式範例（必須是合法 JSON）：
@@ -125,15 +127,39 @@ function classifyMessage(message, userRole = "全家", allMembers = []) {
   }
 
   // 3. 基礎分類
-  if (/買|採買|超市|補|衛生紙|洗碗精|菜|牛奶|米/.test(content)) type = "shop";
-  else if (/回診|看醫生|牙醫|吃藥|健康|檢查|診所|醫院/.test(content)) type = "health";
-  else if (/濾網|加鹽|機油|保養|清潔|換|澆花|倒垃圾/.test(content)) type = "routine";
-  else if (/心情|今天覺得|好累|開心|難過|煩|不錯|累|焦慮|壓力|緊張|興奮|感動|委屈|生氣|煩躁|疲憊|滿足|痛苦|好痛/.test(content)) {
+  // 原則：
+  // - 身體感受是「記錄 note」
+  // - 情緒感受是「心情 mood」
+  // - 需要處理/追蹤的醫療行動才是「健康 health」
+  // - 天氣觀察屬於「記錄 note」，不另開 weather 分類，避免前端/資料表再膨脹
+  if (/前|之前|底前|截止|期限/.test(content)) {
+    type = "remind";
+  } else if (/去|約|下班後|打球|美甲|看電影|吃飯|上課|聚餐|會議|開會|出門/.test(content)) {
+    type = "schedule";
+  } else if (/買|採買|超市|補|衛生紙|洗碗精|菜|牛奶|米/.test(content)) {
+    type = "shop";
+  } else if (/回診|看醫生|牙醫|吃藥|健康|檢查|診所|醫院|買藥|止痛藥|量血壓|預約/.test(content)) {
+    type = "health";
+  } else if (/濾網|加鹽|機油|保養|清潔|換|澆花|倒垃圾/.test(content)) {
+    type = "routine";
+  } else if (/心情|今天覺得|好累|開心|快樂|難過|煩|不錯|累|焦慮|壓力|緊張|興奮|感動|委屈|生氣|煩躁|疲憊|滿足|痛苦|崩潰|低落|沮喪|放鬆|安心/.test(content)) {
     type = "mood";
-    const moodMap = { "開心":"😊","快樂":"😄","累":"😴","好累":"😴","煩":"😤","難過":"😢","不錯":"🙂","放鬆":"😌", "焦慮":"😰", "壓力":"🤯" };
+    const moodMap = {
+      "開心":"😊","快樂":"😄","不錯":"🙂","放鬆":"😌","安心":"😌","感動":"🥰",
+      "累":"😴","好累":"😴","疲憊":"😴",
+      "煩":"😤","煩躁":"😤","生氣":"😤",
+      "難過":"😢","委屈":"😢","低落":"😢","沮喪":"😢",
+      "焦慮":"😰","緊張":"😰",
+      "壓力":"🤯","崩潰":"🤯","痛苦":"😢"
+    };
     for (const [word, emoji] of Object.entries(moodMap)) {
       if (content.includes(word)) { mood = emoji; break; }
     }
+  } else if (
+    /mc|MC|月經|生理期|經期|經痛|肚子痛|腹痛|頭痛|胃痛|不舒服|想吐|暈|睡不好|失眠|喉嚨痛|咳嗽/.test(content) ||
+    /天氣|下雨|雨|晴天|陰天|颱風|寒流|冷|熱|悶熱|好冷|好熱|濕|潮濕|風很大|空氣|溫度/.test(content)
+  ) {
+    type = "note";
   }
 
   // 4. 指派人員清理 (把提到的人名也從任務文字中拔除)
@@ -357,7 +383,7 @@ export default async function handler(req, res) {
         
       } else {
         await insertEvent(classified);
-        const typeLabel = { todo:"待辦", shop:"採買", health:"健康", remind:"提醒" };
+        const typeLabel = { schedule:"行程", todo:"待辦", shop:"採買", health:"健康", remind:"提醒", note:"紀錄" };
         await replyMessage(replyToken, "✅ 已記錄");
         await pushNotification(`🏠 FairyM 新增事項\n\n「${classified.content}」\n\n👤 負責：${classified.member}\n📅 日期：${classified.date}\n🏷 分類：${typeLabel[classified.type] || "待辦"}`, OPS_GROUP_ID);
       }
