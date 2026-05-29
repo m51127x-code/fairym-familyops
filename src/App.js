@@ -193,16 +193,48 @@ const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, 
 const MIN_OPTIONS = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 
 const TimeWheelPicker = ({ time, setTime }) => {
+  const [draftTime, setDraftTime] = useState(time || '');
+
+  useEffect(() => {
+    setDraftTime(time || '');
+  }, [time]);
+
   const quickTimes = [
-    { label: '早上', value: '09:00' },
-    { label: '中午', value: '12:00' },
-    { label: '下午', value: '15:00' },
-    { label: '晚上', value: '19:00' },
+    { label: '09:00', value: '09:00' },
+    { label: '12:00', value: '12:00' },
+    { label: '15:00', value: '15:00' },
+    { label: '19:00', value: '19:00' },
   ];
 
+  const isValidHHMM = (value) => {
+    if (!/^\d{2}:\d{2}$/.test(value)) return false;
+    const [h, m] = value.split(':').map(Number);
+    return h >= 0 && h <= 23 && m >= 0 && m <= 59;
+  };
+
+  const normalizeDraft = (value) => {
+    const raw = String(value || '').replace(/[^0-9:]/g, '').slice(0, 5);
+    if (/^\d{4}$/.test(raw)) return `${raw.slice(0, 2)}:${raw.slice(2)}`;
+    return raw;
+  };
+
+  const commitTime = (value) => {
+    const normalized = normalizeDraft(value);
+    if (isValidHHMM(normalized)) {
+      setDraftTime(normalized);
+      setTime(normalized);
+    } else if (!normalized) {
+      setDraftTime('');
+      setTime('');
+    } else {
+      setDraftTime(time || '');
+    }
+  };
+
   const handleTimeInput = (value) => {
-    // input[type=time] 會回傳 HH:MM，可支援 13:17 這類任意分鐘
-    setTime(value || '');
+    const normalized = normalizeDraft(value);
+    setDraftTime(normalized);
+    if (isValidHHMM(normalized)) setTime(normalized);
   };
 
   return (
@@ -212,7 +244,7 @@ const TimeWheelPicker = ({ time, setTime }) => {
           <span className="text-[10px] font-bold text-[#A0A0A0] tracking-[0.18em] uppercase font-num">Quick Select</span>
           <button
             type="button"
-            onClick={() => setTime('')}
+            onClick={() => { setDraftTime(''); setTime(''); }}
             className="text-[11px] font-bold text-[#A0A0A0] tracking-widest active:text-[#D68C7A] transition-colors"
           >
             不設定
@@ -224,7 +256,7 @@ const TimeWheelPicker = ({ time, setTime }) => {
             <button
               type="button"
               key={q.value}
-              onClick={() => setTime(q.value)}
+              onClick={() => { setDraftTime(q.value); setTime(q.value); }}
               className={`h-[38px] min-w-0 rounded-[11px] text-[12px] font-bold border transition-all active:scale-95 ${
                 time === q.value
                   ? 'bg-[#233142] text-white border-[#233142]'
@@ -239,15 +271,17 @@ const TimeWheelPicker = ({ time, setTime }) => {
 
       <div className="border-t border-[#EAEAEA] bg-[#F9F8F6]/70 px-3 py-3">
         <label className="flex items-center gap-3 w-full">
-          <span className="shrink-0 text-[11px] font-bold text-[#8E8E93] tracking-widest">精準時間</span>
+          <span className="shrink-0 text-[11px] font-bold text-[#8E8E93] tracking-widest">24H 時間</span>
           <div className="relative flex-1 min-w-0">
             <Clock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] pointer-events-none" />
             <input
-              type="time"
-              step="60"
-              value={time || ''}
+              type="text"
+              inputMode="numeric"
+              placeholder="13:17"
+              value={draftTime}
               onChange={e => handleTimeInput(e.target.value)}
-              className="w-full h-[42px] bg-white border border-[#EAEAEA] rounded-[13px] pl-9 pr-3 text-[15px] font-num font-bold text-[#233142] outline-none focus:border-[#233142] transition-all"
+              onBlur={e => commitTime(e.target.value)}
+              className="w-full h-[42px] bg-white border border-[#EAEAEA] rounded-[13px] pl-9 pr-3 text-[15px] font-num font-bold text-[#233142] outline-none focus:border-[#233142] transition-all placeholder:text-[#D1CFC7]"
             />
           </div>
         </label>
