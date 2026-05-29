@@ -144,8 +144,10 @@ const GLOBAL_CSS = `
   .hide-scroll::-webkit-scrollbar { display: none; }
   .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
   
-  @keyframes springSlideUp { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }
-  .spring-modal { animation: springSlideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+  @keyframes springSlideUp { 0% { opacity: 0; transform: translate3d(0, 16px, 0); } 100% { opacity: 1; transform: translate3d(0, 0, 0); } }
+  .spring-modal { animation: springSlideUp 0.18s ease-out both; }
+  .modal-stable { transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; contain: paint; }
+  .sheet-scroll-stable { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 
   /* 統一 date/time input 外觀，所有瀏覽器 */
   .date-input, .time-input {
@@ -234,14 +236,14 @@ const InlineTimePicker = ({ time, setTime }) => {
   };
 
   return (
-    <div className="w-full max-w-full overflow-hidden rounded-[16px] border border-[#EAEAEA] bg-white px-3 py-2.5 shadow-[0_1px_6px_rgba(0,0,0,0.025)]">
+    <div className="mt-3 pt-3 border-t border-dashed border-[#EAEAEA]">
       <div className="flex items-center gap-2 min-w-0">
         <div className="shrink-0 flex items-center gap-1.5 text-[#8E8E93]">
           <Clock size={14} strokeWidth={2.4} className="text-[#A0A0A0]" />
-          <span className="text-[12px] font-bold tracking-widest">時間</span>
+          <span className="text-[12px] font-bold tracking-widest whitespace-nowrap">時間</span>
         </div>
 
-        <label className="min-w-0 flex-1 h-[36px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[12px] px-3 flex items-center focus-within:bg-white focus-within:border-[#233142] transition-all">
+        <label className="min-w-0 flex-1 h-[40px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[12px] px-3 flex items-center focus-within:bg-white focus-within:border-[#233142] transition-all">
           <input
             type="text"
             inputMode="numeric"
@@ -265,16 +267,16 @@ const InlineTimePicker = ({ time, setTime }) => {
         )}
       </div>
 
-      <div className={`flex gap-1.5 overflow-x-auto mt-2 ${hideScrollbar}`}>
+      <div className={`mt-2 flex items-center gap-2 overflow-x-auto pl-[49px] ${hideScrollbar}`}>
         {TIME_QUICK_OPTIONS.map(option => (
           <button
             type="button"
             key={option}
             onClick={() => { setDraftTime(option); setTime(option); }}
-            className={`shrink-0 h-[30px] px-3 rounded-[10px] text-[11px] font-num font-bold border transition-all active:scale-95 ${
+            className={`shrink-0 h-[27px] px-2.5 rounded-[9px] text-[11px] font-num font-bold border transition-all active:scale-95 ${
               time === option
                 ? 'bg-[#233142] text-white border-[#233142]'
-                : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
+                : 'bg-transparent text-[#8E8E93] border-[#EAEAEA]'
             }`}
           >
             {option}
@@ -351,9 +353,8 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
             />
           </label>
         </div>
+        {showTime && <InlineTimePicker time={time} setTime={setTime} />}
       </div>
-
-      {showTime && <InlineTimePicker time={time} setTime={setTime} />}
     </div>
   );
 };
@@ -438,6 +439,7 @@ export default function FamilyHub() {
   const [isRefreshing, setIsRefreshing] = useState(false); 
   const [notifyEvent, setNotifyEvent] = useState(null);
   const [isSendingNotify, setIsSendingNotify] = useState(false);
+  const [isBriefOpen, setIsBriefOpen] = useState(false);
   const [reportSettings, setReportSettings] = useState(null);
   const [isReportSettingsOpen, setIsReportSettingsOpen] = useState(false);
   const [isSavingReportSettings, setIsSavingReportSettings] = useState(false);
@@ -860,6 +862,153 @@ export default function FamilyHub() {
     );
   };
 
+
+  const getLineProfileByMemberName = (name) => {
+    if (!name || name === '全家') return null;
+    const memberInfo = members.find(m => m.name === name || m.role_name === name);
+    if (!memberInfo?.line_user_id) return null;
+    return lineUsers.find(lu => lu.user_id === memberInfo.line_user_id) || null;
+  };
+
+  const AvatarDot = ({ name, size = 22, className = '' }) => {
+    const isAll = name === '全家';
+    const profile = getLineProfileByMemberName(name);
+    const initial = isAll ? '全' : String(name || '?').trim().slice(0, 1);
+    const sizeStyle = { width: size, height: size };
+
+    if (profile?.picture_url) {
+      return (
+        <img
+          src={profile.picture_url}
+          alt={name || 'member'}
+          className={`rounded-full object-cover border border-white shadow-[0_1px_4px_rgba(35,49,66,0.12)] ${className}`}
+          style={sizeStyle}
+        />
+      );
+    }
+
+    return (
+      <span
+        className={`rounded-full border border-white shadow-[0_1px_4px_rgba(35,49,66,0.10)] flex items-center justify-center text-[10px] font-bold ${isAll ? 'bg-[#233142] text-white' : 'bg-[#F3EDE8] text-[#8E6E62]'} ${className}`}
+        style={sizeStyle}
+      >
+        {initial}
+      </span>
+    );
+  };
+
+  const AssigneeInline = ({ name, compact = false }) => {
+    if (name === '全家') {
+      const bound = members.filter(m => m.line_user_id).slice(0, 3);
+      return (
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex -space-x-1.5 shrink-0">
+            {bound.length ? bound.map(m => <AvatarDot key={m.id || m.name} name={m.name} size={compact ? 18 : 20} />) : <AvatarDot name="全家" size={compact ? 18 : 20} />}
+          </div>
+          <span className={`truncate font-bold text-[#8E8E93] ${compact ? 'text-[10px]' : 'text-[11px]'}`}>全家</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-1.5 min-w-0">
+        <AvatarDot name={name} size={compact ? 18 : 20} />
+        <span className={`truncate font-bold text-[#8E8E93] ${compact ? 'text-[10px]' : 'text-[11px]'}`}>{name || '未指派'}</span>
+      </div>
+    );
+  };
+
+  const getEventDisplay = (event) => {
+    let title = event?.text || event?.title || '未命名事項';
+    let timeLabel = event?.time || '';
+
+    const leadingTime = title.match(/^(\d{2}:\d{2})\s*(.+)$/);
+    if (leadingTime) {
+      timeLabel = timeLabel || leadingTime[1];
+      title = leadingTime[2];
+    }
+
+    const deadline = title.match(/^(.*?)\s*\((\d{2}:\d{2})\s*截止\)$/);
+    if (deadline) {
+      title = deadline[1];
+      timeLabel = timeLabel || deadline[2];
+    }
+
+    return { title, timeLabel };
+  };
+
+  const TodayBriefModal = () => {
+    if (!isBriefOpen) return null;
+    const todayStr = fmtDate(TODAY);
+    const todayItems = events.filter(e => e.date === todayStr && !e.is_done && !e.completed && e.type !== 'mood');
+    const overdueItems = events.filter(e => e.date < todayStr && !e.is_done && !e.completed && e.type !== 'mood');
+    const soonRoutines = routines
+      .map(r => ({ ...r, status: calculateRoutineStatus(r) }))
+      .filter(r => r.status.daysLeft <= 3)
+      .sort((a, b) => a.status.daysLeft - b.status.daysLeft)
+      .slice(0, 4);
+
+    const briefRows = [
+      ...todayItems.slice(0, 4).map(e => ({
+        id: `event-${e.id}`,
+        title: getEventDisplay(e).title,
+        meta: `${TYPE_CONFIG[e.type]?.label || '事項'}${getEventDisplay(e).timeLabel ? ` · ${getEventDisplay(e).timeLabel}` : ''}`,
+        member: e.member,
+        onClick: () => { setSelectedDate(e.date); setIsBriefOpen(false); setEditingEvent(e); },
+      })),
+      ...soonRoutines.map(r => ({
+        id: `routine-${r.id}`,
+        title: r.name,
+        meta: r.status.daysLeft < 0 ? `週期 · 逾期 ${Math.abs(r.status.daysLeft)} 天` : r.status.daysLeft === 0 ? '週期 · 今天到期' : `週期 · 剩 ${r.status.daysLeft} 天`,
+        member: r.member || '全家',
+        onClick: () => { setActiveTab('routines'); setIsBriefOpen(false); },
+      })),
+    ];
+
+    return (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center px-5 bg-[#1A2532]/28" onClick={() => setIsBriefOpen(false)}>
+        <div className="w-full max-w-[420px] bg-[#F9F8F6] rounded-[28px] shadow-[0_20px_70px_rgba(35,49,66,0.22)] border border-white/70 overflow-hidden modal-stable animate-in fade-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
+          <div className="px-5 pt-5 pb-4 border-b border-[#EAEAEA] bg-white/70">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-num font-bold text-[#D68C7A] tracking-[0.26em] uppercase mb-1">Today Brief</p>
+                <h3 className="text-[22px] font-serif-jp font-bold text-[#233142] tracking-wide">今日摘要</h3>
+              </div>
+              <button type="button" onClick={() => setIsBriefOpen(false)} className="w-9 h-9 rounded-full bg-[#F1EFEC] text-[#8E8E93] flex items-center justify-center active:scale-95 transition-all">
+                <X size={17} strokeWidth={2.4}/>
+              </button>
+            </div>
+            <p className="text-[13px] text-[#667085] leading-relaxed mt-3">
+              {todayItems.length || overdueItems.length || soonRoutines.length
+                ? `今天有 ${todayItems.length} 件事項，${overdueItems.length} 件尚未完成，${soonRoutines.length} 件週期快到。`
+                : '目前沒有需要特別留意的事項。'}
+            </p>
+          </div>
+
+          <div className="px-5 py-4 max-h-[58dvh] overflow-y-auto hide-scroll sheet-scroll-stable">
+            {briefRows.length === 0 ? (
+              <div className="py-8 text-center text-[#A0A0A0] text-[13px] font-bold tracking-widest">今天先慢慢來。</div>
+            ) : (
+              <div className="space-y-2.5">
+                {briefRows.map(row => (
+                  <button key={row.id} type="button" onClick={row.onClick} className="w-full text-left bg-white border border-[#EAEAEA] rounded-[18px] px-4 py-3.5 active:scale-[0.99] transition-all shadow-[0_2px_8px_rgba(0,0,0,0.025)]">
+                    <div className="flex items-start gap-3">
+                      <AssigneeInline name={row.member} compact />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-bold text-[#233142] leading-snug truncate">{row.title}</p>
+                        <p className="text-[11px] text-[#A0A0A0] font-num font-bold tracking-[0.08em] mt-1">{row.meta}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ==============================================================
   // 1. 任務看板 (BoardView)
   // ==============================================================
@@ -984,6 +1133,7 @@ export default function FamilyHub() {
                 <div className="space-y-3 relative mt-2">
                   {dayEvents.map((e) => {
                     const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
+                    const display = getEventDisplay(e);
                     return (
                       <div key={e.id} className={`relative pl-[46px] pr-1 group cursor-pointer tap-highlight-transparent active:scale-[0.99] transition-all ${e.is_done ? 'opacity-55 grayscale-[0.2]' : ''}`} onClick={() => setEditingEvent(e)}>
 
@@ -1001,32 +1151,35 @@ export default function FamilyHub() {
                           }
                         </button>
 
-                        <div className="bg-white px-4 py-3 rounded-[18px] border border-[#EAEAEA] shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-bold tracking-[0.18em] uppercase"
-                              style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
-                              {TYPE_CONFIG[e.type]?.label}
-                            </span>
+                        <div className="bg-white px-4 py-3.5 rounded-[18px] border border-[#EAEAEA] shadow-[0_2px_10px_rgba(0,0,0,0.028)] flex flex-col gap-2.5 overflow-hidden">
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[10px] font-bold tracking-[0.18em] uppercase"
+                                style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
+                                {TYPE_CONFIG[e.type]?.label}
+                              </span>
+                              <p className={`mt-1.5 text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
+                                style={{ fontFamily: 'Noto Sans TC, PingFang TC, sans-serif', letterSpacing: '0.01em' }}>
+                                {display.title}
+                              </p>
+                            </div>
                             <button
                               type="button"
-                              onClick={(ev) => { ev.stopPropagation(); triggerVibration(8); setNotifyEvent(e); }}
-                              className="w-8 h-8 -mr-1 -my-1 rounded-full bg-transparent flex items-center justify-center text-[#B8B2AA] hover:text-[#D68C7A] active:bg-[#F9F8F6] active:scale-95 transition-all shrink-0"
+                              onClick={(ev) => { ev.stopPropagation(); triggerVibration(8); setNotifyEvent(notifyEvent?.id === e.id ? null : e); }}
+                              className={`w-8 h-8 -mr-1 -mt-1 rounded-full bg-transparent flex items-center justify-center active:bg-[#F9F8F6] active:scale-95 transition-all shrink-0 ${notifyEvent?.id === e.id ? 'text-[#D68C7A]' : 'text-[#B8B2AA] hover:text-[#D68C7A]'}`}
                               aria-label="發送 LINE 提醒"
                             >
                               <Bell size={16} strokeWidth={2.5} />
                             </button>
                           </div>
 
-                          <p className={`text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
-                            style={{ fontFamily: 'Noto Sans TC, PingFang TC, sans-serif', letterSpacing: '0.01em' }}>
-                            {e.type === 'mood' ? e.text : e.text}
-                          </p>
-
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-[5px] h-[5px] rounded-[2px]"
-                              style={{ background: e.is_done ? '#D1CFC7' : '#D68C7A' }} />
-                            <span className="text-[11px] text-[#8E8E93]"
-                              style={{ letterSpacing: '0.04em' }}>{e.member}</span>
+                          <div className="flex items-center justify-between gap-3 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {display.timeLabel && <span className="shrink-0 text-[11px] font-num font-bold text-[#667085]">{display.timeLabel}</span>}
+                              {display.timeLabel && <span className="shrink-0 w-1 h-1 rounded-full bg-[#D1CFC7]" />}
+                              <AssigneeInline name={e.member} />
+                            </div>
+                            <span className="shrink-0 w-[5px] h-[5px] rounded-[2px]" style={{ background: e.is_done ? '#D1CFC7' : '#D68C7A' }} />
                           </div>
                           {notifyEvent?.id === e.id && <NotifyActionPanel event={e} />}
                         </div>
@@ -1140,6 +1293,7 @@ export default function FamilyHub() {
                       <div className="space-y-3 relative">
                         {day.events.map((e) => {
                           const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
+                          const display = getEventDisplay(e);
                           return (
                             <div key={e.id}
                               className={`relative pl-[46px] pr-1 group cursor-pointer tap-highlight-transparent active:scale-[0.99] transition-all ${e.is_done ? 'opacity-55 grayscale-[0.2]' : ''}`}
@@ -1156,29 +1310,34 @@ export default function FamilyHub() {
                                     : <TypeIcon size={11} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color }} />
                                 }
                               </button>
-                              <div className="bg-white px-4 py-3 rounded-[18px] border border-[#EAEAEA] shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-2">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase"
-                                    style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
-                                    {TYPE_CONFIG[e.type]?.label}
-                                  </span>
+                              <div className="bg-white px-4 py-3.5 rounded-[18px] border border-[#EAEAEA] shadow-[0_2px_10px_rgba(0,0,0,0.028)] flex flex-col gap-2.5 overflow-hidden">
+                                <div className="flex justify-between items-start gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <span className="text-[10px] font-bold tracking-[0.18em] uppercase"
+                                      style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
+                                      {TYPE_CONFIG[e.type]?.label}
+                                    </span>
+                                    <p className={`mt-1.5 text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
+                                      style={{ fontFamily: 'Noto Sans TC, PingFang TC, sans-serif', letterSpacing: '0.01em' }}>
+                                      {display.title}
+                                    </p>
+                                  </div>
                                   <button
-                              type="button"
-                              onClick={(ev) => { ev.stopPropagation(); triggerVibration(8); setNotifyEvent(e); }}
-                              className="w-8 h-8 -mr-1 -my-1 rounded-full bg-transparent flex items-center justify-center text-[#B8B2AA] hover:text-[#D68C7A] active:bg-[#F9F8F6] active:scale-95 transition-all shrink-0"
-                              aria-label="發送 LINE 提醒"
-                            >
-                              <Bell size={16} strokeWidth={2.5} />
-                            </button>
+                                    type="button"
+                                    onClick={(ev) => { ev.stopPropagation(); triggerVibration(8); setNotifyEvent(notifyEvent?.id === e.id ? null : e); }}
+                                    className={`w-8 h-8 -mr-1 -mt-1 rounded-full bg-transparent flex items-center justify-center active:bg-[#F9F8F6] active:scale-95 transition-all shrink-0 ${notifyEvent?.id === e.id ? 'text-[#D68C7A]' : 'text-[#B8B2AA] hover:text-[#D68C7A]'}`}
+                                    aria-label="發送 LINE 提醒"
+                                  >
+                                    <Bell size={16} strokeWidth={2.5} />
+                                  </button>
                                 </div>
-                                <p className={`text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
-                                  style={{ fontFamily: 'Noto Sans TC, PingFang TC, sans-serif', letterSpacing: '0.01em' }}>
-                                  {e.text}
-                                </p>
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-[5px] h-[5px] rounded-[2px]"
-                                    style={{ background: e.is_done ? '#D1CFC7' : '#D68C7A' }} />
-                                  <span className="text-[11px] text-[#8E8E93]" style={{ letterSpacing: '0.04em' }}>{e.member}</span>
+                                <div className="flex items-center justify-between gap-3 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    {display.timeLabel && <span className="shrink-0 text-[11px] font-num font-bold text-[#667085]">{display.timeLabel}</span>}
+                                    {display.timeLabel && <span className="shrink-0 w-1 h-1 rounded-full bg-[#D1CFC7]" />}
+                                    <AssigneeInline name={e.member} />
+                                  </div>
+                                  <span className="shrink-0 w-[5px] h-[5px] rounded-[2px]" style={{ background: e.is_done ? '#D1CFC7' : '#D68C7A' }} />
                                 </div>
                                 {notifyEvent?.id === e.id && <NotifyActionPanel event={e} />}
                               </div>
@@ -1559,30 +1718,15 @@ export default function FamilyHub() {
 
       await handleUpdateEvent(updateRow);
 
-      try {
-        await saveScheduledNotification({
-          eventId: editingEvent.id,
-          date,
-          time,
-          enabled: scheduleNotifyEnabled && (type === 'schedule' || type === 'remind') && Boolean(time),
-          targetMode: scheduleNotifyMode,
-        });
-        if (scheduleNotifyEnabled && time && (type === 'schedule' || type === 'remind')) {
-          showToast(`✅ 已設定 ${getNotificationModeLabel(scheduleNotifyMode)}預約提醒`);
-        }
-      } catch (err) {
-        console.error('schedule notification error:', err);
-        showToast(`⚠️ 記事已更新，但預約提醒設定失敗：${err?.message || '請稍後再試'}`);
-      }
     };
 
     const isOtherDate = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
 
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => setEditingEvent(null)}>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/32" onClick={() => setEditingEvent(null)}>
         <div
-          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-hidden"
-          style={{ maxHeight: 'calc(92dvh - env(safe-area-inset-bottom, 0px))' }}
+          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal modal-stable overflow-hidden"
+          style={{ height: 'calc(92dvh - env(safe-area-inset-bottom, 0px))', maxHeight: 'calc(92dvh - env(safe-area-inset-bottom, 0px))' }}
           onClick={e => e.stopPropagation()}
         >
           <DragHeader className="px-5 pb-2 border-b border-[#EAEAEA] shrink-0">
@@ -1595,7 +1739,7 @@ export default function FamilyHub() {
             </div>
           </DragHeader>
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scroll px-5 pt-5" style={{ paddingBottom: '8px' }}>
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden hide-scroll sheet-scroll-stable px-5 pt-5" style={{ paddingBottom: '8px' }}>
             <div className="space-y-5">
               {/* 分類 */}
               <div>
@@ -1642,7 +1786,9 @@ export default function FamilyHub() {
                     <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
                       {['全家', ...members.map(m => m.name)].map(m => (
                         <button key={m} onClick={() => setMember(m)}
-                          className={`snap-start shrink-0 whitespace-nowrap px-4 py-2.5 text-[13px] font-bold rounded-[12px] transition-all border ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>{m}
+                          className={`snap-start shrink-0 whitespace-nowrap px-3 py-2 text-[13px] font-bold rounded-[14px] transition-all border flex items-center gap-2 ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>
+                          <AvatarDot name={m} size={20} className={member === m ? 'ring-1 ring-white/60' : ''} />
+                          <span>{m}</span>
                         </button>
                       ))}
                     </div>
@@ -1736,7 +1882,7 @@ export default function FamilyHub() {
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => setIsAiModalOpen(false)}>
         <div
-          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-hidden"
+          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal modal-stable overflow-hidden"
           style={{ maxHeight: 'calc(92dvh - env(safe-area-inset-bottom, 0px))' }}
           onClick={e => e.stopPropagation()}
         >
@@ -1804,7 +1950,9 @@ export default function FamilyHub() {
                     <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
                       {['全家', ...members.map(m => m.name)].map(m => (
                         <button key={m} onClick={() => setMember(m)}
-                          className={`snap-start shrink-0 whitespace-nowrap px-4 py-2.5 text-[13px] font-bold rounded-[12px] transition-all border ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>{m}
+                          className={`snap-start shrink-0 whitespace-nowrap px-3 py-2 text-[13px] font-bold rounded-[14px] transition-all border flex items-center gap-2 ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>
+                          <AvatarDot name={m} size={20} className={member === m ? 'ring-1 ring-white/60' : ''} />
+                          <span>{m}</span>
                         </button>
                       ))}
                     </div>
@@ -1834,7 +1982,7 @@ export default function FamilyHub() {
     if (!isMemberModalOpen) return null;
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm transition-opacity" onClick={() => setIsMemberModalOpen(false)}>
-        <div className="bg-[#F9F8F6] w-full max-w-[480px] max-h-[85vh] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal" onClick={e => e.stopPropagation()}>
+        <div className="bg-[#F9F8F6] w-full max-w-[480px] max-h-[85vh] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal modal-stable" onClick={e => e.stopPropagation()}>
           <DragHeader className="px-6 pb-2 border-b border-[#EAEAEA] shrink-0">
              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
@@ -1982,7 +2130,7 @@ export default function FamilyHub() {
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => setIsReportSettingsOpen(false)}>
         <div
-          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-hidden"
+          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal modal-stable overflow-hidden"
           style={{ maxHeight: 'calc(88dvh - env(safe-area-inset-bottom, 0px))' }}
           onClick={e => e.stopPropagation()}
         >
@@ -2074,10 +2222,13 @@ export default function FamilyHub() {
             <h1 className="text-[28px] font-editorial italic font-bold tracking-tight text-[#233142]">Family Hub</h1>
             <p className="text-[9px] text-[#8E8E93] tracking-[0.4em] font-num font-bold uppercase mt-1">Life Navigator</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button onClick={fetchSupabaseData} disabled={isRefreshing} className="flex items-center gap-1.5 px-3 py-2 rounded-[12px] border-[1.5px] border-[#566B56] bg-white active:scale-95 transition-all disabled:opacity-70 shadow-sm hover:bg-[#F4F8F4]">
               <RotateCw size={12} strokeWidth={3} className={`text-[#566B56] ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="text-[10px] font-num font-bold text-[#566B56] uppercase tracking-[0.2em]">{isRefreshing ? 'SYNC' : 'SYNC'}</span>
+            </button>
+            <button onClick={() => setIsBriefOpen(true)} className="w-[38px] h-[38px] bg-white border-[1.5px] border-[#EAEAEA] rounded-[12px] flex items-center justify-center text-[#D68C7A] shadow-sm hover:bg-[#F9F8F6] active:scale-95 transition-all" aria-label="今日摘要">
+              <Sparkles size={18} strokeWidth={2.3} />
             </button>
             <button onClick={() => setIsMemberModalOpen(true)} className="relative w-[38px] h-[38px] bg-white border-[1.5px] border-[#EAEAEA] rounded-[12px] flex items-center justify-center text-[#233142] shadow-sm hover:bg-[#F9F8F6] active:scale-95 transition-all">
               <Users size={18} strokeWidth={2.5} />
@@ -2120,6 +2271,7 @@ export default function FamilyHub() {
         <AiModal />
         <MemberModal />
         <EventEditModal />
+        <TodayBriefModal />
         {toast && (
           <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 bg-[#233142]/95 backdrop-blur-xl text-white text-[13px] font-bold tracking-widest px-6 py-3.5 rounded-[16px] shadow-[0_10px_30px_rgba(35,49,66,0.2)] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
             <Check size={18} className="text-[#EAEAEA]" strokeWidth={3} />
