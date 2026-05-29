@@ -84,6 +84,18 @@ const buildEventPayload = ({ type, text, member, date, time, mood, currentUserLi
   };
 };
 
+
+const buildScheduledAtISO = (date, time) => {
+  if (!date || !time) return null;
+  // 使用台灣時區組合，避免瀏覽器所在地或 UTC 造成日期偏移
+  return new Date(`${cleanDateOnly(date)}T${time}:00+08:00`).toISOString();
+};
+
+const getNotificationModeLabel = (mode) => {
+  const map = { private: '私訊', group: '群組', both: '全部' };
+  return map[mode] || '私訊';
+};
+
 // ==========================================
 // 質感調色盤 (Premium Aesthetic)
 // ==========================================
@@ -403,6 +415,58 @@ const DragHeader = ({ children, className = '' }) => (
       {children}
   </div>
 );
+const ScheduleReminderControl = ({ enabled, setEnabled, mode, setMode, disabled = false }) => {
+  const modeOptions = [
+    { key: 'private', label: '私訊' },
+    { key: 'group', label: '群組' },
+    { key: 'both', label: '全部' },
+  ];
+
+  return (
+    <div className={`rounded-[18px] border border-[#EAEAEA] bg-white px-4 py-3 shadow-[0_2px_8px_rgba(0,0,0,0.025)] transition-all ${disabled ? 'opacity-45' : ''}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-serif-jp font-bold text-[#233142] tracking-widest leading-none">預約 LINE 提醒</p>
+          <p className="text-[10px] text-[#A0A0A0] mt-1 tracking-[0.08em] truncate">
+            {disabled ? '設定時間後可啟用' : '到設定時間自動推播'}
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setEnabled(!enabled)}
+          className={`shrink-0 w-[46px] h-[26px] rounded-full p-[3px] transition-all active:scale-95 ${enabled && !disabled ? 'bg-[#233142]' : 'bg-[#EAEAEA]'}`}
+        >
+          <span className={`block w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${enabled && !disabled ? 'translate-x-5' : 'translate-x-0'}`} />
+        </button>
+      </div>
+
+      {enabled && !disabled && (
+        <div className="mt-3 pt-3 border-t border-dashed border-[#EAEAEA] animate-in fade-in slide-in-from-top-1 duration-200">
+          <p className="text-[10px] font-bold text-[#8E8E93] tracking-widest mb-2 uppercase">通知方式</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {modeOptions.map(opt => (
+              <button
+                type="button"
+                key={opt.key}
+                onClick={() => setMode(opt.key)}
+                className={`h-[36px] rounded-[12px] border text-[12px] font-bold tracking-widest transition-all active:scale-[0.97] ${
+                  mode === opt.key
+                    ? 'bg-[#233142] border-[#233142] text-white shadow-[0_2px_10px_rgba(35,49,66,0.12)]'
+                    : 'bg-[#F9F8F6] border-[#EAEAEA] text-[#8E8E93]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 
 export default function FamilyHub() {
   const [activeTab, setActiveTab] = useState('board');
@@ -424,6 +488,9 @@ export default function FamilyHub() {
   const [isRefreshing, setIsRefreshing] = useState(false); 
   const [notifyEvent, setNotifyEvent] = useState(null);
   const [isSendingNotify, setIsSendingNotify] = useState(false);
+  const [reportSettings, setReportSettings] = useState(null);
+  const [isReportSettingsOpen, setIsReportSettingsOpen] = useState(false);
+  const [isSavingReportSettings, setIsSavingReportSettings] = useState(false);
 
   const unboundLineUsers = useMemo(() => {
     const unbound = lineUsers.filter(lu => !lu.is_ignored && !members.some(m => m.line_user_id === lu.user_id));
@@ -474,6 +541,14 @@ export default function FamilyHub() {
       if (membersData) setMembers(membersData);
       const { data: lineUsersData } = await supabase.from('line_users').select('*');
       if (lineUsersData) setLineUsers(lineUsersData);
+
+      const { data: reportSettingsData } = await supabase
+        .from('report_settings')
+        .select('*')
+        .eq('report_type', 'morning')
+        .limit(1)
+        .maybeSingle();
+      if (reportSettingsData) setReportSettings(reportSettingsData);
     } catch (err) { console.error('Fetch error:', err); } finally { setIsRefreshing(false); }
   };
 
@@ -602,6 +677,120 @@ export default function FamilyHub() {
       showToast(`❌ ${err?.message || '通知失敗，請稍後再試'}`);
     } finally {
       setIsSendingNotify(false);
+    }
+  };
+
+
+  const saveScheduledNotification = async ({ eventId, date, time, enabled, targetMode }) => {
+    if (!eventId) return;
+
+    const { data: existing, error: findError } = await supabase
+      .from('scheduled_notifications')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('notification_type', 'event_reminder')
+      .eq('status', 'pending')
+      .limit(1);
+
+    if (findError) throw findError;
+
+    const existingId = existing?.[0]?.id;
+    const scheduledAt = buildScheduledAtISO(date, time);
+
+    if (!enabled || !scheduledAt) {
+      if (existingId) {
+        const { error } = await supabase
+          .from('scheduled_notifications')
+          .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+          .eq('id', existingId);
+        if (error) throw error;
+      }
+      return;
+    }
+
+    const payload = {
+      event_id: eventId,
+      notification_type: 'event_reminder',
+      target_mode: targetMode || 'private',
+      scheduled_at: scheduledAt,
+      status: 'pending',
+      error_message: null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existingId) {
+      const { error } = await supabase
+        .from('scheduled_notifications')
+        .update(payload)
+        .eq('id', existingId);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('scheduled_notifications')
+        .insert([payload]);
+      if (error) throw error;
+    }
+  };
+
+  const loadScheduledNotificationForEvent = async (eventId) => {
+    if (!eventId) return null;
+    const { data, error } = await supabase
+      .from('scheduled_notifications')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('notification_type', 'event_reminder')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('load scheduled notification error:', error);
+      return null;
+    }
+    return data || null;
+  };
+
+  const handleSaveReportSettings = async (nextSettings) => {
+    setIsSavingReportSettings(true);
+    try {
+      const payload = {
+        report_type: 'morning',
+        enabled: Boolean(nextSettings.enabled),
+        send_time: nextSettings.send_time || '08:00',
+        target_mode: nextSettings.target_mode || 'private',
+        timezone: 'Asia/Taipei',
+        include_today_events: true,
+        include_overdue_events: true,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (reportSettings?.id) {
+        const { data, error } = await supabase
+          .from('report_settings')
+          .update(payload)
+          .eq('id', reportSettings.id)
+          .select()
+          .single();
+        if (error) throw error;
+        setReportSettings(data);
+      } else {
+        const { data, error } = await supabase
+          .from('report_settings')
+          .insert([payload])
+          .select()
+          .single();
+        if (error) throw error;
+        setReportSettings(data);
+      }
+
+      showToast(payload.enabled ? `✅ 晨間報表已設定 ${payload.send_time}` : '✅ 晨間報表已關閉');
+      setIsReportSettingsOpen(false);
+    } catch (err) {
+      console.error('report settings error:', err);
+      showToast(`❌ 設定失敗：${err?.message || '請稍後再試'}`);
+    } finally {
+      setIsSavingReportSettings(false);
     }
   };
 
@@ -1375,6 +1564,8 @@ export default function FamilyHub() {
     const [time, setTime] = useState('');
     const [member, setMember] = useState('全家');
     const [mood, setMood] = useState('😊');
+    const [scheduleNotifyEnabled, setScheduleNotifyEnabled] = useState(false);
+    const [scheduleNotifyMode, setScheduleNotifyMode] = useState('private');
 
     useEffect(() => {
       if (editingEvent) {
@@ -1389,12 +1580,22 @@ export default function FamilyHub() {
         }
         setText(initText); setType(editingEvent.type || 'todo'); setDate(editingEvent.date);
         setTime(initTime); setMember(editingEvent.member || '全家'); setMood(editingEvent.mood || '😊');
+
+        loadScheduledNotificationForEvent(editingEvent.id).then(schedule => {
+          if (schedule) {
+            setScheduleNotifyEnabled(true);
+            setScheduleNotifyMode(schedule.target_mode || 'private');
+          } else {
+            setScheduleNotifyEnabled(false);
+            setScheduleNotifyMode('private');
+          }
+        });
       }
     }, [editingEvent]);
 
     if (!editingEvent) return null;
 
-    const handleSave = () => {
+    const handleSave = async () => {
       if (!text.trim() && type !== 'mood') return;
       const updateRow = {
         ...editingEvent,
@@ -1405,7 +1606,24 @@ export default function FamilyHub() {
         member,
         mood: type === 'mood' ? mood : null,
       };
-      handleUpdateEvent(updateRow);
+
+      await handleUpdateEvent(updateRow);
+
+      try {
+        await saveScheduledNotification({
+          eventId: editingEvent.id,
+          date,
+          time,
+          enabled: scheduleNotifyEnabled && (type === 'schedule' || type === 'remind') && Boolean(time),
+          targetMode: scheduleNotifyMode,
+        });
+        if (scheduleNotifyEnabled && time && (type === 'schedule' || type === 'remind')) {
+          showToast(`✅ 已設定 ${getNotificationModeLabel(scheduleNotifyMode)}預約提醒`);
+        }
+      } catch (err) {
+        console.error('schedule notification error:', err);
+        showToast(`⚠️ 記事已更新，但預約提醒設定失敗：${err?.message || '請稍後再試'}`);
+      }
     };
 
     const isOtherDate = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
@@ -1469,6 +1687,16 @@ export default function FamilyHub() {
                     <DateTimePicker date={date} setDate={setDate} time={time} setTime={setTime} showTime={type==='schedule'||type==='remind'} />
                   </div>
 
+                  {(type === 'schedule' || type === 'remind') && (
+                    <ScheduleReminderControl
+                      enabled={scheduleNotifyEnabled}
+                      setEnabled={setScheduleNotifyEnabled}
+                      mode={scheduleNotifyMode}
+                      setMode={setScheduleNotifyMode}
+                      disabled={!time}
+                    />
+                  )}
+
                   <div>
                     <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">關聯成員</label>
                     <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
@@ -1502,6 +1730,8 @@ export default function FamilyHub() {
     const [time, setTime] = useState('');
     const [member, setMember] = useState('全家');
     const [mood, setMood] = useState('😊');
+    const [scheduleNotifyEnabled, setScheduleNotifyEnabled] = useState(false);
+    const [scheduleNotifyMode, setScheduleNotifyMode] = useState('private');
 
     if (!isAiModalOpen) return null;
 
@@ -1528,6 +1758,24 @@ export default function FamilyHub() {
           if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
           return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
         }));
+        if (scheduleNotifyEnabled && (type === 'schedule' || type === 'remind') && time) {
+          try {
+            await saveScheduledNotification({
+              eventId: createdEvent.id,
+              date: createdEvent.date,
+              time,
+              enabled: true,
+              targetMode: scheduleNotifyMode,
+            });
+            showToast(`✅ 已存入手札，並設定${getNotificationModeLabel(scheduleNotifyMode)}預約提醒`);
+          } catch (scheduleError) {
+            console.error('schedule notification error:', scheduleError);
+            showToast('✅ 已存入手札，但預約提醒設定失敗');
+          }
+        } else {
+          showToast('✅ 已存入手札');
+        }
+
         setSelectedDate(createdEvent.date);
         setIsAiModalOpen(false);
         setText('');
@@ -1535,7 +1783,8 @@ export default function FamilyHub() {
         setType('schedule');
         setMember('全家');
         setMood('😊');
-        showToast('✅ 已存入手札');
+        setScheduleNotifyEnabled(false);
+        setScheduleNotifyMode('private');
       } else {
         console.error('insert error:', error);
         showToast(`❌ 儲存失敗：${error?.message || '請檢查資料表欄位'}`);
@@ -1608,6 +1857,16 @@ export default function FamilyHub() {
                     <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">日期{(type==='schedule'||type==='remind') ? ' & 時間' : ''}</label>
                     <DateTimePicker date={date} setDate={setDate} time={time} setTime={setTime} showTime={type==='schedule'||type==='remind'} />
                   </div>
+
+                  {(type === 'schedule' || type === 'remind') && (
+                    <ScheduleReminderControl
+                      enabled={scheduleNotifyEnabled}
+                      setEnabled={setScheduleNotifyEnabled}
+                      mode={scheduleNotifyMode}
+                      setMode={setScheduleNotifyMode}
+                      disabled={!time}
+                    />
+                  )}
 
                   {/* 關聯成員 */}
                   <div>
@@ -1768,6 +2027,111 @@ export default function FamilyHub() {
     );
   };
 
+
+  const ReportSettingsModal = () => {
+    const [enabled, setEnabled] = useState(Boolean(reportSettings?.enabled));
+    const [sendTime, setSendTime] = useState(reportSettings?.send_time ? String(reportSettings.send_time).slice(0, 5) : '08:00');
+    const [targetMode, setTargetMode] = useState(reportSettings?.target_mode || 'private');
+
+    useEffect(() => {
+      if (isReportSettingsOpen) {
+        setEnabled(Boolean(reportSettings?.enabled));
+        setSendTime(reportSettings?.send_time ? String(reportSettings.send_time).slice(0, 5) : '08:00');
+        setTargetMode(reportSettings?.target_mode || 'private');
+      }
+    }, [isReportSettingsOpen, reportSettings]);
+
+    if (!isReportSettingsOpen) return null;
+
+    const modeOptions = [
+      { key: 'private', label: '私訊', desc: '每位成員收到自己的清單' },
+      { key: 'group', label: '群組', desc: '發送一份群組總覽' },
+      { key: 'both', label: '全部', desc: '群組總覽 + 個人私訊' },
+    ];
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => setIsReportSettingsOpen(false)}>
+        <div
+          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-hidden"
+          style={{ maxHeight: 'calc(88dvh - env(safe-area-inset-bottom, 0px))' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <DragHeader className="px-5 pb-2 border-b border-[#EAEAEA] shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-[#566B56] flex items-center justify-center shadow-md shrink-0">
+                  <Clock size={18} className="text-white" strokeWidth={2.5} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[20px] font-serif-jp font-bold text-[#233142] tracking-widest truncate">晨間報表</p>
+                  <p className="text-[10px] font-num font-bold text-[#8E8E93] tracking-[0.22em] uppercase mt-0.5">Morning Brief</p>
+                </div>
+              </div>
+              <button onClick={() => setIsReportSettingsOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 active:scale-90 transition-all shrink-0">
+                <X size={18} strokeWidth={2.5}/>
+              </button>
+            </div>
+          </DragHeader>
+
+          <div className="px-5 py-5 space-y-5 overflow-y-auto hide-scroll">
+            <div className="bg-white border border-[#EAEAEA] rounded-[22px] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[14px] font-bold text-[#233142] tracking-wide">啟用晨間報表</p>
+                  <p className="text-[11px] text-[#8E8E93] mt-1 leading-relaxed">到設定時間時，整理今日與逾期未完成事項。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnabled(!enabled)}
+                  className={`shrink-0 w-[48px] h-[28px] rounded-full p-[3px] transition-all active:scale-95 ${enabled ? 'bg-[#233142]' : 'bg-[#EAEAEA]'}`}
+                >
+                  <span className={`block w-[22px] h-[22px] rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">推播時間</label>
+              <TimeWheelPicker time={sendTime} setTime={setSendTime} />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">推播方式</label>
+              <div className="space-y-2">
+                {modeOptions.map(opt => (
+                  <button
+                    type="button"
+                    key={opt.key}
+                    onClick={() => setTargetMode(opt.key)}
+                    className={`w-full rounded-[18px] border px-4 py-3 text-left transition-all active:scale-[0.99] ${
+                      targetMode === opt.key
+                        ? 'bg-[#233142] border-[#233142] text-white shadow-[0_4px_16px_rgba(35,49,66,0.16)]'
+                        : 'bg-white border-[#EAEAEA] text-[#233142] shadow-sm'
+                    }`}
+                  >
+                    <span className="block text-[13px] font-bold tracking-widest">{opt.label}</span>
+                    <span className={`block text-[11px] mt-1 ${targetMode === opt.key ? 'text-white/70' : 'text-[#8E8E93]'}`}>{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="shrink-0 px-5 pt-3 bg-[#F9F8F6] border-t border-[#EAEAEA]" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}>
+            <button
+              type="button"
+              disabled={isSavingReportSettings || !sendTime}
+              onClick={() => handleSaveReportSettings({ enabled, send_time: sendTime, target_mode: targetMode })}
+              className="w-full h-[52px] bg-[#233142] disabled:bg-[#D1CFC7] disabled:text-[#F9F8F6] text-white rounded-[16px] flex items-center justify-center gap-2 text-[15px] font-bold active:scale-[0.98] transition-transform tracking-widest shadow-[0_4px_16px_rgba(35,49,66,0.2)]"
+            >
+              <Check size={18} strokeWidth={3} /> {isSavingReportSettings ? '儲存中...' : '儲存設定'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ==============================================================
   // 主畫面 Layout
   // ==============================================================
@@ -1784,6 +2148,12 @@ export default function FamilyHub() {
             <button onClick={fetchSupabaseData} disabled={isRefreshing} className="flex items-center gap-1.5 px-3 py-2 rounded-[12px] border-[1.5px] border-[#566B56] bg-white active:scale-95 transition-all disabled:opacity-70 shadow-sm hover:bg-[#F4F8F4]">
               <RotateCw size={12} strokeWidth={3} className={`text-[#566B56] ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="text-[10px] font-num font-bold text-[#566B56] uppercase tracking-[0.2em]">{isRefreshing ? 'SYNC' : 'SYNC'}</span>
+            </button>
+            <button onClick={() => setIsReportSettingsOpen(true)} className={`relative w-[38px] h-[38px] bg-white border-[1.5px] rounded-[12px] flex items-center justify-center shadow-sm hover:bg-[#F9F8F6] active:scale-95 transition-all ${reportSettings?.enabled ? 'border-[#566B56] text-[#566B56]' : 'border-[#EAEAEA] text-[#233142]'}`} aria-label="晨間報表設定">
+              <Clock size={18} strokeWidth={2.5} />
+              {reportSettings?.enabled && (
+                <span className="absolute -top-1.5 -right-1.5 w-[12px] h-[12px] rounded-[4px] bg-[#566B56] border-[2px] border-[#F9F8F6]"></span>
+              )}
             </button>
             <button onClick={() => setIsMemberModalOpen(true)} className="relative w-[38px] h-[38px] bg-white border-[1.5px] border-[#EAEAEA] rounded-[12px] flex items-center justify-center text-[#233142] shadow-sm hover:bg-[#F9F8F6] active:scale-95 transition-all">
               <Users size={18} strokeWidth={2.5} />
@@ -1826,6 +2196,7 @@ export default function FamilyHub() {
         <AiModal />
         <MemberModal />
         <EventEditModal />
+        <ReportSettingsModal />
         {toast && (
           <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 bg-[#233142]/95 backdrop-blur-xl text-white text-[13px] font-bold tracking-widest px-6 py-3.5 rounded-[16px] shadow-[0_10px_30px_rgba(35,49,66,0.2)] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
             <Check size={18} className="text-[#EAEAEA]" strokeWidth={3} />
