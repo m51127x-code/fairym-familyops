@@ -257,7 +257,7 @@ const TimeWheelPicker = ({ time, setTime }) => {
               type="button"
               key={q.value}
               onClick={() => { setDraftTime(q.value); setTime(q.value); }}
-              className={`h-[38px] min-w-0 rounded-[11px] text-[12px] font-bold border transition-all active:scale-95 ${
+              className={`h-[38px] min-w-0 rounded-[11px] text-[12px] font-num font-bold border transition-all active:scale-95 ${
                 time === q.value
                   ? 'bg-[#233142] text-white border-[#233142]'
                   : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
@@ -281,7 +281,7 @@ const TimeWheelPicker = ({ time, setTime }) => {
               value={draftTime}
               onChange={e => handleTimeInput(e.target.value)}
               onBlur={e => commitTime(e.target.value)}
-              className="w-full h-[42px] bg-white border border-[#EAEAEA] rounded-[13px] pl-9 pr-3 text-[15px] font-num font-bold text-[#233142] outline-none focus:border-[#233142] transition-all placeholder:text-[#D1CFC7]"
+              className="w-full h-[42px] bg-white border border-[#EAEAEA] rounded-[13px] pl-9 pr-3 text-[15px] font-num font-bold tracking-[0.02em] text-[#233142] outline-none focus:border-[#233142] transition-all placeholder:text-[#D1CFC7]"
             />
           </div>
         </label>
@@ -380,7 +380,18 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
             }`}
           >
             <Clock size={15} className="shrink-0 text-[#A0A0A0]" />
-            <span className="truncate">{showTimePicker ? '時間設定' : (time ? `提醒時間 ${time}` : '設定時間（選填）')}</span>
+            <span className="truncate flex items-center gap-1.5 min-w-0">
+              {showTimePicker ? (
+                <span>時間設定</span>
+              ) : time ? (
+                <>
+                  <span>提醒時間</span>
+                  <span className="font-num tracking-[0.02em]">{time}</span>
+                </>
+              ) : (
+                <span>設定時間（選填）</span>
+              )}
+            </span>
             {time && (
               <span
                 className="ml-auto shrink-0 text-[#A0A0A0] w-7 h-7 flex items-center justify-center rounded-full bg-[#F9F8F6]"
