@@ -188,7 +188,7 @@ if (typeof document !== 'undefined' && !document.getElementById('familyhub-style
 // 質感共用輸入框
 const inputStyle = "w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] placeholder:text-[#D1CFC7] transition-all outline-none shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]";
 
-// 純按鈕日期/時間選擇器：日期用快速選擇，時間用 Apple 鬧鐘式滾輪，不超出手機框
+// 純按鈕日期/時間選擇器：日期用快速選擇，時間用快捷選項＋精準輸入，不超出手機框
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
 const MIN_OPTIONS = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 
@@ -206,60 +206,52 @@ const TimeWheelPicker = ({ time, setTime }) => {
   };
 
   return (
-    <div className="w-full max-w-full overflow-hidden rounded-[18px] bg-white border border-[#EAEAEA] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-serif-jp font-bold text-[#233142] tracking-widest leading-none">提醒時間</p>
-          <p className="text-[10px] text-[#A0A0A0] tracking-[0.08em] mt-1 truncate">可快速選擇，也可輸入精準時間</p>
-        </div>
-        {time && (
+    <div className="w-full max-w-full overflow-hidden rounded-[18px] bg-white border border-[#EAEAEA] shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+      <div className="px-3 pt-3 pb-3">
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="text-[10px] font-bold text-[#A0A0A0] tracking-[0.18em] uppercase font-num">Quick Select</span>
           <button
             type="button"
             onClick={() => setTime('')}
-            className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[#B8B2AA] bg-[#F9F8F6] active:scale-95 transition-all"
-            aria-label="清除時間"
+            className="text-[11px] font-bold text-[#A0A0A0] tracking-widest active:text-[#D68C7A] transition-colors"
           >
-            <X size={14} strokeWidth={2.5} />
+            不設定
           </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-4 gap-1.5 mb-3">
-        {quickTimes.map(q => (
-          <button
-            type="button"
-            key={q.value}
-            onClick={() => setTime(q.value)}
-            className={`h-[38px] min-w-0 rounded-[11px] text-[12px] font-bold border transition-all active:scale-95 ${
-              time === q.value
-                ? 'bg-[#233142] text-white border-[#233142]'
-                : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
-            }`}
-          >
-            {q.label}
-          </button>
-        ))}
-      </div>
-
-      <label className="block">
-        <span className="block text-[10px] font-bold text-[#A0A0A0] tracking-[0.18em] uppercase mb-1.5 font-num">Custom Time</span>
-        <div className="relative">
-          <Clock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] pointer-events-none" />
-          <input
-            type="time"
-            step="60"
-            value={time || ''}
-            onChange={e => handleTimeInput(e.target.value)}
-            className="w-full h-[46px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[14px] pl-10 pr-4 text-[15px] font-num font-bold text-[#233142] outline-none focus:bg-white focus:border-[#233142] transition-all"
-          />
         </div>
-      </label>
 
-      {!time && (
-        <p className="mt-2 text-[11px] text-[#A0A0A0] leading-relaxed">
-          不設定時間時，這筆事項只會保留日期，不會建立到點提醒。
-        </p>
-      )}
+        <div className="grid grid-cols-4 gap-1.5">
+          {quickTimes.map(q => (
+            <button
+              type="button"
+              key={q.value}
+              onClick={() => setTime(q.value)}
+              className={`h-[38px] min-w-0 rounded-[11px] text-[12px] font-bold border transition-all active:scale-95 ${
+                time === q.value
+                  ? 'bg-[#233142] text-white border-[#233142]'
+                  : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
+              }`}
+            >
+              {q.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-[#EAEAEA] bg-[#F9F8F6]/70 px-3 py-3">
+        <label className="flex items-center gap-3 w-full">
+          <span className="shrink-0 text-[11px] font-bold text-[#8E8E93] tracking-widest">精準時間</span>
+          <div className="relative flex-1 min-w-0">
+            <Clock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] pointer-events-none" />
+            <input
+              type="time"
+              step="60"
+              value={time || ''}
+              onChange={e => handleTimeInput(e.target.value)}
+              className="w-full h-[42px] bg-white border border-[#EAEAEA] rounded-[13px] pl-9 pr-3 text-[15px] font-num font-bold text-[#233142] outline-none focus:border-[#233142] transition-all"
+            />
+          </div>
+        </label>
+      </div>
     </div>
   );
 };
@@ -354,7 +346,7 @@ const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
             }`}
           >
             <Clock size={15} className="shrink-0 text-[#A0A0A0]" />
-            <span className="truncate">{time ? `提醒時間 ${time}` : '設定時間（選填）'}</span>
+            <span className="truncate">{showTimePicker ? '時間設定' : (time ? `提醒時間 ${time}` : '設定時間（選填）')}</span>
             {time && (
               <span
                 className="ml-auto shrink-0 text-[#A0A0A0] w-7 h-7 flex items-center justify-center rounded-full bg-[#F9F8F6]"
