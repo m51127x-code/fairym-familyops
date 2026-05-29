@@ -119,6 +119,7 @@ const PRIORITY = { remind: 1, schedule: 2, todo: 3, shop: 4, health: 5, routine:
 const HOLIDAYS = { '2026-05-01':'勞動節', '2026-06-19':'端午節', '2026-09-25':'中秋節', '2026-10-10':'國慶日' };
 const moodOptions = ['😊', '😄', '🥰', '😌', '🙂', '😴', '😢', '😤'];
 const hideScrollbar = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']";
+const isCompletableType = (type) => !['mood', 'note'].includes(type); // 心情、紀錄是手札，不作為待完成任務
 
 // ==========================================
 // 全局樣式注入 (高級字體 & 動畫)
@@ -752,6 +753,7 @@ export default function FamilyHub() {
 
   const handleToggleDone = async (e, ev) => {
     e.stopPropagation();
+    if (!isCompletableType(ev.type)) return;
     triggerVibration(15);
     const newStatus = !Boolean(ev.is_done ?? ev.completed);
 
@@ -956,11 +958,11 @@ export default function FamilyHub() {
   const getBriefData = () => {
     const todayStr = fmtDate(TODAY);
     const todayItems = events
-      .filter(e => e.date === todayStr && !e.is_done && !e.completed && e.type !== 'mood')
+      .filter(e => e.date === todayStr && !e.is_done && !e.completed && isCompletableType(e.type))
       .sort((a, b) => (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99));
 
     const overdueItems = events
-      .filter(e => e.date < todayStr && !e.is_done && !e.completed && e.type !== 'mood')
+      .filter(e => e.date < todayStr && !e.is_done && !e.completed && isCompletableType(e.type))
       .sort((a, b) => new Date(a.date) - new Date(b.date));
 
     const soonRoutines = routines
@@ -1002,13 +1004,15 @@ export default function FamilyHub() {
     const dateMeta = variant === 'overdue' ? `${fmtDateChinese(event.date)} · 尚未完成` : '今天';
     const typeLabel = TYPE_CONFIG[event.type]?.label || '事項';
     return (
-      <div className="flex items-start gap-3">
-        <div className="pt-0.5 shrink-0"><AssigneeInline name={event.member} compact /></div>
-        <div className="min-w-0 flex-1">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-1.5">
+        <div className="min-w-0">
           <p className="text-[14px] font-bold text-[#233142] leading-snug break-words">{display.title}</p>
           <p className="text-[11px] text-[#9A9A9A] font-medium mt-1 tracking-[0.04em]">
             {dateMeta}{display.timeLabel ? ` · ${display.timeLabel}` : ''} · {typeLabel}
           </p>
+        </div>
+        <div className="shrink-0 pt-0.5 max-w-[92px] flex justify-end">
+          <AssigneeInline name={event.member} compact />
         </div>
       </div>
     );
@@ -1220,16 +1224,18 @@ export default function FamilyHub() {
                   {dayEvents.map((e) => {
                     const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
                     const display = getEventDisplay(e);
+                    const canComplete = isCompletableType(e.type);
                     return (
-                      <div key={e.id} className={`relative pl-[46px] pr-1 group cursor-pointer tap-highlight-transparent active:scale-[0.99] transition-all ${e.is_done ? 'opacity-55 grayscale-[0.2]' : ''}`} onClick={() => setEditingEvent(e)}>
+                      <div key={e.id} className={`relative pl-[46px] pr-1 group cursor-pointer tap-highlight-transparent active:scale-[0.99] transition-all ${canComplete && e.is_done ? 'opacity-55 grayscale-[0.2]' : ''}`} onClick={() => setEditingEvent(e)}>
 
                         {/* Timeline Node — 可點擊打勾 */}
                         <button
+                          disabled={!canComplete}
                           onClick={(ev) => handleToggleDone(ev, e)}
                           className={`absolute left-[8px] top-[14px] w-[26px] h-[26px] rounded-[8px] border flex items-center justify-center z-10 transition-all active:scale-90
-                            ${e.is_done ? 'bg-[#233142] border-[#233142]' : 'bg-white border-[#DDDBD5]'}`}
+                            ${canComplete && e.is_done ? 'bg-[#233142] border-[#233142]' : canComplete ? 'bg-white border-[#DDDBD5]' : 'bg-[#F9F8F6] border-[#EAEAEA]'}`}
                           style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                          {e.is_done
+                          {canComplete && e.is_done
                             ? <Check size={13} strokeWidth={3} className="text-white" />
                             : e.type === 'mood'
                               ? <span style={{ fontSize: 12, lineHeight: 1 }}>{e.mood}</span>
@@ -1241,10 +1247,10 @@ export default function FamilyHub() {
                           <div className="flex justify-between items-start gap-3">
                             <div className="min-w-0 flex-1">
                               <span className="text-[10px] font-bold tracking-[0.18em] uppercase"
-                                style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
+                                style={{ color: canComplete && e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
                                 {TYPE_CONFIG[e.type]?.label}
                               </span>
-                              <p className={`mt-1.5 text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
+                              <p className={`mt-1.5 text-[15px] font-bold leading-snug break-words ${canComplete && e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
                                 style={{ fontFamily: 'Noto Sans TC, PingFang TC, sans-serif', letterSpacing: '0.01em' }}>
                                 {display.title}
                               </p>
@@ -1265,7 +1271,7 @@ export default function FamilyHub() {
                               {display.timeLabel && <span className="shrink-0 w-1 h-1 rounded-full bg-[#D1CFC7]" />}
                               <AssigneeInline name={e.member} />
                             </div>
-                            <span className="shrink-0 w-[5px] h-[5px] rounded-[2px]" style={{ background: e.is_done ? '#D1CFC7' : '#D68C7A' }} />
+                            <span className="shrink-0 w-[5px] h-[5px] rounded-[2px]" style={{ background: canComplete && e.is_done ? '#D1CFC7' : '#D68C7A' }} />
                           </div>
                           {notifyEvent?.id === e.id && <NotifyActionPanel event={e} />}
                         </div>
@@ -1380,16 +1386,18 @@ export default function FamilyHub() {
                         {day.events.map((e) => {
                           const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
                           const display = getEventDisplay(e);
+                          const canComplete = isCompletableType(e.type);
                           return (
                             <div key={e.id}
-                              className={`relative pl-[46px] pr-1 group cursor-pointer tap-highlight-transparent active:scale-[0.99] transition-all ${e.is_done ? 'opacity-55 grayscale-[0.2]' : ''}`}
+                              className={`relative pl-[46px] pr-1 group cursor-pointer tap-highlight-transparent active:scale-[0.99] transition-all ${canComplete && e.is_done ? 'opacity-55 grayscale-[0.2]' : ''}`}
                               onClick={() => setEditingEvent(e)}>
                               <button
+                                disabled={!canComplete}
                                 onClick={(ev) => handleToggleDone(ev, e)}
                                 className={`absolute left-[7px] top-[12px] w-[26px] h-[26px] rounded-[8px] border flex items-center justify-center z-10 transition-all active:scale-90
-                                  ${e.is_done ? 'bg-[#233142] border-[#233142]' : 'bg-white border-[#DDDBD5]'}`}
+                                  ${canComplete && e.is_done ? 'bg-[#233142] border-[#233142]' : canComplete ? 'bg-white border-[#DDDBD5]' : 'bg-[#F9F8F6] border-[#EAEAEA]'}`}
                                 style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                                {e.is_done
+                                {canComplete && e.is_done
                                   ? <Check size={12} strokeWidth={3} className="text-white" />
                                   : e.type === 'mood'
                                     ? <span style={{ fontSize: 11, lineHeight: 1 }}>{e.mood}</span>
@@ -1400,10 +1408,10 @@ export default function FamilyHub() {
                                 <div className="flex justify-between items-start gap-3">
                                   <div className="min-w-0 flex-1">
                                     <span className="text-[10px] font-bold tracking-[0.18em] uppercase"
-                                      style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
+                                      style={{ color: canComplete && e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
                                       {TYPE_CONFIG[e.type]?.label}
                                     </span>
-                                    <p className={`mt-1.5 text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
+                                    <p className={`mt-1.5 text-[15px] font-bold leading-snug break-words ${canComplete && e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
                                       style={{ fontFamily: 'Noto Sans TC, PingFang TC, sans-serif', letterSpacing: '0.01em' }}>
                                       {display.title}
                                     </p>
@@ -1423,7 +1431,7 @@ export default function FamilyHub() {
                                     {display.timeLabel && <span className="shrink-0 w-1 h-1 rounded-full bg-[#D1CFC7]" />}
                                     <AssigneeInline name={e.member} />
                                   </div>
-                                  <span className="shrink-0 w-[5px] h-[5px] rounded-[2px]" style={{ background: e.is_done ? '#D1CFC7' : '#D68C7A' }} />
+                                  <span className="shrink-0 w-[5px] h-[5px] rounded-[2px]" style={{ background: canComplete && e.is_done ? '#D1CFC7' : '#D68C7A' }} />
                                 </div>
                                 {notifyEvent?.id === e.id && <NotifyActionPanel event={e} />}
                               </div>
