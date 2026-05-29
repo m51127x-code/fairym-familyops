@@ -1692,16 +1692,6 @@ export default function FamilyHub() {
                     <DateTimePicker date={date} setDate={setDate} time={time} setTime={setTime} showTime={type==='schedule'||type==='remind'} />
                   </div>
 
-                  {(type === 'schedule' || type === 'remind') && (
-                    <ScheduleReminderControl
-                      enabled={scheduleNotifyEnabled}
-                      setEnabled={setScheduleNotifyEnabled}
-                      mode={scheduleNotifyMode}
-                      setMode={setScheduleNotifyMode}
-                      disabled={!time}
-                    />
-                  )}
-
                   <div>
                     <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">關聯成員</label>
                     <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
@@ -1862,16 +1852,6 @@ export default function FamilyHub() {
                     <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">日期{(type==='schedule'||type==='remind') ? ' & 時間' : ''}</label>
                     <DateTimePicker date={date} setDate={setDate} time={time} setTime={setTime} showTime={type==='schedule'||type==='remind'} />
                   </div>
-
-                  {(type === 'schedule' || type === 'remind') && (
-                    <ScheduleReminderControl
-                      enabled={scheduleNotifyEnabled}
-                      setEnabled={setScheduleNotifyEnabled}
-                      mode={scheduleNotifyMode}
-                      setMode={setScheduleNotifyMode}
-                      disabled={!time}
-                    />
-                  )}
 
                   {/* 關聯成員 */}
                   <div>
@@ -2154,12 +2134,6 @@ export default function FamilyHub() {
               <RotateCw size={12} strokeWidth={3} className={`text-[#566B56] ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="text-[10px] font-num font-bold text-[#566B56] uppercase tracking-[0.2em]">{isRefreshing ? 'SYNC' : 'SYNC'}</span>
             </button>
-            <button onClick={() => setIsReportSettingsOpen(true)} className={`relative w-[38px] h-[38px] bg-white border-[1.5px] rounded-[12px] flex items-center justify-center shadow-sm hover:bg-[#F9F8F6] active:scale-95 transition-all ${reportSettings?.enabled ? 'border-[#566B56] text-[#566B56]' : 'border-[#EAEAEA] text-[#233142]'}`} aria-label="晨間報表設定">
-              <Clock size={18} strokeWidth={2.5} />
-              {reportSettings?.enabled && (
-                <span className="absolute -top-1.5 -right-1.5 w-[12px] h-[12px] rounded-[4px] bg-[#566B56] border-[2px] border-[#F9F8F6]"></span>
-              )}
-            </button>
             <button onClick={() => setIsMemberModalOpen(true)} className="relative w-[38px] h-[38px] bg-white border-[1.5px] border-[#EAEAEA] rounded-[12px] flex items-center justify-center text-[#233142] shadow-sm hover:bg-[#F9F8F6] active:scale-95 transition-all">
               <Users size={18} strokeWidth={2.5} />
               {unboundLineUsers.length > 0 && (
@@ -2201,7 +2175,6 @@ export default function FamilyHub() {
         <AiModal />
         <MemberModal />
         <EventEditModal />
-        <ReportSettingsModal />
         {toast && (
           <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 bg-[#233142]/95 backdrop-blur-xl text-white text-[13px] font-bold tracking-widest px-6 py-3.5 rounded-[16px] shadow-[0_10px_30px_rgba(35,49,66,0.2)] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
             <Check size={18} className="text-[#EAEAEA]" strokeWidth={3} />
