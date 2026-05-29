@@ -193,24 +193,6 @@ const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, 
 const MIN_OPTIONS = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 
 const TimeWheelPicker = ({ time, setTime }) => {
-  const [draftHour, setDraftHour] = useState(() => (time ? time.split(':')[0] : '09'));
-  const [draftMinute, setDraftMinute] = useState(() => (time ? time.split(':')[1] : '00'));
-
-  useEffect(() => {
-    if (time) {
-      const [h, m] = time.split(':');
-      setDraftHour(h || '09');
-      setDraftMinute(m || '00');
-    }
-  }, [time]);
-
-  const applyTime = (h, m) => {
-    const next = `${h}:${m}`;
-    setDraftHour(h);
-    setDraftMinute(m);
-    setTime(next);
-  };
-
   const quickTimes = [
     { label: '早上', value: '09:00' },
     { label: '中午', value: '12:00' },
@@ -218,50 +200,36 @@ const TimeWheelPicker = ({ time, setTime }) => {
     { label: '晚上', value: '19:00' },
   ];
 
-  const renderColumn = (items, selected, onPick, label) => (
-    <div className="min-w-0 flex-1">
-      <p className="text-center text-[10px] font-bold text-[#C4C4C4] tracking-[0.18em] mb-1">{label}</p>
-      <div
-        className={`relative overflow-y-auto overscroll-contain snap-y snap-mandatory rounded-[18px] bg-[#F9F8F6] border border-[#EAEAEA] ${hideScrollbar}`}
-        style={{
-          height: 'clamp(150px, 32dvh, 210px)',
-          maxHeight: '210px',
-        }}
-      >
-        <div className="h-[48px]" />
-        {items.map(item => {
-          const isSelected = item === selected;
-          return (
-            <button
-              type="button"
-              key={item}
-              onClick={() => onPick(item)}
-              className={`snap-center w-full h-[44px] flex items-center justify-center rounded-[14px] text-[clamp(18px,5.6vw,28px)] font-num font-bold transition-all ${
-                isSelected
-                  ? 'text-[#233142] bg-white shadow-[0_2px_10px_rgba(35,49,66,0.08)] scale-[1.02]'
-                  : 'text-[#A0A0A0]'
-              }`}
-            >
-              {item}
-            </button>
-          );
-        })}
-        <div className="h-[48px]" />
-      </div>
-    </div>
-  );
+  const handleTimeInput = (value) => {
+    // input[type=time] 會回傳 HH:MM，可支援 13:17 這類任意分鐘
+    setTime(value || '');
+  };
 
   return (
-    <div className="w-full max-w-full overflow-hidden">
+    <div className="w-full max-w-full overflow-hidden rounded-[18px] bg-white border border-[#EAEAEA] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-serif-jp font-bold text-[#233142] tracking-widest leading-none">提醒時間</p>
+          <p className="text-[10px] text-[#A0A0A0] tracking-[0.08em] mt-1 truncate">可快速選擇，也可輸入精準時間</p>
+        </div>
+        {time && (
+          <button
+            type="button"
+            onClick={() => setTime('')}
+            className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[#B8B2AA] bg-[#F9F8F6] active:scale-95 transition-all"
+            aria-label="清除時間"
+          >
+            <X size={14} strokeWidth={2.5} />
+          </button>
+        )}
+      </div>
+
       <div className="grid grid-cols-4 gap-1.5 mb-3">
         {quickTimes.map(q => (
           <button
             type="button"
             key={q.value}
-            onClick={() => {
-              const [h, m] = q.value.split(':');
-              applyTime(h, m);
-            }}
+            onClick={() => setTime(q.value)}
             className={`h-[38px] min-w-0 rounded-[11px] text-[12px] font-bold border transition-all active:scale-95 ${
               time === q.value
                 ? 'bg-[#233142] text-white border-[#233142]'
@@ -273,25 +241,25 @@ const TimeWheelPicker = ({ time, setTime }) => {
         ))}
       </div>
 
-      <div className="relative w-full overflow-hidden rounded-[22px] bg-white border border-[#EAEAEA] p-3 shadow-[0_4px_18px_rgba(0,0,0,0.04)]">
-        <div
-          className="pointer-events-none absolute left-3 right-3 top-1/2 -translate-y-1/2 h-[44px] rounded-[16px] border-y border-[#EAEAEA] bg-[#233142]/[0.03]"
-          aria-hidden="true"
-        />
-        <div className="grid grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] items-center gap-1 w-full max-w-full">
-          {renderColumn(HOUR_OPTIONS, draftHour, h => applyTime(h, draftMinute), '時')}
-          <div className="text-center text-[clamp(20px,6vw,30px)] font-num font-bold text-[#233142] pb-1">:</div>
-          {renderColumn(MIN_OPTIONS, draftMinute, m => applyTime(draftHour, m), '分')}
+      <label className="block">
+        <span className="block text-[10px] font-bold text-[#A0A0A0] tracking-[0.18em] uppercase mb-1.5 font-num">Custom Time</span>
+        <div className="relative">
+          <Clock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] pointer-events-none" />
+          <input
+            type="time"
+            step="60"
+            value={time || ''}
+            onChange={e => handleTimeInput(e.target.value)}
+            className="w-full h-[46px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[14px] pl-10 pr-4 text-[15px] font-num font-bold text-[#233142] outline-none focus:bg-white focus:border-[#233142] transition-all"
+          />
         </div>
-      </div>
+      </label>
 
-      <button
-        type="button"
-        onClick={() => setTime('')}
-        className="w-full h-[36px] mt-2 rounded-[12px] text-[12px] font-bold tracking-widest bg-[#F9F8F6] border border-[#EAEAEA] text-[#8E8E93] active:scale-[0.98] transition-all"
-      >
-        不設定時間
-      </button>
+      {!time && (
+        <p className="mt-2 text-[11px] text-[#A0A0A0] leading-relaxed">
+          不設定時間時，這筆事項只會保留日期，不會建立到點提醒。
+        </p>
+      )}
     </div>
   );
 };
