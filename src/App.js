@@ -1,3180 +1,2155 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  Settings,
-  Plus,
-  X,
-  Edit3,
-  CheckCircle,
-  ExternalLink,
-  Image as ImageIcon,
-  Upload,
-  ArrowRight,
-  ClipboardList,
-  FileDown,
-  Trash2,
-  Calendar,
-  Users,
-  ChevronUp,
-  ChevronDown,
-  Check,
-  Home,
-  List,
-  FileText,
-  Share2,
-  Clock,
-  Archive,
-  Sparkles,
-  Gauge,
-  MonitorPlay,
-  Download,
-  MoveRight,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react";
+import { createClient } from '@supabase/supabase-js';
+import liff from '@line/liff';
+import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  CalendarDays, RotateCw, Plus, ChevronLeft, ChevronRight, Check,
+  Wind, Leaf, Bell, X, Activity, ShoppingCart, HeartPulse,
+  Smile, AlertCircle, ChevronDown, History, PenLine, Users, Trash2, Edit2, Sparkles, Clock
+} from 'lucide-react';
 
-/**
- * Odee Meeting OS
- * 定位：科技感會議工作台，用來取代傳統 PPT 會議簡報與會議紀錄流程。
- * 功能保留：
- * - 會議首頁
- * - 議程目錄
- * - 議題頁
- * - 總筆記
- * - 設定 Modal
- * - 圖片上傳
- * - 快捷標籤
- * - 分享連結
- * - PDF / 長圖 / ZIP 匯出
- */
-
-// ══════════════════════════════════════════════════
-// Brand System
-// ══════════════════════════════════════════════════
-
-const THEME = {
-  cyan: "#47BCC6",
-  amber: "#F8B74A",
-  ink: "#000000",
-  ice: "#F1FAFB",
-  border: "#E0EEF0",
-  text: "#0f172a",
-  muted: "#64748b",
-  soft: "#f8fbfc",
+// ==========================================
+// 系統設定 & 模擬環境 (解決編譯錯誤)
+// ==========================================
+const TODAY = new Date();
+const fmtDate = (date) => {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const fmtDateChinese = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+};
+const shiftDays = (date, days) => {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return fmtDate(d);
 };
 
-const FONT_FAMILY =
-  '"Noto Sans TC", "Aptos", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif';
-
-const INITIAL_CLEAN_CONFIG = {
-  cover: { title: "", desc: "", titleFontSize: 72 },
-  attendees: "",
-  topics: [],
-  sessionDate: "",
-};
-
-
-
-const EXPORT_OPTIONS = {
-  pdf: {
-    label: "PDF 正式紀錄",
-    desc: "適合會後寄送、正式存檔與客戶交付。",
-    Icon: FileDown,
-  },
-  png: {
-    label: "長圖快速分享",
-    desc: "適合 LINE 群組、內部同步或快速回顧。",
-    Icon: ImageIcon,
-  },
-  zip: {
-    label: "ZIP 圖檔素材包",
-    desc: "適合拆圖備份、後續放入簡報或二次編輯。",
-    Icon: Archive,
-  },
-};
-
-const QUICK_TAGS = [
-  {
-    label: "決議",
-    prefix: "【決議】",
-    template: "【決議】",
-    color:
-      "bg-white text-[#47BCC6] border border-[#47BCC6]/30 hover:bg-[#47BCC6] hover:text-white",
-  },
-  {
-    label: "待辦",
-    prefix: "【待辦】負責人：　期限：　事項：",
-    template: "【待辦】負責人：　期限：　事項：",
-    color:
-      "bg-white text-[#F8B74A] border border-[#F8B74A]/30 hover:bg-[#F8B74A] hover:text-white",
-  },
-  {
-    label: "風險",
-    prefix: "【風險】影響：　處理方式：",
-    template: "【風險】影響：　處理方式：",
-    color:
-      "bg-white text-red-500 border border-red-200 hover:bg-red-500 hover:text-white",
-  },
-  {
-    label: "追蹤",
-    prefix: "【追蹤】下次確認：　追蹤事項：",
-    template: "【追蹤】下次確認：　追蹤事項：",
-    color:
-      "bg-[#F1FAFB] text-[#47BCC6] border border-[#47BCC6]/25 hover:bg-[#47BCC6] hover:text-white",
-  },
-];
-
-// ── 吉祥物：使用 public/images/odee-mascot-1.svg ──
-// 你的檔案放在 public/images/odee-mascot-1.svg 時，React 路徑就是 /images/odee-mascot-1.svg
-const Mascot = ({ size = "78%", lightBg = false, className = "" }) => (
-  <img
-    src="/images/odee-mascot-1.svg"
-    alt="Odee Mascot"
-    className={`object-contain hover:-translate-y-2 transition-transform duration-500 ease-out ${className}`}
-    style={{
-      position: "relative",
-      zIndex: 3,
-      width: size,
-      height: size,
-      filter: lightBg
-        ? "drop-shadow(0 12px 24px rgba(71,188,198,0.15)) drop-shadow(0 4px 10px rgba(0,0,0,0.05))"
-        : "drop-shadow(0 20px 32px rgba(0,0,0,0.25))",
-    }}
-    onError={(e) => {
-      e.currentTarget.style.display = "none";
-      console.warn("找不到吉祥物圖片：請確認 public/images/odee-mascot-1.svg 是否存在");
-    }}
-  />
+const supabase = createClient(
+  'https://pmhudmhdxfctmyfmmxhh.supabase.co',
+'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtaHVkbWhkeGZjdG15Zm1teGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjQ5MDQsImV4cCI6MjA5NDY0MDkwNH0.ymAzLChmVVvtkKCw2AIQLfhfodo8vJTONihzufw9CY0'
 );
 
-const MiniMascotMark = () => (
-  <div
-    className="w-8 h-8 rounded-2xl flex items-center justify-center shrink-0"
-    style={{
-      background: `linear-gradient(145deg, ${THEME.cyan}, #3aaab4)`,
-      boxShadow: "0 8px 18px rgba(71,188,198,0.28)",
-    }}
-  >
-    <Mascot size="78%" lightBg={false} />
-  </div>
-);
 
-const StatusDot = ({ status = "idle" }) => {
-  const color =
-    status === "resolved"
-      ? THEME.cyan
-      : status === "discussing"
-      ? THEME.amber
-      : "#cbd5e1";
+const cleanDateOnly = (value) => {
+  if (!value) return fmtDate(TODAY);
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return fmtDate(value);
+};
+
+const normalizeEvent = (event) => {
+  const content = event?.text || event?.title || '';
+  const done = Boolean(event?.is_done ?? event?.completed ?? false);
+  return {
+    ...event,
+    title: event?.title || content,
+    text: content,
+    date: cleanDateOnly(event?.date),
+    is_done: done,
+    completed: done,
+  };
+};
+
+const buildEventPayload = ({ type, text, member, date, time, mood, currentUserLineId, members, base = {} }) => {
+  const trimmedText = (text || '').trim();
+  const finalType = type || 'todo';
+  const finalDate = cleanDateOnly(date || TODAY);
+  let displayText = trimmedText || TYPE_CONFIG[finalType]?.label || '記事';
+  let finalMember = member || '全家';
+  let finalMood = null;
+
+  if (finalType === 'mood') {
+    const me = members?.find(m => m.line_user_id === currentUserLineId);
+    displayText = trimmedText || '紀錄當下心情...';
+    finalMember = me ? me.name : (member || '家人');
+    finalMood = mood || '😊';
+  } else if (time) {
+    if (finalType === 'schedule') displayText = `${time} ${trimmedText}`.trim();
+    if (finalType === 'remind') displayText = `${trimmedText || '提醒'} (${time} 截止)`;
+  }
+
+  const done = Boolean(base.is_done ?? base.completed ?? false);
+
+  return {
+    title: displayText,
+    text: displayText,
+    type: finalType,
+    member: finalMember,
+    date: finalType === 'mood' ? fmtDate(TODAY) : finalDate,
+    time: finalType === 'schedule' || finalType === 'remind' ? (time || null) : null,
+    mood: finalType === 'mood' ? finalMood : null,
+    is_done: done,
+    completed: done,
+  };
+};
+
+
+const buildScheduledAtISO = (date, time) => {
+  if (!date || !time) return null;
+  // 使用台灣時區組合，避免瀏覽器所在地或 UTC 造成日期偏移
+  return new Date(`${cleanDateOnly(date)}T${time}:00+08:00`).toISOString();
+};
+
+const getNotificationModeLabel = (mode) => {
+  const map = { private: '私訊', group: '群組', both: '全部' };
+  return map[mode] || '私訊';
+};
+
+// ==========================================
+// 質感調色盤 (Premium Aesthetic)
+// ==========================================
+const PALETTE = {
+  paper: '#F9F8F6', card: '#FFFFFF', ink: '#233142', inkMuted: '#8E8E93', border: '#EAEAEA', accent: '#D68C7A',
+  todo: '#5B7586', shop: '#C49553', remind: '#D68C7A', health: '#8DA399', mood: '#7A6B8D',
+};
+
+const TYPE_CONFIG = {
+  schedule: { label: '行程', color: '#C49553', bg: 'bg-[#FCF8F2] text-[#C49553]', icon: CalendarDays },
+  remind: { label: '提醒', color: PALETTE.remind, bg: 'bg-[#F9F3EE] text-[#D68C7A]', icon: AlertCircle },
+  todo: { label: '待辦', color: PALETTE.todo, bg: 'bg-[#F0F4F8] text-[#5B7586]', icon: Activity },
+  shop: { label: '採買', color: '#566B56', bg: 'bg-[#F4F8F4] text-[#566B56]', icon: ShoppingCart },
+  health: { label: '健康', color: PALETTE.health, bg: 'bg-[#F6F4F8] text-[#8DA399]', icon: HeartPulse },
+  routine: { label: '週期', color: PALETTE.inkMuted, bg: 'bg-[#F5F5F5] text-[#8E8E93]', icon: RotateCw },
+  mood: { label: '心情', color: PALETTE.mood, bg: 'bg-[#F4F1F8] text-[#7A6B8D]', icon: Smile },
+  note: { label: '紀錄', color: '#9CA3AF', bg: 'bg-[#F5F5F5] text-[#8E8E93]', icon: PenLine }, 
+};
+
+const PRIORITY = { remind: 1, schedule: 2, todo: 3, shop: 4, health: 5, routine: 6, mood: 7, note: 8 };
+const HOLIDAYS = { '2026-05-01':'勞動節', '2026-06-19':'端午節', '2026-09-25':'中秋節', '2026-10-10':'國慶日' };
+const moodOptions = ['😊', '😄', '🥰', '😌', '🙂', '😴', '😢', '😤'];
+const hideScrollbar = "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']";
+
+// ==========================================
+// 全局樣式注入 (高級字體 & 動畫)
+// ==========================================
+const GLOBAL_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@400;500;600;700;900&family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap');
+
+  :root { --bg-color: #F9F8F6; }
+
+  .font-serif-jp { font-family: 'Noto Serif TC', 'Songti TC', 'MingLiU', serif; letter-spacing: 0.03em; }
+  .font-num { font-family: 'Outfit', sans-serif; letter-spacing: 0; }
+  .font-editorial { font-family: 'Playfair Display', serif; }
+  
+  html, body { 
+    font-family: 'Noto Sans TC', sans-serif; 
+    touch-action: auto; overscroll-behavior-y: none; letter-spacing: 0.01em; 
+    margin: 0; padding: 0; background-color: var(--bg-color); min-height: 100dvh; 
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  input, textarea, select { font-size: 16px !important; font-family: inherit; } 
+  .hide-scroll::-webkit-scrollbar { display: none; }
+  .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+  
+  @keyframes springSlideUp { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }
+  .spring-modal { animation: springSlideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+
+  /* 統一 date/time input 外觀，所有瀏覽器 */
+  .date-input, .time-input {
+    display: block;
+    width: 100%;
+    height: 48px;
+    padding: 0 16px;
+    background: #F9F8F6;
+    border: 1.5px solid #EAEAEA;
+    border-radius: 14px;
+    font-size: 15px;
+    font-family: inherit;
+    font-weight: 600;
+    color: #233142;
+    cursor: pointer;
+    outline: none;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color 0.15s;
+  }
+  .date-input:focus, .time-input:focus {
+    border-color: #233142;
+    background: #fff;
+  }
+  .time-input { width: 130px; text-align: center; padding: 0 8px; }
+  /* Chrome/Safari: 隱藏 calendar icon，保留點擊功能 */
+  .date-input::-webkit-calendar-picker-indicator { opacity: 0; width: 100%; position: absolute; left: 0; cursor: pointer; }
+  .time-input::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: pointer; }
+  .date-input { position: relative; }
+`;
+
+if (typeof document !== 'undefined' && !document.getElementById('familyhub-style')) {
+  const styleEl = document.createElement('style');
+  styleEl.id = 'familyhub-style';
+  styleEl.innerHTML = GLOBAL_CSS;
+  document.head.appendChild(styleEl);
+}
+
+// 質感共用輸入框
+const inputStyle = "w-full bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] placeholder:text-[#D1CFC7] transition-all outline-none shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]";
+
+// 純按鈕日期/時間選擇器：日期只顯示一次，時間作為文字輔助欄位
+const TIME_QUICK_OPTIONS = ['09:00', '12:00', '15:00', '19:00'];
+
+const normalizeTimeInput = (value) => {
+  const raw = String(value || '').replace(/[^0-9:]/g, '').slice(0, 5);
+  if (/^\d{4}$/.test(raw)) return `${raw.slice(0, 2)}:${raw.slice(2)}`;
+  return raw;
+};
+
+const isValidHHMM = (value) => {
+  if (!/^\d{2}:\d{2}$/.test(value)) return false;
+  const [h, m] = value.split(':').map(Number);
+  return h >= 0 && h <= 23 && m >= 0 && m <= 59;
+};
+
+const InlineTimePicker = ({ time, setTime }) => {
+  const [draftTime, setDraftTime] = useState(time || '');
+
+  useEffect(() => {
+    setDraftTime(time || '');
+  }, [time]);
+
+  const commitTime = (value) => {
+    const normalized = normalizeTimeInput(value);
+    if (!normalized) {
+      setDraftTime('');
+      setTime('');
+      return;
+    }
+
+    if (isValidHHMM(normalized)) {
+      setDraftTime(normalized);
+      setTime(normalized);
+      return;
+    }
+
+    setDraftTime(time || '');
+  };
+
+  const handleInput = (value) => {
+    const normalized = normalizeTimeInput(value);
+    setDraftTime(normalized);
+    if (isValidHHMM(normalized)) setTime(normalized);
+  };
 
   return (
-    <span
-      className="inline-block w-2 h-2 rounded-full shrink-0"
-      style={{ backgroundColor: color, boxShadow: `0 0 0 4px ${color}18` }}
-    />
-  );
-};
-
-const App = () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const isViewer = urlParams.get("mode") === "viewer";
-  const meetingId = urlParams.get("id");
-
-  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
-  const [lastSharedInfo, setLastSharedInfo] = useState({
-    dataStr: null,
-    id: null,
-  });
-
-  const [config, setConfig] = useState(() => {
-    try {
-      const s = sessionStorage.getItem("strategyMeetingData");
-      if (s) return JSON.parse(s);
-    } catch {}
-    return INITIAL_CLEAN_CONFIG;
-  });
-
-  const [activePage, setActivePage] = useState("cover");
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const [isNotesOpen, setIsNotesOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [fullscreenImg, setFullscreenImg] = useState(null);
-  const [isExporting, setIsExporting] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportFormat, setExportFormat] = useState("pdf");
-  const [exportSelection, setExportSelection] = useState({
-    cover: true,
-    agenda: true,
-  });
-  const [tempConfig, setTempConfig] = useState(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [activeAssetIndex, setActiveAssetIndex] = useState(0);
-  const [expandedNotesTopicId, setExpandedNotesTopicId] = useState(null);
-  const [draggingSetupTopicId, setDraggingSetupTopicId] = useState(null);
-  const [draggingSetupImage, setDraggingSetupImage] = useState(null);
-  const [expandedSetupTopicId, setExpandedSetupTopicId] = useState(null);
-  const [isAdvancedSettingOpen, setIsAdvancedSettingOpen] = useState(false);
-
-  const notesRef = useRef(null);
-  const scrollContainerRef = useRef(null);
-
-  // ══════════════════════════════════════════════════
-  // Effects
-  // ══════════════════════════════════════════════════
-
-  useEffect(() => {
-    if (!isViewer) {
-      try {
-        sessionStorage.setItem("strategyMeetingData", JSON.stringify(config));
-      } catch {}
-    }
-  }, [config, isViewer]);
-
-  useEffect(() => {
-    if (isViewer && meetingId) {
-      fetch(`/api/get?id=${meetingId}`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data && !data.error) {
-            const p =
-              typeof data.result === "string"
-                ? JSON.parse(data.result)
-                : data.result || data;
-            setConfig(p);
-          } else {
-            alert("此會議紀錄不存在或已失效。");
-          }
-        })
-        .catch(() => alert("無法取得雲端會議紀錄，請確認網路狀態。"));
-    }
-  }, [isViewer, meetingId]);
-
-  useEffect(() => {
-    if (!document.getElementById("google-fonts-odee")) {
-      const link = document.createElement("link");
-      link.id = "google-fonts-odee";
-      link.href =
-        "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap";
-      link.rel = "stylesheet";
-      document.head.appendChild(link);
-    }
-  }, []);
-
-  useEffect(() => {
-    const h = (e) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", h);
-    return () => window.removeEventListener("beforeunload", h);
-  }, []);
-
-  useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [activePage]);
-
-  useEffect(() => {
-    const t = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    [
-      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
-      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-      "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
-    ].forEach((src) => {
-      if (!document.querySelector(`script[src="${src}"]`)) {
-        const s = document.createElement("script");
-        s.src = src;
-        s.async = true;
-        document.body.appendChild(s);
-      }
-    });
-  }, []);
-
-  // ══════════════════════════════════════════════════
-  // Derived Data
-  // ══════════════════════════════════════════════════
-
-  const displayConfig = isConfigOpen && tempConfig ? tempConfig : config;
-
-  const getAttendeeList = (a) => {
-    if (!a || typeof a !== "string") return [];
-    return a
-      .split(/[,，、\n]/)
-      .map((x) => x.trim())
-      .filter(Boolean);
-  };
-
-  const getAttendeePreview = (a) => {
-    const list = getAttendeeList(a);
-    if (!list.length) return "尚未填寫";
-    return list.length > 1 ? `${list[0]} 等 ${list.length} 人` : list[0];
-  };
-
-  const getMeetingStats = (data = config) => {
-    const topics = data.topics || [];
-    const resolvedCount = topics.filter((t) => t.status === "resolved").length;
-    const imageCount = topics.reduce((sum, t) => {
-      const imgs = t.images?.length
-        ? t.images
-        : t.previewContent
-        ? [t.previewContent]
-        : [];
-      return sum + imgs.length;
-    }, 0);
-    const noteCount = topics.filter((t) => (t.notes || "").trim()).length;
-    const progress = topics.length
-      ? Math.round((resolvedCount / topics.length) * 100)
-      : 0;
-
-    return {
-      topics,
-      total: topics.length,
-      resolvedCount,
-      imageCount,
-      noteCount,
-      progress,
-    };
-  };
-
-  const getReadiness = (data = config) => {
-    const stats = getMeetingStats(data);
-    const attendees = getAttendeeList(data.attendees);
-
-    const checks = [
-      {
-        id: "title",
-        label: "會議標題",
-        done: Boolean(data.cover?.title?.trim()),
-      },
-      {
-        id: "date",
-        label: "會議日期",
-        done: Boolean(data.sessionDate),
-      },
-      {
-        id: "attendees",
-        label: "出席者",
-        done: attendees.length > 0,
-      },
-      {
-        id: "topics",
-        label: "議題",
-        done: stats.total > 0,
-      },
-      {
-        id: "assets",
-        label: "素材",
-        done: stats.imageCount > 0,
-        optional: true,
-      },
-    ];
-
-    const requiredChecks = checks.filter((c) => !c.optional);
-    const doneRequired = requiredChecks.filter((c) => c.done).length;
-    const percent = Math.round((doneRequired / requiredChecks.length) * 100);
-    const next = requiredChecks.find((c) => !c.done)?.label || "儲存並關閉";
-
-    return {
-      checks,
-      requiredChecks,
-      doneRequired,
-      percent,
-      next,
-    };
-  };
-
-  const stats = getMeetingStats(config);
-  const readiness = getReadiness(displayConfig);
-  const currentTopic = (config.topics || []).find((t) => t.id === activePage);
-  const currentTopicImages =
-    currentTopic?.images?.length > 0
-      ? currentTopic.images
-      : currentTopic?.previewContent
-      ? [currentTopic.previewContent]
-      : [];
-
-  const selectedTopicsList =
-    config.topics?.filter((t) => exportSelection[t.id]) || [];
-
-  const currentTopicIndex = currentTopic
-    ? (config.topics || []).findIndex((t) => t.id === currentTopic.id)
-    : -1;
-
-  const previousTopic =
-    currentTopicIndex > 0 ? config.topics[currentTopicIndex - 1] : null;
-
-  const nextTopic =
-    currentTopicIndex >= 0 && currentTopicIndex < config.topics.length - 1
-      ? config.topics[currentTopicIndex + 1]
-      : null;
-
-  // ══════════════════════════════════════════════════
-  // Core Actions
-  // ══════════════════════════════════════════════════
-
-  const openConfig = () => {
-    setTempConfig(JSON.parse(JSON.stringify(config)));
-    setIsConfigOpen(true);
-  };
-
-  const applyConfig = () => {
-    setConfig(tempConfig);
-    setIsConfigOpen(false);
-  };
-
-
-  const updateTopic = (id, field, value) =>
-    setConfig((p) => ({
-      ...p,
-      topics: p.topics.map((t) =>
-        t.id === id ? { ...t, [field]: value } : t
-      ),
-    }));
-
-  const updateTempTopic = (id, field, value) =>
-    setTempConfig((p) => ({
-      ...p,
-      topics: (p.topics || []).map((t) =>
-        t.id === id ? { ...t, [field]: value } : t
-      ),
-    }));
-const addTempTopicSystem = (topicId) => {
-  setTempConfig((p) => ({
-    ...p,
-    topics: (p.topics || []).map((t) =>
-      t.id === topicId
-        ? {
-            ...t,
-            systems: [...(t.systems || []), { name: "", url: "" }],
-          }
-        : t
-    ),
-  }));
-};
-
-const updateTempTopicSystem = (topicId, systemIndex, field, value) => {
-  setTempConfig((p) => ({
-    ...p,
-    topics: (p.topics || []).map((t) => {
-      if (t.id !== topicId) return t;
-
-      const nextSystems = [...(t.systems || [])];
-      nextSystems[systemIndex] = {
-        ...nextSystems[systemIndex],
-        [field]: value,
-      };
-
-      return {
-        ...t,
-        systems: nextSystems,
-      };
-    }),
-  }));
-};
-
-const removeTempTopicSystem = (topicId, systemIndex) => {
-  setTempConfig((p) => ({
-    ...p,
-    topics: (p.topics || []).map((t) => {
-      if (t.id !== topicId) return t;
-
-      return {
-        ...t,
-        systems: (t.systems || []).filter((_, i) => i !== systemIndex),
-      };
-    }),
-  }));
-};
-  const addTopic = () => {
-    const n = (tempConfig.topics || []).length + 1;
-    setTempConfig((p) => ({
-      ...p,
-      topics: [
-        ...(p.topics || []),
-        {
-          id: `Topic ${n}`,
-          title: `新議題 ${n}`,
-          desc: "",
-          status: "discussing",
-          notes: "",
-          systems: [],
-          images: [],
-        },
-      ],
-    }));
-  };
-
-  const removeTempTopic = (id) => {
-    setTempConfig((p) => ({
-      ...p,
-      topics: (p.topics || []).filter((t) => t.id !== id),
-    }));
-  };
-
-  const moveTopic = (i, dir) => {
-    if (
-      (dir === -1 && i === 0) ||
-      (dir === 1 && i === tempConfig.topics.length - 1)
-    ) {
-      return;
-    }
-
-    const arr = [...tempConfig.topics];
-    [arr[i], arr[i + dir]] = [arr[i + dir], arr[i]];
-
-    setTempConfig({
-      ...tempConfig,
-      topics: arr.map((t, idx) => ({
-        ...t,
-        id: t.id?.startsWith("Topic") ? `Topic ${idx + 1}` : t.id,
-      })),
-    });
-  };
-const moveTopicByDrag = (dragId, targetId) => {
-  if (!dragId || !targetId || dragId === targetId) return;
-
-  setTempConfig((p) => {
-    const list = [...(p.topics || [])];
-    const fromIndex = list.findIndex((t) => t.id === dragId);
-    const toIndex = list.findIndex((t) => t.id === targetId);
-
-    if (fromIndex < 0 || toIndex < 0) return p;
-
-    const [moved] = list.splice(fromIndex, 1);
-    list.splice(toIndex, 0, moved);
-
-    return {
-      ...p,
-      topics: list,
-    };
-  });
-};
-  const goToNextTopic = () => {
-    if (nextTopic) {
-      setActivePage(nextTopic.id);
-    } else {
-      setActivePage("allnotes");
-    }
-  };
-
-  const markResolvedAndNext = () => {
-    if (!currentTopic) return;
-    updateTopic(currentTopic.id, "status", "resolved");
-    setTimeout(() => {
-      if (nextTopic) {
-        setActivePage(nextTopic.id);
-      } else {
-        setActivePage("allnotes");
-      }
-    }, 180);
-  };
-
-  const appendQuickTag = (template) => {
-    const t = config.topics.find((topic) => topic.id === activePage);
-    if (!t) return;
-
-    const cur = t.notes || "";
-    const nextValue =
-      cur + (cur.length && !cur.endsWith("\n") ? "\n" : "") + template + " ";
-
-    updateTopic(t.id, "notes", nextValue);
-
-    setTimeout(() => notesRef.current?.focus(), 10);
-  };
-
-  const compressImage = (file) =>
-    new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.src = ev.target.result;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          let w = img.width;
-          let h = img.height;
-          const MAX = 1920;
-
-          if (w > h) {
-            if (w > MAX) {
-              h *= MAX / w;
-              w = MAX;
-            }
-          } else if (h > MAX) {
-            w *= MAX / h;
-            h = MAX;
-          }
-
-          canvas.width = w;
-          canvas.height = h;
-
-          const ctx = canvas.getContext("2d");
-          ctx.fillStyle = "#FFF";
-          ctx.fillRect(0, 0, w, h);
-          ctx.drawImage(img, 0, 0, w, h);
-
-          resolve(canvas.toDataURL("image/jpeg", 0.86));
-        };
-      };
-    });
-
-  const uploadImagesToTopic = async (topicId, files) => {
-    const list = Array.from(files || []);
-    if (!list.length) return;
-
-    const compressed = await Promise.all(list.map(compressImage));
-    const target = (config.topics || []).find((t) => t.id === topicId);
-    const existing = target?.images || [];
-
-    updateTopic(topicId, "images", [...existing, ...compressed]);
-  };
-
-  const uploadImagesToTempTopic = async (topicId, files) => {
-    const list = Array.from(files || []);
-    if (!list.length) return;
-
-    const compressed = await Promise.all(list.map(compressImage));
-    const target = (tempConfig.topics || []).find((t) => t.id === topicId);
-    const existing = target?.images || [];
-
-    updateTempTopic(topicId, "images", [...existing, ...compressed]);
-  };
-
-  const removeTempTopicImage = (topicId, imageIndex) => {
-    setTempConfig((p) => ({
-      ...p,
-      topics: (p.topics || []).map((t) => {
-        if (t.id !== topicId) return t;
-        const imgs = t.images?.length > 0 ? t.images : t.previewContent ? [t.previewContent] : [];
-        return { ...t, images: imgs.filter((_, i) => i !== imageIndex), previewContent: "" };
-      }),
-    }));
-  };
-
-  const moveTempTopicImageByDrag = (topicId, fromIndex, toIndex) => {
-    if (fromIndex === toIndex || fromIndex == null || toIndex == null) return;
-
-    setTempConfig((p) => ({
-      ...p,
-      topics: (p.topics || []).map((t) => {
-        if (t.id !== topicId) return t;
-        const imgs = t.images?.length > 0 ? [...t.images] : t.previewContent ? [t.previewContent] : [];
-        if (!imgs[fromIndex] || !imgs[toIndex]) return t;
-        const [moved] = imgs.splice(fromIndex, 1);
-        imgs.splice(toIndex, 0, moved);
-        return { ...t, images: imgs, previewContent: "" };
-      }),
-    }));
-  };
-
-  const exportConfigJSON = () => {
-    const a = document.createElement("a");
-    a.setAttribute(
-      "href",
-      "data:application/json;charset=utf-8," +
-        encodeURIComponent(JSON.stringify(config, null, 2))
-    );
-    a.setAttribute(
-      "download",
-      `${(config.cover?.title || "會議專案").replace(
-        /[\/\?<>\\:\*\|":\s]/g,
-        "_"
-      )}_${config.sessionDate || "未定日期"}.json`
-    );
-    a.click();
-  };
-
-  const importConfigJSON = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const imp = JSON.parse(ev.target.result);
-        if (imp.topics) {
-          imp.topics = imp.topics.map((t) => ({
-            ...t,
-            images: t.images || (t.previewContent ? [t.previewContent] : []),
-          }));
-        }
-        setTempConfig({ ...INITIAL_CLEAN_CONFIG, ...imp });
-      } catch {
-        alert("無法讀取專案，檔案可能已損毀。");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const generateShareLink = async () => {
-    const cur = JSON.stringify(config);
-
-    if (lastSharedInfo.dataStr === cur && lastSharedInfo.id) {
-      const link = `${window.location.origin}/?mode=viewer&id=${lastSharedInfo.id}`;
-      try {
-        await navigator.clipboard.writeText(link);
-        alert(`ℹ️ 內容未變更，已複製現有連結：\n\n${link}`);
-      } catch {
-        alert(`ℹ️ 請手動複製：\n\n${link}`);
-      }
-      return;
-    }
-
-    setIsGeneratingLink(true);
-
-    try {
-      const res = await fetch("/api/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ configData: config }),
-      });
-
-      if (!res.ok) throw new Error(`伺服器回應錯誤 (${res.status})`);
-
-      const result = await res.json();
-
-      if (result.id) {
-        const link = `${window.location.origin}/?mode=viewer&id=${result.id}`;
-        setLastSharedInfo({ dataStr: cur, id: result.id });
-
-        try {
-          await navigator.clipboard.writeText(link);
-          alert(`✅ 已產生連結並複製！\n\n${link}`);
-        } catch {
-          alert(`✅ 請手動複製以下連結：\n\n${link}`);
-        }
-      } else {
-        throw new Error("伺服器未回傳會議 ID。");
-      }
-    } catch (err) {
-      alert(`❌ 產生連結失敗：\n${err.message}`);
-    } finally {
-      setIsGeneratingLink(false);
-    }
-  };
-
-  const openExportModal = (fmt) => {
-    const sel = { cover: true, agenda: true };
-    config.topics?.forEach((t) => {
-      sel[t.id] = true;
-    });
-
-    setExportSelection(sel);
-    setExportFormat(fmt);
-    setShowExportModal(true);
-  };
-
-  const toggleExportSelection = (key) =>
-    setExportSelection((p) => ({ ...p, [key]: !p[key] }));
-
-  function disableAnimations(el) {
-    el.querySelectorAll("*").forEach((c) => {
-      try {
-        c.style.animation = "none";
-        c.style.transition = "none";
-        c.style.backdropFilter = "none";
-      } catch {}
-    });
-  }
-    // ══════════════════════════════════════════════════
-  // Export Logic
-  // ══════════════════════════════════════════════════
-
-  const handleConfirmExport = async () => {
-    setShowExportModal(false);
-
-    const format = exportFormat;
-
-    if (!window.html2canvas || (format === "pdf" && !window.jspdf)) {
-      alert("匯出模組載入中，請稍候。");
-      return;
-    }
-
-    setIsExporting(true);
-
-    try {
-      if (document.fonts?.ready) {
-        await document.fonts.ready;
-      }
-    } catch {}
-
-    const raw = config.cover?.title || "會議報告";
-    const safe = raw.replace(/[\/\?<>\\:\*\|":\s]/g, "_");
-    const base = `${safe}_${config.sessionDate || "未定日期"}`;
-
-    await new Promise((r) => setTimeout(r, 900));
-
-    const target = document.getElementById("full-report-export-target");
-
-    if (!target) {
-      alert("匯出畫布建置失敗。");
-      setIsExporting(false);
-      return;
-    }
-
-    try {
-      if (format === "png") {
-        const canvas = await window.html2canvas(target, {
-          scale: 3,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: "#FFFFFF",
-          windowWidth: 1200,
-          logging: false,
-        });
-
-        if (!canvas.width) throw new Error("畫面擷取為空");
-
-        const a = document.createElement("a");
-        a.download = `${base}_合併長圖.png`;
-        a.href = canvas.toDataURL("image/png", 1.0);
-        a.click();
-      }
-
-      if (format === "zip") {
-        const zip = new window.JSZip();
-        const folder = zip.folder(base);
-        const secs = target.querySelectorAll("[data-export-section]");
-
-        for (let i = 0; i < secs.length; i++) {
-          const sec = secs[i];
-
-          const canvas = await window.html2canvas(sec, {
-            scale: 3,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: "#FFFFFF",
-            windowWidth: 1200,
-            logging: false,
-            ignoreElements: (el) => el.tagName === "IFRAME",
-          });
-
-          const b64 = canvas
-            .toDataURL("image/png", 1.0)
-            .replace(/^data:image\/(png|jpg);base64,/, "");
-
-          const type = sec.getAttribute("data-export-section");
-          const name =
-            type === "cover"
-              ? "00_封面.png"
-              : type === "agenda"
-              ? "01_議程總覽.png"
-              : `${String(i + 2).padStart(2, "0")}_${
-                  sec.getAttribute("data-topic-title") || type
-                }.png`;
-
-          folder.file(name, b64, { base64: true });
-        }
-
-        const blob = await zip.generateAsync({ type: "blob" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `${base}_圖檔集.zip`;
-        a.click();
-      }
-
-      if (format === "pdf") {
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF("p", "mm", "a4");
-
-        const pdfW = pdf.internal.pageSize.getWidth();
-        const pdfH = pdf.internal.pageSize.getHeight();
-        const margin = 10;
-        const MM = pdfW / 1200;
-
-        let agendaScale = 1.0;
-
-        const agendaSec = target.querySelector(
-          '[data-export-section="agenda"]'
-        );
-
-        if (agendaSec && exportSelection.agenda) {
-          const wrap = document.createElement("div");
-
-          wrap.style.cssText = `
-            position: fixed;
-            top: -99999px;
-            left: -99999px;
-            width: 1200px;
-            background: #FFFFFF;
-            pointer-events: none;
-          `;
-
-          const clone = agendaSec.cloneNode(true);
-          disableAnimations(clone);
-          wrap.appendChild(clone);
-          document.body.appendChild(wrap);
-
-          await new Promise((r) => setTimeout(r, 100));
-
-          let mc;
-
-          try {
-            mc = await window.html2canvas(wrap, {
-              scale: 3,
-              useCORS: true,
-              allowTaint: true,
-              backgroundColor: "#FFFFFF",
-              windowWidth: 1200,
-              logging: false,
-            });
-          } finally {
-            document.body.removeChild(wrap);
-          }
-
-          if (mc?.width > 0) {
-            agendaScale = Math.min(
-              pdfW / ((mc.width / 3) * MM),
-              (pdfH - margin * 2) / ((mc.height / 3) * MM)
-            );
-          }
-        }
-
-        const blocks = target.querySelectorAll('[data-pdf-block="true"]');
-
-        if (!blocks.length) throw new Error("無可用匯出區塊");
-
-        let firstPage = true;
-        let curY = margin;
-        let lastSec = null;
-
-        for (const block of blocks) {
-          const isFullPage =
-            block.getAttribute("data-pdf-full-page") === "true";
-
-          const secEl = block.closest("[data-export-section]");
-          const secKey = secEl?.getAttribute("data-export-section") || null;
-          const isNewSec = secKey && secKey !== lastSec;
-
-          if (isNewSec) lastSec = secKey;
-
-          if (isFullPage) {
-            if (!firstPage) pdf.addPage();
-
-            pdf.setFillColor(241, 250, 251);
-            pdf.rect(0, 0, pdfW, pdfH, "F");
-
-            const wrap = document.createElement("div");
-
-            wrap.style.cssText = `
-              position: fixed;
-              top: -99999px;
-              left: -99999px;
-              width: 1200px;
-              background: #FFFFFF;
-              pointer-events: none;
-            `;
-
-            const clone = block.cloneNode(true);
-            disableAnimations(clone);
-            wrap.appendChild(clone);
-            document.body.appendChild(wrap);
-
-            await new Promise((r) => setTimeout(r, 80));
-
-            let cc;
-
-            try {
-              cc = await window.html2canvas(wrap, {
-                scale: 3,
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: "#FFFFFF",
-                windowWidth: 1200,
-                logging: false,
-              });
-            } finally {
-              document.body.removeChild(wrap);
-            }
-
-            if (cc?.width > 0) {
-              pdf.addImage(
-                cc.toDataURL("image/jpeg", 0.95),
-                "JPEG",
-                0,
-                0,
-                pdfW,
-                pdfH
-              );
-            }
-
-            firstPage = false;
-            curY = pdfH;
-            continue;
-          }
-
-          if (isNewSec) {
-            if (!firstPage) pdf.addPage();
-
-            pdf.setFillColor(241, 250, 251);
-            pdf.rect(0, 0, pdfW, pdfH, "F");
-
-            curY = margin;
-            firstPage = false;
-          }
-
-          const wrap = document.createElement("div");
-
-          wrap.style.cssText = `
-            position: fixed;
-            top: -99999px;
-            left: -99999px;
-            width: 1200px;
-            background: #FFFFFF;
-            pointer-events: none;
-          `;
-
-          const clone = block.cloneNode(true);
-          disableAnimations(clone);
-          wrap.appendChild(clone);
-          document.body.appendChild(wrap);
-
-          await new Promise((r) => setTimeout(r, 80));
-
-          let canvas;
-
-          try {
-            canvas = await window.html2canvas(wrap, {
-              scale: 3,
-              useCORS: true,
-              allowTaint: true,
-              backgroundColor: "#FFFFFF",
-              windowWidth: 1200,
-              logging: false,
-            });
-          } finally {
-            document.body.removeChild(wrap);
-          }
-
-          if (!canvas?.width) continue;
-
-          const sw = (canvas.width / 3) * MM * agendaScale;
-          const sh = (canvas.height / 3) * MM * agendaScale;
-
-          if (curY + sh > pdfH - margin && curY > margin + 5) {
-            pdf.addPage();
-            pdf.setFillColor(241, 250, 251);
-            pdf.rect(0, 0, pdfW, pdfH, "F");
-            curY = margin;
-          }
-
-          pdf.addImage(
-            canvas.toDataURL("image/jpeg", 0.95),
-            "JPEG",
-            (pdfW - sw) / 2,
-            curY,
-            sw,
-            sh
-          );
-
-          curY += sh + 3;
-
-          if (firstPage) firstPage = false;
-        }
-
-        pdf.save(`${base}.pdf`);
-      }
-    } catch (err) {
-      alert("匯出錯誤：" + (err?.message || String(err)));
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  // ══════════════════════════════════════════════════
-  // Export Layout
-  // 方向：回到初版匯出結構，只替換成 Odee 色票與吉祥物。
-  // 重點：不拉伸圖片、不裁切文字、保持每個區塊自然分頁。
-  // ══════════════════════════════════════════════════
-
-  const exportHeaderJSX = (
-    <div className="w-full px-20 pt-14 pb-6 bg-[#F1FAFB]">
-      <div className="flex justify-between items-end border-b-[3px] border-[#E0EEF0] pb-6">
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-4">
-            <div
-              className="w-12 h-[3px] rounded-full"
-              style={{ background: "linear-gradient(90deg, #47BCC6, #F8B74A)" }}
-            />
-            <span className="text-[13px] font-black text-[#47BCC6] tracking-[0.3em] uppercase">
-              SESSION BOARD
-            </span>
-          </div>
-          <span className="text-4xl font-black text-[#000000] tracking-tight leading-tight">
-            {config.cover?.title || "未命名會議"}
-          </span>
+    <div className="bg-white border border-[#EAEAEA] rounded-[18px] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)] overflow-hidden">
+      <div className="flex items-center justify-between gap-3 mb-2.5">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold text-[#A0A0A0] tracking-[0.18em] uppercase font-num mb-0.5">Time</p>
+          <p className="text-[13px] font-bold text-[#233142] tracking-wide">時間（選填）</p>
         </div>
-        <div className="text-xl font-bold text-slate-700 bg-white px-6 py-3 rounded-2xl border border-[#E0EEF0] shadow-sm flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-[#F8B74A]" />
-          {config.sessionDate || "TBD"}
-        </div>
+        {time && (
+          <button
+            type="button"
+            onClick={() => { setDraftTime(''); setTime(''); }}
+            className="shrink-0 w-8 h-8 rounded-full bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center text-[#A0A0A0] active:scale-90 transition-all"
+            aria-label="清除時間"
+          >
+            <X size={13} strokeWidth={2.5} />
+          </button>
+        )}
+      </div>
+
+      <label className="flex items-center gap-2 w-full h-[44px] bg-[#F9F8F6] border border-[#EAEAEA] rounded-[14px] px-3 focus-within:bg-white focus-within:border-[#233142] transition-all">
+        <Clock size={15} className="shrink-0 text-[#A0A0A0]" />
+        <input
+          type="text"
+          inputMode="numeric"
+          placeholder="例如 13:17"
+          value={draftTime}
+          onChange={e => handleInput(e.target.value)}
+          onBlur={e => commitTime(e.target.value)}
+          className="min-w-0 flex-1 bg-transparent outline-none text-[15px] font-num font-bold tracking-[0.02em] text-[#233142] placeholder:text-[#CFCFCF]"
+        />
+      </label>
+
+      <div className="grid grid-cols-4 gap-1.5 mt-2.5">
+        {TIME_QUICK_OPTIONS.map(option => (
+          <button
+            type="button"
+            key={option}
+            onClick={() => { setDraftTime(option); setTime(option); }}
+            className={`h-[34px] min-w-0 rounded-[11px] text-[12px] font-num font-bold border transition-all active:scale-95 ${
+              time === option
+                ? 'bg-[#233142] text-white border-[#233142]'
+                : 'bg-white text-[#8E8E93] border-[#EAEAEA]'
+            }`}
+          >
+            {option}
+          </button>
+        ))}
       </div>
     </div>
   );
+};
 
-  const renderFullReportExport = () => {
-    const exportStats = getMeetingStats(config);
+const DateTimePicker = ({ date, setDate, time, setTime, showTime = false }) => {
+  const safeDate = cleanDateOnly(date || TODAY);
+
+  const quickDates = [
+    { label: '今天', d: shiftDays(TODAY, 0) },
+    { label: '明天', d: shiftDays(TODAY, 1) },
+    { label: '後天', d: shiftDays(TODAY, 2) },
+  ];
+
+  const moveDate = (days) => {
+    setDate(shiftDays(safeDate, days));
+  };
+
+  return (
+    <div className="space-y-3 w-full max-w-full overflow-hidden">
+      <div className="bg-white border border-[#EAEAEA] rounded-[18px] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.03)] overflow-hidden">
+        <div className="flex items-center justify-between mb-3 min-w-0">
+          <button
+            type="button"
+            onClick={() => moveDate(-1)}
+            className="shrink-0 w-9 h-9 rounded-full bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center active:scale-90 transition-all"
+          >
+            <ChevronLeft size={15} strokeWidth={2.5} className="text-[#8E8E93]" />
+          </button>
+
+          <div className="text-center min-w-0 px-2">
+            <p className="text-[10px] font-bold text-[#A0A0A0] tracking-[0.22em] uppercase mb-0.5 font-num">Date</p>
+            <p className="text-[clamp(14px,4vw,16px)] font-bold text-[#233142] tracking-wide truncate">{fmtDateChinese(safeDate)}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => moveDate(1)}
+            className="shrink-0 w-9 h-9 rounded-full bg-[#F9F8F6] border border-[#EAEAEA] flex items-center justify-center active:scale-90 transition-all"
+          >
+            <ChevronRight size={15} strokeWidth={2.5} className="text-[#8E8E93]" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-4 gap-1.5">
+          {quickDates.map(q => (
+            <button
+              type="button"
+              key={q.label}
+              onClick={() => setDate(q.d)}
+              className={`h-[38px] min-w-0 rounded-[11px] text-[clamp(10px,3.2vw,12px)] font-bold border transition-all active:scale-95 ${
+                safeDate === q.d ? 'bg-[#233142] text-white border-[#233142]' : 'bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA]'
+              }`}
+            >
+              {q.label}
+            </button>
+          ))}
+
+          <label
+            className="relative h-[38px] min-w-0 rounded-[11px] text-[clamp(10px,3.2vw,12px)] font-bold border transition-all active:scale-95 bg-[#F9F8F6] text-[#8E8E93] border-[#EAEAEA] flex items-center justify-center overflow-hidden"
+          >
+            指定
+            <input
+              type="date"
+              value={safeDate}
+              onChange={e => setDate(e.target.value)}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              aria-label="指定日期"
+            />
+          </label>
+        </div>
+      </div>
+
+      {showTime && <InlineTimePicker time={time} setTime={setTime} />}
+    </div>
+  );
+};
+const DragHeader = ({ children, className = '' }) => (
+  <div className={`w-full shrink-0 bg-white rounded-t-[32px] ${className}`}>
+      <div className="w-full pt-4 pb-3 flex justify-center items-center">
+          <div className="w-12 h-1.5 bg-[#D0D0D0] rounded-full shrink-0 opacity-80"></div>
+      </div>
+      {children}
+  </div>
+);
+const ScheduleReminderControl = ({ enabled, setEnabled, mode, setMode, disabled = false }) => {
+  const modeOptions = [
+    { key: 'private', label: '私訊' },
+    { key: 'group', label: '群組' },
+    { key: 'both', label: '全部' },
+  ];
+
+  return (
+    <div className={`rounded-[18px] border border-[#EAEAEA] bg-white px-4 py-3 shadow-[0_2px_8px_rgba(0,0,0,0.025)] transition-all ${disabled ? 'opacity-45' : ''}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-serif-jp font-bold text-[#233142] tracking-widest leading-none">預約 LINE 提醒</p>
+          <p className="text-[10px] text-[#A0A0A0] mt-1 tracking-[0.08em] truncate">
+            {disabled ? '設定時間後可啟用' : '到設定時間自動推播'}
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setEnabled(!enabled)}
+          className={`shrink-0 w-[46px] h-[26px] rounded-full p-[3px] transition-all active:scale-95 ${enabled && !disabled ? 'bg-[#233142]' : 'bg-[#EAEAEA]'}`}
+        >
+          <span className={`block w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${enabled && !disabled ? 'translate-x-5' : 'translate-x-0'}`} />
+        </button>
+      </div>
+
+      {enabled && !disabled && (
+        <div className="mt-3 pt-3 border-t border-dashed border-[#EAEAEA] animate-in fade-in slide-in-from-top-1 duration-200">
+          <p className="text-[10px] font-bold text-[#8E8E93] tracking-widest mb-2 uppercase">通知方式</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {modeOptions.map(opt => (
+              <button
+                type="button"
+                key={opt.key}
+                onClick={() => setMode(opt.key)}
+                className={`h-[36px] rounded-[12px] border text-[12px] font-bold tracking-widest transition-all active:scale-[0.97] ${
+                  mode === opt.key
+                    ? 'bg-[#233142] border-[#233142] text-white shadow-[0_2px_10px_rgba(35,49,66,0.12)]'
+                    : 'bg-[#F9F8F6] border-[#EAEAEA] text-[#8E8E93]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+
+export default function FamilyHub() {
+  const [activeTab, setActiveTab] = useState('board');
+  const [events, setEvents] = useState([]);
+  const [routines, setRoutines] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [lineUsers, setLineUsers] = useState([]); 
+  const [currentMonth, setCurrentMonth] = useState(new Date(TODAY.getFullYear(), TODAY.getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState(fmtDate(TODAY));
+  const [filter, setFilter] = useState('all');
+  const [toast, setToast] = useState(null);
+  const [holidays, setHolidays] = useState(HOLIDAYS);
+  
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [isHideListOpen, setIsHideListOpen] = useState(false); 
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [currentUserLineId, setCurrentUserLineId] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false); 
+  const [notifyEvent, setNotifyEvent] = useState(null);
+  const [isSendingNotify, setIsSendingNotify] = useState(false);
+  const [reportSettings, setReportSettings] = useState(null);
+  const [isReportSettingsOpen, setIsReportSettingsOpen] = useState(false);
+  const [isSavingReportSettings, setIsSavingReportSettings] = useState(false);
+
+  const unboundLineUsers = useMemo(() => {
+    const unbound = lineUsers.filter(lu => !lu.is_ignored && !members.some(m => m.line_user_id === lu.user_id));
+    const uniqueUnbound = [];
+    const seenIds = new Set();
+    for (const user of unbound) {
+      if (!seenIds.has(user.user_id)) { seenIds.add(user.user_id); uniqueUnbound.push(user); }
+    }
+    return uniqueUnbound;
+  }, [lineUsers, members]);
+
+  const ignoredLineUsers = useMemo(() => {
+    const ignored = lineUsers.filter(lu => lu.is_ignored && !members.some(m => m.line_user_id === lu.user_id));
+    const uniqueIgnored = [];
+    const seenIds = new Set();
+    for (const user of ignored) {
+      if (!seenIds.has(user.user_id)) { seenIds.add(user.user_id); uniqueIgnored.push(user); }
+    }
+    return uniqueIgnored;
+  }, [lineUsers, members]);
+
+  const triggerVibration = (pattern = 10) => {
+    if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) window.navigator.vibrate(pattern);
+  };
+
+  const fetchSupabaseData = async () => {
+    setIsRefreshing(true);
+    try {
+      const { data: eventsData } = await supabase.from('events').select('*').gte('date', '2026-05-22').order('date', { ascending: true });
+      if (eventsData) setEvents(eventsData.map(normalizeEvent));
+
+      const { data: routinesData } = await supabase.from('routines').select('*').gte('created_at', '2026-05-22T00:00:00Z');
+      const { data: logsData } = await supabase.from('routine_logs').select('*');
+
+      if (routinesData) {
+        setRoutines(
+          routinesData.map(r => {
+            const myLogs = logsData ? logsData.filter(log => log.routine_name === r.name) : [];
+            return {
+              ...r, icon: r.icon || 'activity', color: r.color || '#5B7586',
+              logs: myLogs.map(l => ({ id: l.id, date: l.last_done_at, note: l.note })).sort((a, b) => new Date(b.date) - new Date(a.date)),
+            };
+          })
+        );
+      }
+
+      const { data: membersData } = await supabase.from('members').select('*');
+      if (membersData) setMembers(membersData);
+      const { data: lineUsersData } = await supabase.from('line_users').select('*');
+      if (lineUsersData) setLineUsers(lineUsersData);
+
+      const { data: reportSettingsData } = await supabase
+        .from('report_settings')
+        .select('*')
+        .eq('report_type', 'morning')
+        .limit(1)
+        .maybeSingle();
+      if (reportSettingsData) setReportSettings(reportSettingsData);
+    } catch (err) { console.error('Fetch error:', err); } finally { setIsRefreshing(false); }
+  };
+
+  useEffect(() => {
+    async function initLiff() {
+      try {
+        await liff.init({ liffId: '2010165775-xmYZj7n4' });
+        if (liff.isLoggedIn()) { const profile = await liff.getProfile(); setCurrentUserLineId(profile.userId); }
+      } catch (err) { console.error('LIFF 初始化失敗:', err); }
+    }
+    fetchSupabaseData(); initLiff();
+  }, []);
+
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        const year = currentMonth.getFullYear();
+        const res = await fetch(`https://cdn.jsdelivr.net/gh/ruyut/TaiwanCalendar/data/${year}.json`);
+        if (res.ok) {
+          const data = await res.json();
+          const newHolidays = {};
+          data.forEach(d => {
+            if (d.isHoliday && d.description) {
+              const dateStr = `${d.date.substring(0,4)}-${d.date.substring(4,6)}-${d.date.substring(6,8)}`;
+              newHolidays[dateStr] = d.description;
+            }
+          });
+          setHolidays(prev => ({ ...prev, ...newHolidays }));
+        }
+      } catch (err) { }
+    };
+    fetchHolidays();
+  }, [currentMonth.getFullYear()]);
+
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); triggerVibration(10); };
+
+  const handleIgnoreUser = async (userId, shouldIgnore) => {
+    try {
+      await supabase.from('line_users').update({ is_ignored: shouldIgnore }).eq('user_id', userId);
+      setLineUsers(prev => prev.map(lu => lu.user_id === userId ? { ...lu, is_ignored: shouldIgnore } : lu));
+      showToast(shouldIgnore ? '🙈 已移至隱藏名單' : '👀 已恢復至待安排名單');
+    } catch (err) { alert('操作失敗，請重新整理頁面重試。'); }
+  };
+
+  const handleAddMember = async (name, role) => {
+    if (!name || !role) return;
+    const { data, error } = await supabase.from('members').insert([{ name, role_name: role }]).select();
+    if (!error && data) { setMembers(prev => [...prev, data[0]]); showToast('✅ 角色已建立'); return true; }
+    return false;
+  };
+
+  const handleDeleteMember = async (id) => {
+    if (window.confirm('確定要移除此角色嗎？')) {
+      const { error } = await supabase.from('members').delete().eq('id', id);
+      if (!error) { setMembers(prev => prev.filter(m => m.id !== id)); showToast('🗑️ 角色已移除'); }
+    }
+  };
+
+  const handleUpdateEvent = async (updatedEvent) => {
+    const payload = buildEventPayload({
+      type: updatedEvent.type,
+      text: updatedEvent.text,
+      member: updatedEvent.member,
+      date: updatedEvent.date,
+      time: updatedEvent.time,
+      mood: updatedEvent.mood,
+      currentUserLineId,
+      members,
+      base: updatedEvent,
+    });
+
+    const { data, error } = await supabase
+      .from('events')
+      .update(payload)
+      .eq('id', updatedEvent.id)
+      .select();
+
+    if (!error) {
+      const nextEvent = normalizeEvent(data?.[0] || { ...updatedEvent, ...payload });
+      setEvents(prev => prev.map(e => e.id === updatedEvent.id ? nextEvent : e).sort((a,b) => {
+        if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
+        return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
+      }));
+      setEditingEvent(null);
+      showToast('✅ 手札已更新');
+    } else {
+      console.error('update error:', error);
+      showToast(`❌ 更新失敗：${error?.message || '請稍後再試'}`);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId) => {
+    const { error } = await supabase.from('events').delete().eq('id', eventId);
+    if (!error) { setEvents(prev => prev.filter(e => e.id !== eventId)); setEditingEvent(null); showToast('🗑️ 記事已刪除'); }
+  };
+
+  const handleSendNotify = async (mode) => {
+    if (!notifyEvent || isSendingNotify) return;
+    setIsSendingNotify(true);
+    triggerVibration(10);
+
+    try {
+      const response = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: notifyEvent, mode }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || 'LINE 通知發送失敗');
+
+      const privateCount = result?.result?.privateCount || 0;
+      const groupSent = Boolean(result?.result?.group);
+      const label = mode === 'group'
+        ? '已發送到群組'
+        : mode === 'private'
+          ? `已私訊 ${privateCount || ''} 位成員`
+          : groupSent
+            ? `已發送群組與私訊${privateCount ? `（${privateCount} 位）` : ''}`
+            : '已發送提醒';
+
+      showToast(`🔔 ${label}`);
+      setNotifyEvent(null);
+    } catch (err) {
+      console.error('notify error:', err);
+      showToast(`❌ ${err?.message || '通知失敗，請稍後再試'}`);
+    } finally {
+      setIsSendingNotify(false);
+    }
+  };
+
+
+  const saveScheduledNotification = async ({ eventId, date, time, enabled, targetMode }) => {
+    if (!eventId) return;
+
+    const { data: existing, error: findError } = await supabase
+      .from('scheduled_notifications')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('notification_type', 'event_reminder')
+      .eq('status', 'pending')
+      .limit(1);
+
+    if (findError) throw findError;
+
+    const existingId = existing?.[0]?.id;
+    const scheduledAt = buildScheduledAtISO(date, time);
+
+    if (!enabled || !scheduledAt) {
+      if (existingId) {
+        const { error } = await supabase
+          .from('scheduled_notifications')
+          .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+          .eq('id', existingId);
+        if (error) throw error;
+      }
+      return;
+    }
+
+    const payload = {
+      event_id: eventId,
+      notification_type: 'event_reminder',
+      target_mode: targetMode || 'private',
+      scheduled_at: scheduledAt,
+      status: 'pending',
+      error_message: null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existingId) {
+      const { error } = await supabase
+        .from('scheduled_notifications')
+        .update(payload)
+        .eq('id', existingId);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('scheduled_notifications')
+        .insert([payload]);
+      if (error) throw error;
+    }
+  };
+
+  const loadScheduledNotificationForEvent = async (eventId) => {
+    if (!eventId) return null;
+    const { data, error } = await supabase
+      .from('scheduled_notifications')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('notification_type', 'event_reminder')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('load scheduled notification error:', error);
+      return null;
+    }
+    return data || null;
+  };
+
+  const handleSaveReportSettings = async (nextSettings) => {
+    setIsSavingReportSettings(true);
+    try {
+      const payload = {
+        report_type: 'morning',
+        enabled: Boolean(nextSettings.enabled),
+        send_time: nextSettings.send_time || '08:00',
+        target_mode: nextSettings.target_mode || 'private',
+        timezone: 'Asia/Taipei',
+        include_today_events: true,
+        include_overdue_events: true,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (reportSettings?.id) {
+        const { data, error } = await supabase
+          .from('report_settings')
+          .update(payload)
+          .eq('id', reportSettings.id)
+          .select()
+          .single();
+        if (error) throw error;
+        setReportSettings(data);
+      } else {
+        const { data, error } = await supabase
+          .from('report_settings')
+          .insert([payload])
+          .select()
+          .single();
+        if (error) throw error;
+        setReportSettings(data);
+      }
+
+      showToast(payload.enabled ? `✅ 晨間報表已設定 ${payload.send_time}` : '✅ 晨間報表已關閉');
+      setIsReportSettingsOpen(false);
+    } catch (err) {
+      console.error('report settings error:', err);
+      showToast(`❌ 設定失敗：${err?.message || '請稍後再試'}`);
+    } finally {
+      setIsSavingReportSettings(false);
+    }
+  };
+
+  const handleToggleDone = async (e, ev) => {
+    e.stopPropagation();
+    triggerVibration(15);
+    const newStatus = !Boolean(ev.is_done ?? ev.completed);
+
+    setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, is_done: newStatus, completed: newStatus } : item));
+
+    const { error } = await supabase
+      .from('events')
+      .update({ is_done: newStatus, completed: newStatus })
+      .eq('id', ev.id);
+
+    if (!error) {
+      if (newStatus) showToast('✅ 任務已完成');
+
+      if (newStatus && ev.is_routine && ev.routine_id) {
+        const routine = routines.find(r => r.id === ev.routine_id);
+        if (routine) {
+          const nextDate = shiftDays(ev.date, routine.interval_days || 30);
+          const { data: existing } = await supabase
+            .from('events')
+            .select('id')
+            .eq('routine_id', routine.id)
+            .eq('date', nextDate);
+
+          if (!existing || existing.length === 0) {
+            await supabase.from('events').insert([{
+              title: ev.text || ev.title || routine.name,
+              text: ev.text || ev.title || routine.name,
+              type: ev.type || 'routine',
+              member: ev.member || routine.member || '全家',
+              date: nextDate,
+              time: null,
+              mood: null,
+              is_routine: true,
+              routine_id: routine.id,
+              is_done: false,
+              completed: false,
+            }]);
+            fetchSupabaseData();
+          }
+        }
+      }
+    } else {
+      setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, is_done: !newStatus, completed: !newStatus } : item));
+      console.error('toggle error:', error);
+      showToast(`❌ 狀態更新失敗：${error?.message || '請重試'}`);
+    }
+  };
+
+  const NotifyActionPanel = ({ event }) => {
+    if (!event) return null;
+
+    const member = event.member || '全家';
+    const isAllMembers = member === '全家';
+    const helperText = isAllMembers ? '私訊所有已綁定成員' : `私訊 ${member}`;
+    const isMood = event.type === 'mood';
+
+    const actionButtonClass = "h-[38px] min-w-0 rounded-[12px] border border-[#EAEAEA] bg-white text-[#233142] text-[12px] font-bold tracking-widest active:scale-[0.97] transition-all disabled:opacity-50 shadow-[0_1px_4px_rgba(0,0,0,0.02)]";
 
     return (
       <div
-        id="full-report-export-target"
-        className="text-slate-800 bg-[#F1FAFB] export-font-force"
-        style={{ width: "1200px", fontFamily: FONT_FAMILY }}
+        className="mt-3 pt-3 border-t border-dashed border-[#EAEAEA] animate-in fade-in slide-in-from-top-1 duration-200"
+        onClick={ev => ev.stopPropagation()}
       >
-        {/* Cover：初版結構，換成 Odee 色票與吉祥物 */}
-        {exportSelection.cover && (
-          <div
-            data-export-section="cover"
-            data-pdf-block="true"
-            data-pdf-full-page="true"
-            className="w-full flex flex-row items-center justify-between px-20 relative overflow-hidden border-b-[10px] border-[#47BCC6]"
-            style={{
-              height: "1697px",
-              background: "linear-gradient(135deg, #FFFFFF 0%, #F8FBFC 58%, #F1FAFB 100%)",
-            }}
+        <div className="flex items-end justify-between gap-3 mb-2">
+          <div className="min-w-0">
+            <p className="text-[11px] font-serif-jp font-bold text-[#233142] tracking-widest leading-none">發送提醒</p>
+            <p className="text-[10px] text-[#A0A0A0] tracking-[0.08em] mt-1 truncate">群組通知 / {helperText}</p>
+          </div>
+          <button
+            type="button"
+            disabled={isSendingNotify}
+            onClick={() => setNotifyEvent(null)}
+            className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[#B8B2AA] active:bg-[#F9F8F6] active:scale-95 transition-all disabled:opacity-50"
+            aria-label="收合提醒選單"
           >
-            <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[60%] bg-[#47BCC6]/8 rounded-full blur-[100px] pointer-events-none" />
-            <div className="absolute bottom-[-12%] left-[-8%] w-[42%] h-[42%] bg-[#F8B74A]/5 rounded-full blur-[110px] pointer-events-none" />
+            <X size={13} strokeWidth={2.4} />
+          </button>
+        </div>
 
-            <div className="w-[55%] flex flex-col justify-center relative z-10">
-              <div className="flex items-center gap-5 mb-7">
-                <span className="font-black tracking-[0.34em] text-xl uppercase">
-                  SESSION RECORD
-                </span>
-              </div>
+        <div className={`grid gap-1.5 ${isMood ? 'grid-cols-1' : 'grid-cols-3'}`}>
+          <button
+            type="button"
+            disabled={isSendingNotify}
+            onClick={() => handleSendNotify('group')}
+            className={actionButtonClass}
+          >
+            群組
+          </button>
 
-              <h1
-                className="font-black mb-10 tracking-tight leading-[1.22] whitespace-pre-wrap"
-                style={{ fontSize: `${Math.max(44, Math.round((config.cover?.titleFontSize || 72) * 0.9))}px` }}
+          {!isMood && (
+            <>
+              <button
+                type="button"
+                disabled={isSendingNotify}
+                onClick={() => handleSendNotify('private')}
+                className={actionButtonClass}
               >
-                {config.cover?.title || "未命名會議"}
-              </h1>
-
-              {config.cover?.desc && (
-                <p className="text-3xl mb-16 leading-[1.8] font-medium border-l-4 border-[#47BCC6] pl-8 text-left whitespace-pre-wrap">
-                  {config.cover?.desc}
-                </p>
-              )}
-
-              <div className="grid grid-cols-[1.25fr_1fr_1fr] gap-5 py-10 border-t border-[#E0EEF0] w-full max-w-[860px]">
-                <div className="flex flex-col">
-                  <span className="text-lg font-bold uppercase tracking-[0.2em] mb-3">
-                    Date
-                  </span>
-                  <span className="text-[22px] font-bold flex items-center gap-2 whitespace-nowrap">
-                    <Calendar className="w-6 h-6 text-[#F8B74A]" />
-                    {config.sessionDate || "TBD"}
-                  </span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-lg font-bold uppercase tracking-[0.2em] mb-3">
-                    Attendees
-                  </span>
-                  <span className="text-[22px] font-bold flex items-center gap-2 whitespace-nowrap">
-                    <Users className="w-6 h-6 text-[#F8B74A]" />
-                    {getAttendeePreview(config.attendees)}
-                  </span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-lg font-bold uppercase tracking-[0.2em] mb-3">
-                    Topics
-                  </span>
-                  <span className="text-[22px] font-black flex items-center gap-2 whitespace-nowrap">
-                    <ClipboardList className="w-6 h-6 text-[#47BCC6]" />
-                    {exportStats.total} ITEMS
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="w-[40%] flex flex-col justify-center items-center relative z-10 gap-8">
-              <div
-                className="relative flex items-center justify-center"
-                style={{
-                  width: "380px",
-                  height: "380px",
-                  borderRadius: "48px",
-                  background: "linear-gradient(145deg, #E7F8FA 0%, #FFFFFF 72%)",
-                  border: "2px solid rgba(71,188,198,0.22)",
-                  boxShadow:
-                    "0 24px 60px rgba(71,188,198,0.16), 0 8px 22px rgba(15,23,42,0.06)",
-                }}
+                私訊
+              </button>
+              <button
+                type="button"
+                disabled={isSendingNotify}
+                onClick={() => handleSendNotify('both')}
+                className="h-[38px] min-w-0 rounded-[12px] border border-[#233142] bg-[#233142] text-white text-[12px] font-bold tracking-widest active:scale-[0.97] transition-all disabled:opacity-50 shadow-[0_2px_10px_rgba(35,49,66,0.12)]"
               >
-                <div
-                  className="absolute inset-10 rounded-full pointer-events-none"
-                  style={{ background: "rgba(71,188,198,0.12)" }}
-                />
-                <Mascot size="94%" lightBg={true} className="opacity-100" />
-              </div>
-              <div className="bg-white border border-[#E0EEF0] rounded-2xl px-6 py-4">
-                <span className="text-[13px] font-black tracking-[0.24em] uppercase">
-                  ODEE MEETING OS
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Agenda：回到初版大卡結構，一頁自然縮放 */}
-        {exportSelection.agenda && config.topics?.length > 0 && (
-          <div data-export-section="agenda" className="w-full bg-[#F1FAFB] pb-10">
-            <div data-pdf-block="true" className="w-full bg-[#F1FAFB]">
-              {exportHeaderJSX}
-              <div className="px-20 pt-6 pb-10">
-                <div className="bg-white rounded-[40px] shadow-sm border border-[#E0EEF0] overflow-hidden">
-                  <div className="px-16 py-10 border-b border-[#E0EEF0] flex items-center justify-between">
-                    <h2 className="text-5xl font-black text-[#000000] flex items-center gap-6">
-                      <div className="w-4 h-12 bg-[#F8B74A] rounded-full" />
-                      議程目錄
-                    </h2>
-                    <div className="text-right">
-                      <div className="text-4xl font-black text-[#47BCC6] leading-none">
-                        {exportStats.total}
-                      </div>
-                      <div className="text-sm text-slate-400 font-bold tracking-widest uppercase mt-2">
-                        Topics
-                      </div>
-                    </div>
-                  </div>
-
-                  {config.topics.map((t, idx, arr) => (
-                    <div
-                      key={`agenda-${t.id}`}
-                      className={`px-16 py-8 flex gap-10 items-start ${
-                        idx !== arr.length - 1 ? "border-b border-slate-100" : ""
-                      }`}
-                    >
-                      <div className="text-5xl font-black text-[#47BCC6]/25 w-16 pt-1 font-mono">
-                        {String(idx + 1).padStart(2, "0")}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-4 mb-4">
-                          <span className="text-xl font-bold text-[#F8B74A] tracking-widest uppercase">
-                            {t.id}
-                          </span>
-                          <span
-                            className={`px-4 py-1.5 rounded-lg text-sm font-bold ${
-                              t.status === "resolved"
-                                ? "bg-[#47BCC6]/10 text-[#178C95]"
-                                : "bg-[#F8B74A]/12 text-[#9A6400]"
-                            }`}
-                          >
-                            {t.status === "resolved" ? "已決議" : "討論中"}
-                          </span>
-                        </div>
-                        <h3 className="text-4xl font-bold text-slate-900 leading-tight mb-4">
-                          {t.title}
-                        </h3>
-                        <p className="text-2xl leading-relaxed whitespace-pre-wrap">
-                          {t.desc || "無議題描述"}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Topic Pages：單一內容卡，避免議題 / 筆記 / 圖片看起來被切成三段 */}
-        {selectedTopicsList.map((t, topicIdx) => {
-          const images =
-            t.images?.length > 0
-              ? t.images
-              : t.previewContent
-              ? [t.previewContent]
-              : [];
-
-          const descLines = (t.desc || "")
-            .split("\n")
-            .map((line) => line.trim())
-            .filter(Boolean);
-
-          const noteLines = (t.notes || "")
-            .split("\n")
-            .map((line) => line.trim())
-            .filter(Boolean);
-
-          const renderUnifiedTopicCard = (img = null, imgIdx = 0) => {
-            const isFirstAsset = imgIdx === 0;
-            const shownDescLines = isFirstAsset ? descLines : descLines.slice(0, 3);
-            const shownNoteLines = isFirstAsset ? noteLines : [];
-
-            return (
-              <div data-pdf-block="true" className="w-full bg-[#F1FAFB] px-20 pb-12">
-                {exportHeaderJSX}
-
-                <div className="bg-white rounded-[40px] border border-[#E0EEF0] shadow-sm overflow-hidden">
-                  {/* 上方：議題資訊與筆記都放在同一張卡內 */}
-                  <div className="px-14 pt-10 pb-6">
-                    <div className="flex items-center justify-between gap-6 mb-5">
-                      <div className="flex items-center gap-4 min-w-0">
-                        <span className="text-sm font-black text-slate-500 tracking-[0.25em] uppercase shrink-0">
-                          {t.id || `Topic ${topicIdx + 1}`}
-                        </span>
-                        <span
-                          className="text-sm font-bold shrink-0"
-                          style={{
-                            color: t.status === "resolved" ? "#47BCC6" : "#F8B74A",
-                          }}
-                        >
-                          {t.status === "resolved" ? "✓ RESOLVED" : "● IN PROGRESS"}
-                        </span>
-                      </div>
-
-                      {img && images.length > 1 && (
-                        <span className="text-[13px] font-black text-slate-400 tracking-[0.16em] uppercase shrink-0">
-                          Visual {imgIdx + 1} / {images.length}
-                        </span>
-                      )}
-                    </div>
-
-                    <h2 className="text-[46px] font-black text-[#000000] leading-[1.18] tracking-tight mb-5">
-                      {t.title}
-                    </h2>
-
-                    {shownDescLines.length > 0 && (
-                      <div className="border-l-[7px] border-[#F8B74A] pl-6 pr-3 mb-5">
-                        {shownDescLines.map((line, i) => (
-                          <p
-                            key={`desc-${t.id}-${imgIdx}-${i}`}
-                            className="text-[22px] text-slate-700 leading-[1.65] font-medium mb-1.5"
-                          >
-                            {line}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-
-                    {shownNoteLines.length > 0 && (
-                      <div className="mt-5 rounded-[20px] bg-[#F8FBFC] border border-[#E0EEF0] px-7 py-5">
-                        <div className="flex items-center gap-3 mb-3">
-                          <Edit3 className="w-4 h-4 text-[#47BCC6]" />
-                          <span className="text-[12px] font-black tracking-[0.22em] uppercase text-[#47BCC6]">
-                            Meeting Notes
-                          </span>
-                        </div>
-
-                        {shownNoteLines.map((line, i) => (
-                          <p
-                            key={`note-${t.id}-${i}`}
-                            className="text-[20px] text-slate-700 leading-[1.75] font-medium mb-1 whitespace-pre-wrap"
-                          >
-                            {line}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 下方：圖片接在同一張卡裡，不另開一個大區塊 */}
-                  {img && (
-                    <div className="px-14 pb-12 pt-2">
-                      <div className="flex items-center justify-between mb-5 border-t border-[#E0EEF0] pt-5">
-                        <div className="flex items-center gap-3">
-                          <ImageIcon className="w-5 h-5 text-[#47BCC6]" />
-                          <span className="text-[13px] font-black tracking-[0.24em] text-slate-500 uppercase">
-                            Visual Assets
-                          </span>
-                        </div>
-                        <span className="text-[13px] font-black text-slate-400">
-                          {imgIdx + 1} / {images.length}
-                        </span>
-                      </div>
-
-                      <div className="rounded-[22px] overflow-hidden border border-[#E0EEF0] bg-white flex items-center justify-center">
-                        <img
-                          src={img}
-                          className="max-w-full h-auto block"
-                          style={{
-                            maxHeight: isFirstAsset ? "820px" : "940px",
-                            objectFit: "contain",
-                          }}
-                          alt={`img-${imgIdx}`}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          };
-
-          return (
-            <div
-              data-export-section={`topic-${t.id}`}
-              data-topic-title={t.title}
-              key={`topic-${t.id}`}
-              className="w-full bg-[#F1FAFB]"
-            >
-              {images.length > 0
-                ? images.map((img, imgIdx) => (
-                    <React.Fragment key={`topic-${t.id}-img-${imgIdx}`}>
-                      {renderUnifiedTopicCard(img, imgIdx)}
-                    </React.Fragment>
-                  ))
-                : renderUnifiedTopicCard(null, 0)}
-            </div>
-          );
-        })}
+                全部
+              </button>
+            </>
+          )}
+        </div>
       </div>
     );
   };
-  // ══════════════════════════════════════════════════
-  // Main Render
-  // ══════════════════════════════════════════════════
 
-  return (
-    <>
-      <style>{`
-
-
-        .export-font-force,
-        .export-font-force * {
-          font-family: "Noto Sans TC", "Aptos", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif !important;
-          -webkit-font-smoothing: antialiased;
-          text-rendering: geometricPrecision;
-          color: #000000 !important;
-        }
-
-        :root {
-          --odee-cyan: #47BCC6;
-          --odee-amber: #F8B74A;
-          --odee-ice: #F1FAFB;
-          --odee-border: #E0EEF0;
-          --odee-ink: #000000;
-        }
-
-        @keyframes mascotFloat {
-          0%, 100% {
-            transform: translateY(0) rotate(-0.4deg);
-          }
-          50% {
-            transform: translateY(-8px) rotate(0.4deg);
-          }
-        }
-
-        @keyframes softPulse {
-          0%, 100% {
-            opacity: 0.38;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.72;
-            transform: scale(1.04);
-          }
-        }
-
-        @keyframes statusPulse {
-          0% {
-            box-shadow: 0 0 0 0 rgba(71,188,198,0.35);
-          }
-          70% {
-            box-shadow: 0 0 0 8px rgba(71,188,198,0);
-          }
-          100% {
-            box-shadow: 0 0 0 0 rgba(71,188,198,0);
-          }
-        }
-
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        .custom-scrollbar-sidebar::-webkit-scrollbar {
-          width: 4px;
-        }
-
-        .custom-scrollbar-sidebar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-
-        .custom-scrollbar-sidebar::-webkit-scrollbar-thumb {
-          background: rgba(71,188,198,0.22);
-          border-radius: 10px;
-        }
-
-        .custom-scrollbar-sidebar::-webkit-scrollbar-thumb:hover {
-          background: rgba(71,188,198,0.45);
-        }
-
-        .custom-scrollbar-light::-webkit-scrollbar {
-          width: 6px;
-        }
-
-        .custom-scrollbar-light::-webkit-scrollbar-track {
-          background: transparent;
-        }
-
-        .custom-scrollbar-light::-webkit-scrollbar-thumb {
-          background: rgba(15,23,42,0.10);
-          border-radius: 10px;
-        }
-
-        .custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
-          background: rgba(71,188,198,0.45);
-        }
-
-        .odee-card {
-          background: rgba(255,255,255,0.92);
-          border: 1px solid rgba(224,238,240,1);
-          box-shadow: 0 8px 26px rgba(15,23,42,0.035);
-          backdrop-filter: blur(14px);
-        }
-
-        .odee-card-hover {
-          transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
-        }
-
-        .odee-card-hover:hover {
-          transform: translateY(-3px);
-          border-color: rgba(71,188,198,0.35);
-          box-shadow: 0 14px 34px rgba(71,188,198,0.10);
-        }
-
-        .odee-grid-bg {
-          background-image:
-            linear-gradient(rgba(71,188,198,0.055) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(71,188,198,0.055) 1px, transparent 1px);
-          background-size: 32px 32px;
-        }
-
-        .topic-card {
-          background: rgba(255,255,255,0.94);
-          border: 1px solid rgba(224,238,240,1);
-          box-shadow: 0 6px 18px rgba(15,23,42,0.035);
-          border-radius: 24px;
-          transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
-        }
-
-        .topic-card:hover {
-          border-color: rgba(71,188,198,0.40);
-          box-shadow: 0 16px 34px rgba(71,188,198,0.12);
-          transform: translateY(-3px);
-        }
-      `}</style>
-
-      {/* 匯出用隱藏畫布 */}
-      <div
-        style={{
-          position: "fixed",
-          top: "-99999px",
-          left: "-99999px",
-          width: "1200px",
-          pointerEvents: "none",
-          zIndex: -1,
-        }}
-      >
-        {renderFullReportExport()}
-      </div>
-
-      {/* 匯出 Loading */}
-      {isExporting && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(241,250,251,0.92)",
-            backdropFilter: "blur(10px)",
-            zIndex: 9999,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "20px",
-          }}
-        >
-          <div
-            style={{
-              width: "46px",
-              height: "46px",
-              border: "3px solid rgba(71,188,198,0.18)",
-              borderTop: "3px solid #47BCC6",
-              borderRadius: "50%",
-              animation: "spin 1s linear infinite",
-            }}
-          />
-
-          <div className="text-center">
-            <p className="text-[#47BCC6] font-black text-[14px] tracking-[0.22em] uppercase">
-              Exporting Session Record
-            </p>
-            <p className="text-slate-400 text-[12px] mt-2 font-medium">
-              正在產生檔案中，請稍候...
-            </p>
-          </div>
-        </div>
-      )}
-       
-  <div
-  className="h-screen flex overflow-hidden text-slate-800"
-  style={{
-    fontFamily: FONT_FAMILY,
-    background: "#FFFFFF",
-  }}
->
-        {/* ════════════════════════════════════════
-            Sidebar
-        ════════════════════════════════════════ */}
-        <aside
-          className={`flex flex-col z-40 relative transition-all duration-500 ease-in-out overflow-hidden shrink-0 ${
-            isSidebarOpen ? "w-[260px]" : "w-[76px]"
-          }`}
-          style={{
-            background: "rgba(255,255,255,0.78)",
-            borderRight: "1px solid rgba(224,238,240,1)",
-            backdropFilter: "blur(18px)",
-            boxShadow: "8px 0 30px rgba(71,188,198,0.035)",
-          }}
-        >
-          <div className="pt-7 pb-5 flex-1 overflow-y-auto custom-scrollbar-sidebar flex flex-col items-center">
-            {/* Brand / Toggle */}
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className={`flex items-center mb-6 transition-all duration-300 cursor-pointer group outline-none ${
-                isSidebarOpen
-                  ? "w-full px-5 justify-between"
-                  : "w-full justify-center"
-              }`}
-              title={isSidebarOpen ? "收起側欄" : "展開側欄"}
-            >
-              <div className="flex items-center min-w-0">
-                <MiniMascotMark />
-
-                {isSidebarOpen && (
-                  <div className="flex flex-col items-start ml-3 min-w-0">
-                    <span className="font-black text-slate-900 text-[13px] tracking-wide leading-none">
-                      Work Sapce (BETA)
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {isSidebarOpen && (
-                <PanelLeftClose className="w-4 h-4 text-slate-300 group-hover:text-[#47BCC6] transition-colors" />
-              )}
-
-              {!isSidebarOpen && (
-                <PanelLeftOpen className="absolute bottom-2 right-2 w-3.5 h-3.5 text-slate-300" />
-              )}
-            </button>
-
-            {/* Time Panel */}
-{!isViewer && (
-  <div
-    className={`mb-5 transition-all duration-500 flex items-center justify-center w-full ${
-      isSidebarOpen ? "px-4" : "px-2"
-    }`}
-  >
-    {isSidebarOpen ? (
-      <div className="w-full rounded-[22px] bg-white border border-[#E0EEF0] px-4 py-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[9px] font-black tracking-[0.24em] uppercase text-slate-400">
-              Current Time
-            </p>
-            <p className="font-mono text-[26px] font-black tracking-widest text-slate-900 mt-1">
-              {currentTime.toLocaleTimeString("en-US", {
-                hour12: false,
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-          </div>
-
-          <div
-            className="w-10 h-10 rounded-2xl flex items-center justify-center"
-            style={{
-              background: "rgba(71,188,198,0.10)",
-              color: THEME.cyan,
-            }}
-          >
-            <Clock className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-    ) : (
-      <div className="w-[52px] h-[52px] rounded-2xl bg-white border border-[#E0EEF0] shadow-sm flex items-center justify-center">
-        <span className="text-[#47BCC6] font-mono text-[11px] font-black tracking-widest">
-          {currentTime.toLocaleTimeString("en-US", {
-            hour12: false,
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
-      </div>
-    )}
-  </div>
-)}
-
-            {/* Main Navigation */}
-            <nav className="w-full flex flex-col flex-1">
-              <div className="px-3 space-y-1">
-                {[
-                  { id: "cover", label: "會議首頁", Icon: Home },
-                  { id: "agenda", label: "議程目錄", Icon: List },
-                ].map(({ id, label, Icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => setActivePage(id)}
-                    className={`w-full rounded-[16px] font-bold flex items-center transition-all duration-300 ${
-                      isSidebarOpen
-                        ? "px-4 py-2.5 text-[13px] justify-start gap-3"
-                        : "p-3 justify-center"
-                    }`}
-                    style={
-                      activePage === id
-                        ? {
-                            background: "rgba(71,188,198,0.12)",
-                            color: THEME.cyan,
-                            border: "1px solid rgba(71,188,198,0.22)",
-                          }
-                        : {
-                            color: "#64748b",
-                            border: "1px solid transparent",
-                          }
-                    }
-                  >
-                    <Icon className="w-[17px] h-[17px] shrink-0" />
-                    {isSidebarOpen && <span>{label}</span>}
-                  </button>
-                ))}
-
-                {!isViewer && (
-                  <button
-                    onClick={() => setActivePage("allnotes")}
-                    className={`w-full rounded-[16px] font-bold flex items-center transition-all duration-300 ${
-                      isSidebarOpen
-                        ? "px-4 py-2.5 text-[13px] justify-start gap-3"
-                        : "p-3 justify-center"
-                    }`}
-                    style={
-                      activePage === "allnotes"
-                        ? {
-                            background: "rgba(71,188,198,0.12)",
-                            color: THEME.cyan,
-                            border: "1px solid rgba(71,188,198,0.22)",
-                          }
-                        : {
-                            color: "#64748b",
-                            border: "1px solid transparent",
-                          }
-                    }
-                  >
-                    <FileText className="w-[17px] h-[17px] shrink-0" />
-                    {isSidebarOpen && <span>總筆記</span>}
-                  </button>
-                )}
-              </div>
-
-              {/* Topic List */}
-              <div
-                className={`py-5 flex-1 flex flex-col ${
-                  isSidebarOpen ? "px-3" : "items-center px-0"
-                }`}
-              >
-                {isSidebarOpen && (
-                  <div className="px-3 mb-3">
-  <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.28em]">
-    議題清單
-  </p>
-</div>
-                )}
-
-                <div
-                  className={`w-full flex flex-col space-y-1 ${
-                    !isSidebarOpen && "items-center"
-                  }`}
-                >
-                  {config.topics?.map((t, idx) => (
-                    <div
-                      key={t.id}
-                      onClick={() => setActivePage(t.id)}
-                      className={`group cursor-pointer rounded-[16px] font-semibold flex items-center transition-all duration-300 ${
-                        isSidebarOpen
-                          ? "w-full px-3 py-2.5 gap-2.5 text-[13px] justify-start"
-                          : "w-10 h-10 justify-center relative my-0.5"
-                      }`}
-                      style={
-                        activePage === t.id
-                          ? {
-                              background: "rgba(71,188,198,0.12)",
-                              color: THEME.cyan,
-                              border: "1px solid rgba(71,188,198,0.20)",
-                            }
-                          : {
-                              color: "#64748b",
-                              border: "1px solid transparent",
-                            }
-                      }
-                    >
-                      {isSidebarOpen ? (
-                        <>
-                          <StatusDot status={t.status} />
-
-                          <span className="truncate flex-1 text-left select-none">
-                            {t.title || `議題 ${idx + 1}`}
-                          </span>
-
-                          {!isViewer && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateTopic(
-                                  t.id,
-                                  "status",
-                                  t.status === "resolved"
-                                    ? "discussing"
-                                    : "resolved"
-                                );
-                              }}
-                              className="p-1 rounded-lg hover:bg-slate-200/60 transition-colors shrink-0"
-                              title="切換決議狀態"
-                            >
-                              <CheckCircle
-                                className={`w-3.5 h-3.5 ${
-                                  t.status === "resolved"
-                                    ? "text-[#47BCC6]"
-                                    : "opacity-0 group-hover:opacity-35"
-                                } transition-all`}
-                              />
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-[11px] font-mono text-slate-500">
-                            {String(idx + 1).padStart(2, "0")}
-                          </span>
-
-                          {t.status === "resolved" && (
-                            <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#47BCC6]" />
-                          )}
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Bottom Actions */}
-              {!isViewer && (
-                <div
-                  className="pt-4 pb-5 flex flex-col gap-2 px-3 w-full"
-                  style={{ borderTop: "1px solid rgba(224,238,240,1)" }}
-                >
-                  <button
-                    onClick={openConfig}
-                    className={`w-full py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all font-bold text-[12px] border border-[#E0EEF0] bg-white hover:text-[#47BCC6] hover:border-[#47BCC6]/30 text-slate-500`}
-                  >
-                    <Settings className="w-3.5 h-3.5" />
-                    {isSidebarOpen && <span>設定</span>}
-                  </button>
-                  <button
-                    onClick={generateShareLink}
-                    disabled={isGeneratingLink}
-                    className="w-full py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-40 font-bold text-[12px] text-white bg-[#47BCC6] hover:bg-[#3baab4] shadow-sm"
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                    {isSidebarOpen && <span>{isGeneratingLink ? "處理中..." : "分享"}</span>}
-                  </button>
-                  <button
-                    onClick={() => openExportModal("pdf")}
-                    disabled={isExporting}
-                    className="w-full py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-40 font-bold text-[12px] text-slate-500 hover:text-[#47BCC6] hover:bg-white border border-[#E0EEF0] bg-white/70"
-                  >
-                    <FileDown className="w-3.5 h-3.5" />
-                    {isSidebarOpen && <span>匯出</span>}
-                  </button>
-                  {isSidebarOpen && (
-  <p className="pt-2 text-center text-[9px] font-black tracking-[0.22em] uppercase text-slate-300 leading-relaxed">
-    －CRAFTED BY S.Y.L－<br />
-  </p>
-)}
-                </div>
-              )}
-            </nav>
-          </div>
-        </aside>
-
-        {/* ════════════════════════════════════════
-            Main Content
-        ════════════════════════════════════════ */}
-        <main
-          ref={scrollContainerRef}
-          className={`flex-1 relative overflow-y-auto custom-scrollbar-light transition-all duration-500 bg-white ${
-            isNotesOpen ? "rounded-l-[40px] shadow-2xl" : ""
-          }`}
-        >
-          
-
-          {/* ════════════════════════════════════════
-              Cover Page
-          ════════════════════════════════════════ */}
-          {activePage === "cover" && (
-            <div className="min-h-screen flex flex-col justify-center px-8 md:px-16 pt-28 pb-16 relative overflow-hidden">
-              <div className="absolute top-[-14%] right-[-7%] w-[52%] h-[52%] bg-[#47BCC6]/8 rounded-full blur-[120px] pointer-events-none" />
-              <div className="absolute bottom-[-12%] left-[-8%] w-[42%] h-[42%] bg-[#F8B74A]/7 rounded-full blur-[110px] pointer-events-none" />
-
-              <div className="z-10 w-full max-w-[1240px] mx-auto flex flex-col lg:flex-row items-center justify-between gap-16">
-                {/* Left Hero */}
-<div className="w-full lg:w-[54%] flex flex-col justify-center">
-  
-
-  <h1
-  className="font-black mb-6 tracking-tight leading-[1.08] text-[#000000] break-words whitespace-pre-wrap transition-all duration-300"
-  style={{
-    fontSize: `clamp(40px, ${
-      displayConfig.cover?.titleFontSize || 72
-    }px, 92px)`,
-  }}
->
-  {displayConfig.cover?.title || "未命名會議"}
-</h1>
-
-  {displayConfig.cover?.desc && (
-  <p className="text-[16px] md:text-[17px] text-slate-600 mb-8 max-w-[620px] leading-[1.9] font-medium border-l-4 border-[#F8B74A] pl-5">
-    {displayConfig.cover?.desc}
-  </p>
-)}
-
-  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8 max-w-[720px]">
-    <div className="group rounded-[22px] px-5 py-4 bg-white border border-[#E0EEF0] shadow-[0_8px_28px_rgba(15,23,42,0.04)] hover:border-[#47BCC6]/35 transition-all">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.24em]">
-          Date
-        </span>
-        <Calendar className="w-4 h-4 text-[#F8B74A]" />
-      </div>
-
-      <span className="text-[15px] font-black text-slate-800">
-        {displayConfig.sessionDate || "TBD"}
-      </span>
-    </div>
-
-    <div className="group rounded-[22px] px-5 py-4 bg-white border border-[#E0EEF0] shadow-[0_8px_28px_rgba(15,23,42,0.04)] hover:border-[#47BCC6]/35 transition-all">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.24em]">
-          Attendees
-        </span>
-        <Users className="w-4 h-4 text-[#F8B74A]" />
-      </div>
-
-      <span
-        className="text-[15px] font-black text-slate-800 truncate block"
-        title={displayConfig.attendees}
-      >
-        {getAttendeePreview(displayConfig.attendees)}
-      </span>
-    </div>
-
-    <div className="group rounded-[22px] px-5 py-4 bg-white border border-[#E0EEF0] shadow-[0_8px_28px_rgba(15,23,42,0.04)] hover:border-[#47BCC6]/35 transition-all">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.24em]">
-          Topics
-        </span>
-        <ClipboardList className="w-4 h-4 text-[#47BCC6]" />
-      </div>
-
-      <span className="text-[15px] font-black text-[#47BCC6]">
-        {displayConfig.topics?.length || 0} ITEMS
-      </span>
-    </div>
-  </div>
-
-  <div className="flex flex-wrap items-center gap-3">
-    <button
-      onClick={() => {
-        if (displayConfig.topics?.length > 0) {
-          setActivePage("agenda");
-        } else if (!isViewer) {
-          openConfig();
-        }
-      }}
-      className="px-7 py-3.5 bg-[#0B2E63] text-white rounded-[16px] font-black text-[14px] flex items-center gap-3 transition-all hover:bg-[#164A96] shadow-[0_10px_26px_rgba(11,46,99,0.18)] group w-fit"
-    >
-      {displayConfig.topics?.length > 0
-        ? "開始進行會議"
-        : isViewer
-        ? "目前無會議議題"
-        : "設定會議內容"}
-
-      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-    </button>
-
-    
-  </div>
-</div>
-
-               
-
-          
-{/* Right Assistant Panel */}
-<div className="hidden lg:flex w-[42%] justify-center items-center relative">
-  <div className="relative w-[460px] h-[460px] flex items-center justify-center">
-    {/* Back Glow */}
-    <div
-      className="absolute inset-0 pointer-events-none"
-      style={{
-        background:
-          "radial-gradient(circle at 50% 45%, rgba(71,188,198,0.18), rgba(30,102,208,0.10), transparent 68%)",
-        filter: "blur(28px)",
-      }}
-    />
-
-
-    {/* Main Mascot Card */}
-    <div
-      className="relative w-[360px] h-[360px] rounded-[44px] overflow-hidden border border-[#DCEBED] shadow-[0_20px_60px_rgba(11,46,99,0.08)]"
-      style={{
-        background:
-          "linear-gradient(145deg, #FFFFFF 0%, #F8FBFC 42%, #EEF8FA 100%)",
-      }}
-    >
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(circle at 50% 55%, rgba(71,188,198,0.10), rgba(30,102,208,0.05), transparent 72%)",
-        }}
-      />
-
-      <div className="absolute top-7 left-7 right-7 h-px bg-[#47BCC6]/22" />
-      <div className="absolute bottom-7 left-7 right-7 h-px bg-[#F8B74A]/22" />
-
-      <div className="absolute top-[76px] left-[58px] w-2.5 h-2.5 rounded-full bg-[#47BCC6]/35" />
-      <div className="absolute top-[96px] left-[82px] w-1.5 h-1.5 rounded-full bg-[#1E66D0]/25" />
-      <div className="absolute top-[88px] right-[70px] w-2 h-2 rounded-full bg-[#47BCC6]/30" />
-      <div className="absolute top-[110px] right-[92px] w-1.5 h-1.5 rounded-full bg-[#F8B74A]/30" />
-
-      <div
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[230px] h-[230px] rounded-full"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(255,255,255,0.95), rgba(241,250,251,0.92), rgba(255,255,255,0) 74%)",
-          boxShadow:
-            "0 24px 70px rgba(71,188,198,0.12), inset 0 0 30px rgba(255,255,255,0.65)",
-        }}
-      />
-
-      <div
-        className="absolute inset-0 flex items-center justify-center"
-        style={{
-          animation: "mascotFloat 5s ease-in-out infinite",
-        }}
-      >
-        <Mascot size="72%" lightBg={true} />
-      </div>
-
-      <div className="absolute left-1/2 bottom-8 -translate-x-1/2">
-        <div className="px-4 py-2 rounded-2xl bg-white/92 border border-[#E0EEF0] shadow-sm">
-          <span className="text-[12px] font-black tracking-[0.18em] text-[#0B2E63] uppercase">
-            Odee Assistant
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-              </div>
-            </div>
-          )}
-                    {/* ════════════════════════════════════════
-    Agenda Page
-════════════════════════════════════════ */}
-{activePage === "agenda" && (
-  <div className="min-h-screen px-8 md:px-16 pt-28 pb-24 mx-auto w-full max-w-[1040px] xl:max-w-[1240px]">
-    <div className="flex flex-wrap items-end justify-between gap-6 mb-8">
-      <div>
-        <h2 className="text-[40px] md:text-[52px] font-black text-slate-900 leading-tight tracking-tighter">
-          議程目錄
-        </h2>
-      </div>
-    </div>
-
-    <div className="space-y-4">
-      {config.topics?.length > 0 ? (
-        config.topics.map((t, idx) => {
-          const imageCount = t.images?.length
-            ? t.images.length
-            : t.previewContent
-            ? 1
-            : 0;
-
-          const hasNotes = Boolean((t.notes || "").trim());
-
-          return (
-            <div
-              key={t.id}
-              onClick={() => setActivePage(t.id)}
-              className="topic-card group cursor-pointer relative overflow-hidden flex flex-col md:flex-row gap-6 md:gap-8 md:items-start p-7 md:p-9 bg-white"
-            >
-              <div
-                className="absolute left-0 top-5 bottom-5 w-[5px] rounded-r-full opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{
-                  background:
-                    t.status === "resolved" ? THEME.cyan : THEME.amber,
-                }}
-              />
-
-              <div className="text-[44px] md:text-[52px] leading-none font-black text-slate-100 group-hover:text-[#47BCC6]/12 transition-colors w-16 md:w-20 shrink-0 font-mono tracking-tighter pt-1">
-                {String(idx + 1).padStart(2, "0")}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-3 mb-3">
-                  <span className="text-[10.5px] font-black text-[#F8B74A] tracking-widest uppercase">
-                    {t.id}
-                  </span>
-
-                  <span
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${
-                      t.status === "resolved"
-                        ? "bg-[#47BCC6]/10 text-[#47BCC6]"
-                        : "bg-[#F8B74A]/12 text-[#F8B74A]"
-                    }`}
-                  >
-                    {t.status === "resolved" ? "已決議" : "討論中"}
-                  </span>
-
-                  {imageCount > 0 && (
-                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-500 flex items-center gap-1">
-                      <ImageIcon className="w-3 h-3" />
-                      {imageCount} 張展示圖
-                    </span>
-                  )}
-
-                  {hasNotes && (
-                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-500 flex items-center gap-1">
-                      <Edit3 className="w-3 h-3" />
-                      已有筆記
-                    </span>
-                  )}
-                </div>
-
-                <h3 className="text-[22px] md:text-[29px] font-black text-slate-900 mb-3 group-hover:text-[#47BCC6] transition-colors leading-[1.3] tracking-tight">
-                  {t.title || `未命名議題 ${idx + 1}`}
-                </h3>
-
-                <p className="text-[14px] text-slate-500 font-medium whitespace-pre-wrap leading-[1.8] max-w-3xl">
-                  {t.desc || "尚未填寫議題描述。"}
-                </p>
-              </div>
-
-             
-            </div>
-          );
-        })
-      ) : (
-        <div className="py-20 text-center bg-white rounded-[28px] border border-dashed border-[#E0EEF0]">
-          <ClipboardList className="w-10 h-10 text-slate-200 mx-auto mb-4" />
-          <p className="text-slate-400 font-bold">尚未建立任何議題</p>
-
-          {!isViewer && (
-            <button
-              onClick={openConfig}
-              className="mt-5 px-5 py-2.5 rounded-xl bg-[#47BCC6] text-white text-[13px] font-bold hover:bg-[#3baab4] transition-all"
-            >
-              建立議題
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  </div>
-)}
-
-          {/* ════════════════════════════════════════
-              All Notes Page
-          ════════════════════════════════════════ */}
-          {activePage === "allnotes" && !isViewer && (
-            <div className="min-h-screen px-8 md:px-16 pt-28 pb-24 mx-auto w-full max-w-[1040px] xl:max-w-[1240px]">
-              <div className="flex flex-wrap items-end justify-between gap-6 mb-10">
-                <div>
-                  <h2 className="text-[40px] md:text-[52px] font-black text-slate-900 leading-tight tracking-tighter">
-                    總筆記
-                  </h2>
-
-                  <p className="mt-4 text-[15px] text-slate-500 font-medium leading-[1.8] max-w-[660px]">
-                    依議題彙整會議紀錄、決議、待辦、風險與追蹤事項。
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="odee-card rounded-[20px] px-5 py-4 text-center">
-                    <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">
-                      Topics
-                    </p>
-                    <p className="text-[26px] font-black text-slate-900 mt-1">
-                      {stats.total}
-                    </p>
-                  </div>
-
-                  <div className="odee-card rounded-[20px] px-5 py-4 text-center">
-                    <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">
-                      Resolved
-                    </p>
-                    <p className="text-[26px] font-black text-[#47BCC6] mt-1">
-                      {stats.resolvedCount}
-                    </p>
-                  </div>
-
-                  <div className="odee-card rounded-[20px] px-5 py-4 text-center">
-                    <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">
-                      Notes
-                    </p>
-                    <p className="text-[26px] font-black text-[#F8B74A] mt-1">
-                      {stats.noteCount}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {config.topics?.length > 0 ? (
-                  config.topics.map((t, idx) => (
-                    <div
-                      key={t.id}
-                      className="bg-white/95 rounded-[24px] border border-[#E0EEF0] overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-                    >
-                      <div className="px-7 py-4 border-b border-[#E0EEF0]/70 flex flex-wrap items-center justify-between gap-3 bg-[#F1FAFB]/55">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-[10px] font-black text-[#F8B74A] tracking-widest uppercase shrink-0">
-                            {String(idx + 1).padStart(2, "0")} / {t.id}
-                          </span>
-
-                          <StatusDot status={t.status} />
-
-                          <h3 className="text-[16px] font-black text-slate-800 truncate">
-                            {t.title || `未命名議題 ${idx + 1}`}
-                          </h3>
-                        </div>
-
-                        <button
-                          onClick={() => setActivePage(t.id)}
-                          className="text-[12px] font-bold text-slate-400 hover:text-[#47BCC6] transition-colors flex items-center gap-1"
-                        >
-                          回到議題
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      <div className="px-7 py-6">
-                        {t.notes ? (
-                          <div className="text-[15px] leading-[1.9] text-slate-700 font-medium whitespace-pre-wrap">
-                            {t.notes}
-                          </div>
-                        ) : (
-                          <div className="text-slate-300 text-[13px] font-medium">
-                            尚無筆記
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="py-20 text-center text-slate-300 font-medium bg-white rounded-[24px] border border-dashed border-[#E0EEF0]">
-                    尚未建立任何議題
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ════════════════════════════════════════
-              Topic Workspace
-          ════════════════════════════════════════ */}
-          {currentTopic &&
-            !["agenda", "cover", "summary", "allnotes"].includes(activePage) && (
-              <div className="px-8 md:px-16 pt-28 pb-48 mx-auto w-full max-w-[1040px] xl:max-w-[1240px]">
-                {/* Topic Top Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="px-3 py-1 rounded-full bg-white border border-[#E0EEF0] text-[10px] font-black text-slate-400 tracking-widest uppercase shadow-sm">
-                      {currentTopic.id}
-                    </span>
-
-                    <span
-                      className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase ${
-                        currentTopic.status === "resolved"
-                          ? "bg-[#47BCC6]/10 text-[#47BCC6]"
-                          : "bg-[#F8B74A]/12 text-[#F8B74A]"
-                      }`}
-                    >
-                      {currentTopic.status === "resolved"
-                        ? "Resolved"
-                        : "In Progress"}
-                    </span>
-
-                    <span className="text-[12px] font-bold text-slate-400">
-                      {currentTopicIndex + 1} / {stats.total}
-                    </span>
-                  </div>
-
-                </div>
-
-                {/* Topic Title */}
-                <div className="mb-8">
-                  <h2 className="text-[36px] md:text-[50px] lg:text-[56px] font-black text-slate-900 leading-[1.18] tracking-tight">
-                    <span className="relative inline px-1">
-                      <span className="absolute bottom-2 left-0 right-0 h-[10px] bg-[#F8B74A]/20 rounded-sm -z-0" />
-                      <span className="relative z-10">
-                        {currentTopic.title || "未命名議題"}
-                      </span>
-                    </span>
-                  </h2>
-                </div>
-
-                {/* Topic Description */}
-                <div className="mb-8 bg-white/95 rounded-[26px] border border-[#E0EEF0] p-6 md:p-8 shadow-sm">
-                  {currentTopic.desc ? (
-                    <p className="text-[15px] md:text-[16px] text-slate-600 leading-[1.9] font-medium whitespace-pre-wrap">
-                      {currentTopic.desc}
-                    </p>
-                  ) : (
-                    <p className="text-[14px] text-slate-300 font-medium">
-                      尚未填寫議題描述。
-                    </p>
-                  )}
-                </div>
-
-                {/* Visual Assets / Presentation Stage */}
-<div className="bg-white rounded-[32px] md:rounded-[40px] p-1.5 md:p-2 overflow-hidden border border-[#E0EEF0] shadow-sm mb-8">
-  <div className="px-6 md:px-8 py-5 flex flex-wrap items-center justify-between border-b border-[#E0EEF0]/70 gap-4">
-    <div className="flex items-center gap-2">
-      <ImageIcon className="w-4 h-4 text-slate-400" />
-      <span className="text-[11px] font-black text-slate-400 tracking-widest uppercase">
-        Visual Assets & Collaboration
-      </span>
-    </div>
-
-    {currentTopic.systems?.filter((s) => s?.name || s?.url).length > 0 && (
-      <div className="flex flex-wrap gap-2">
-        {currentTopic.systems
-          .filter((s) => s?.name || s?.url)
-          .map((s, i) => (
-            <a
-              key={i}
-              href={s.url || "#"}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => {
-                if (!s.url) e.preventDefault();
-              }}
-              className="px-3 py-1.5 bg-[#F8FBFC] border border-[#E0EEF0] rounded-lg text-[12px] font-bold text-slate-600 hover:border-[#47BCC6] hover:text-[#47BCC6] transition-all flex items-center gap-1 shadow-sm"
-            >
-              {s.name || "相關連結"}
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          ))}
-      </div>
-    )}
-
-    {!isViewer && (
-      <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1.5 cursor-pointer px-2.5 py-1.5 rounded-lg bg-transparent text-slate-300 hover:text-[#47BCC6] hover:bg-[#F8FBFC] transition-all text-[12px] font-bold" title="臨時補圖">
-          <Upload className="w-3.5 h-3.5" />
-          補圖
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={async (e) => {
-              await uploadImagesToTopic(currentTopic.id, e.target.files);
-              e.target.value = "";
-            }}
-          />
-        </label>
-      </div>
-    )}
-  </div>
-
-  <div className="min-h-[300px] bg-[#F8FBFC] rounded-[28px] md:rounded-[36px] flex flex-col items-center justify-center p-6 md:p-10 gap-8 relative">
-    {currentTopicImages.length > 0 ? (
-      currentTopicImages.map((img, i) => (
-        <div
-          key={i}
-          className="w-full flex flex-col items-center group relative bg-white rounded-[24px] md:rounded-[32px] p-5 md:p-8 border border-[#E0EEF0] shadow-sm"
-        >
-          <img
-            src={img}
-            className="max-w-full max-h-[600px] md:max-h-[800px] object-contain rounded-xl md:rounded-2xl cursor-zoom-in hover:scale-[1.01] transition-transform"
-            onClick={() => setFullscreenImg(img)}
-            alt={`Topic img ${i + 1}`}
-          />
-        </div>
-      ))
-    ) : (
-      <div className="py-16 text-center">
-        <ImageIcon className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-        <p className="text-[14px] text-slate-400 font-bold">
-          尚未上傳展示畫面
-        </p>
-      </div>
-    )}
-  </div>
-</div>
-
-                {/* Resolution Notes：optional / light mode */}
-{(() => {
-  const hasNotes = Boolean((currentTopic.notes || "").trim());
-  const isNoteOpen = hasNotes || expandedNotesTopicId === currentTopic.id;
-
-  if (isViewer && !hasNotes) return null;
-
-  return (
-    <div className="mb-8">
-      {!isNoteOpen ? (
-        <button
-          onClick={() => setExpandedNotesTopicId(currentTopic.id)}
-          className="w-full rounded-[24px] border border-dashed border-[#E0EEF0] bg-white px-6 py-5 text-left hover:border-[#47BCC6]/35 hover:bg-[#F8FBFC] transition-all group"
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#F1FAFB] border border-[#E0EEF0] flex items-center justify-center text-[#47BCC6]">
-                <Edit3 className="w-4 h-4" />
-              </div>
-
-              <div>
-                <h3 className="text-[15px] font-black text-slate-800">
-                  新增此議題的會議筆記
-                </h3>
-                <p className="mt-1 text-[12px] text-slate-400 font-medium">
-                  只有需要記錄決議、待辦或追蹤事項時再展開。
-                </p>
+  // ==============================================================
+  // 1. 任務看板 (BoardView)
+  // ==============================================================
+  const BoardView = () => {
+    const calendarDays = useMemo(() => {
+      const days = [];
+      const y = currentMonth.getFullYear(), m = currentMonth.getMonth();
+      const firstDay = new Date(y, m, 1).getDay(), daysInMonth = new Date(y, m + 1, 0).getDate();
+      
+      for (let i = 0; i < firstDay; i++) days.push({ type: "empty", id: `empty-${i}` });
+      
+      for (let i = 1; i <= daysInMonth; i++) {
+        const dateObj = new Date(y, m, i);
+        const dateStr = fmtDate(dateObj);
+        const dayOfWeek = dateObj.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        days.push({ 
+          type: "day", date: dateStr, dayNum: i, 
+          events: events.filter(e => e.date === dateStr), 
+          isWeekend, holiday: holidays[dateStr] || null 
+        });
+      }
+      return days;
+    }, [currentMonth, events, holidays]);
+
+    const dayEvents = useMemo(() => {
+      return events.filter(e => e.date === selectedDate && (filter === 'all' || e.type === filter))
+        .sort((a, b) => {
+          if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
+          return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
+        });
+    }, [events, selectedDate, filter]);
+
+    const isTodaySelected = selectedDate === fmtDate(TODAY);
+    const [animKey, setAnimKey] = useState(Date.now());
+    const handleDayClick = (date) => { triggerVibration(5); setSelectedDate(date); setAnimKey(Date.now()); };
+
+    return (
+      <div className="flex flex-col pb-32 pt-2 relative">
+        <div className="px-5 space-y-3">
+          <div className="bg-white rounded-[24px] p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.8),0_4px_20px_rgba(0,0,0,0.02)] border border-[#EAEAEA] relative overflow-hidden">
+            <div className="flex justify-between items-center mb-5 relative z-10">
+              <h2 className="text-[26px] font-serif-jp font-bold text-[#233142] leading-none tracking-wider flex items-baseline gap-2">
+                {currentMonth.getMonth() + 1}月 <span className="text-[14px] font-num font-medium text-[#8E8E93]">{currentMonth.getFullYear()}</span>
+              </h2>
+              <div className="flex gap-2">
+                <button onClick={() => {triggerVibration(5); setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}} className="w-8 h-8 rounded-full bg-[#F9F8F6] text-[#233142] hover:bg-[#EAEAEA] active:scale-95 transition-all flex items-center justify-center"><ChevronLeft size={16} strokeWidth={2.5}/></button>
+                <button onClick={() => {triggerVibration(5); setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}} className="w-8 h-8 rounded-full bg-[#F9F8F6] text-[#233142] hover:bg-[#EAEAEA] active:scale-95 transition-all flex items-center justify-center"><ChevronRight size={16} strokeWidth={2.5}/></button>
               </div>
             </div>
 
-            <span className="text-[12px] font-bold text-slate-300 group-hover:text-[#47BCC6] transition-colors">
-              展開
-            </span>
-          </div>
-        </button>
-      ) : (
-        <div className="rounded-[26px] border border-[#E0EEF0] bg-white shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E0EEF0] bg-[#F8FBFC] flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-2xl bg-white border border-[#E0EEF0] flex items-center justify-center text-[#47BCC6]">
-                <Edit3 className="w-4 h-4" />
-              </div>
-
-              <div>
-                <h3 className="text-[15px] font-black text-slate-900">
-                  會議筆記
-                </h3>
-                <p className="mt-1 text-[12px] text-slate-400 font-medium">
-                  記錄此議題的決議、待辦、風險與追蹤事項。
-                </p>
-              </div>
+            <div className="grid grid-cols-7 mb-3 border-t border-[#EAEAEA] border-dashed pt-4">
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                <div key={i} className={`text-center text-[11px] font-num font-bold tracking-[0.2em] uppercase ${(i===0 || i===6) ? 'text-[#D68C7A]' : 'text-[#8E8E93]'}`}>{d}</div>
+              ))}
             </div>
-
-            {!isViewer && (
-              <div className="flex flex-wrap items-center gap-2">
-                {QUICK_TAGS.map((tag) => (
-                  <button
-                    key={tag.label}
-                    onClick={() => appendQuickTag(tag.template)}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${tag.color}`}
-                  >
-                    + {tag.label}
-                  </button>
-                ))}
-
-                {!hasNotes && (
-                  <button
-                    onClick={() => setExpandedNotesTopicId(null)}
-                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-300 hover:text-slate-500 transition-colors"
-                  >
-                    收合
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {isViewer ? (
-            <div className="px-6 py-5 text-[15px] text-slate-700 leading-[1.9] font-medium whitespace-pre-wrap bg-white">
-              {currentTopic.notes}
-            </div>
-          ) : (
-            <textarea
-              ref={notesRef}
-              value={currentTopic.notes || ""}
-              onChange={(e) =>
-                updateTopic(currentTopic.id, "notes", e.target.value)
-              }
-              placeholder="輸入此議題的決議、待辦、風險或追蹤事項..."
-              className="w-full min-h-[180px] bg-white text-slate-700 outline-none px-6 py-5 text-[15px] leading-[1.9] font-medium resize-y transition-all placeholder:text-slate-300"
-            />
-          )}
-        </div>
-      )}
-    </div>
-  );
-})()}
-
-                {/* Bottom Navigation */}
-                {!isViewer && (
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
-                    <button
-                      onClick={() => setActivePage("agenda")}
-                      className="px-5 py-3 rounded-2xl bg-white border border-[#E0EEF0] text-slate-500 hover:text-[#47BCC6] hover:border-[#47BCC6]/35 transition-all font-bold text-[13px]"
-                    >
-                      ← 返回議程
-                    </button>
-
-                    <button
-                      onClick={markResolvedAndNext}
-                      className="px-6 py-3 rounded-2xl bg-black text-white hover:bg-slate-800 transition-all font-black text-[13px] flex items-center gap-2"
-                    >
-                      完成並前進
-                      <MoveRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-          {/* Fullscreen Image Preview */}
-          {fullscreenImg && (
-            <div
-              className="fixed inset-0 z-[9998] bg-black/80 flex items-center justify-center p-8 cursor-zoom-out backdrop-blur-sm"
-              onClick={() => setFullscreenImg(null)}
-            >
-              <img
-                src={fullscreenImg}
-                className="max-w-full max-h-full rounded-2xl shadow-2xl"
-                alt=""
-              />
-
-              <button className="absolute top-6 right-6 w-12 h-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/20">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-          )}
-        </main>
-
-        {/* Quick Notes Side Panel */}
-        {isNotesOpen && !isViewer && (
-          <div className="w-[360px] shrink-0 flex flex-col border-l border-[#E0EEF0] bg-white/92 backdrop-blur-xl">
-            <div className="px-6 py-4 border-b border-[#E0EEF0] flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                  Quick Notes
-                </span>
-                <p className="text-[12px] text-slate-300 font-medium mt-1">
-                  自由記錄，不會進入正式議題筆記
-                </p>
-              </div>
-
-              <button
-                onClick={() => setIsNotesOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <textarea
-              className="flex-1 p-6 text-[14px] text-slate-700 leading-[1.9] resize-none outline-none bg-white placeholder:text-slate-300 font-medium"
-              placeholder="自由記錄任何想法..."
-            />
-          </div>
-        )}
-        
-{/* ════════════════════════════════════════
-    Setting Modal（單頁捲動式，不分步驟）
-════════════════════════════════════════ */}
-{isConfigOpen && tempConfig && (
-  <div className="fixed inset-0 z-[9000] flex items-center justify-center p-5 bg-slate-950/35 backdrop-blur-sm">
-    <div
-      className="w-full max-w-[780px] h-[88vh] bg-white rounded-[28px] shadow-2xl border border-[#E0EEF0] overflow-hidden flex flex-col"
-      style={{ fontFamily: FONT_FAMILY }}
-    >
-      {/* Header */}
-      <div className="px-7 py-5 border-b border-[#E0EEF0] flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <MiniMascotMark />
-          <h3 className="text-[18px] font-black text-slate-900">會議設定</h3>
-        </div>
-        <button
-          onClick={() => setIsConfigOpen(false)}
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Scrollable Body */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar-light px-7 py-6 space-y-7">
-
-        {/* ── 基本資料 ── */}
-        <section>
-          <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.22em] mb-4">基本資料</p>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-[11px] font-black text-slate-500 tracking-widest uppercase mb-2">會議標題</label>
-              <input
-                value={tempConfig.cover?.title || ""}
-                onChange={(e) => setTempConfig((p) => ({ ...p, cover: { ...p.cover, title: e.target.value } }))}
-                placeholder="例如：八千代醫美 APP 下單流程 Demo"
-                className="w-full px-4 py-3.5 rounded-2xl border border-[#E0EEF0] bg-white outline-none focus:border-[#47BCC6]/60 focus:ring-2 focus:ring-[#47BCC6]/10 text-[15px] font-bold text-slate-800 placeholder:text-slate-300"
-              />
-
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-black text-slate-500 tracking-widest uppercase mb-2">會議日期</label>
-                <input
-                  type="date"
-                  value={tempConfig.sessionDate || ""}
-                  onChange={(e) => setTempConfig((p) => ({ ...p, sessionDate: e.target.value }))}
-                  className="w-full px-4 py-3.5 rounded-2xl border border-[#E0EEF0] bg-white outline-none focus:border-[#47BCC6]/60 focus:ring-2 focus:ring-[#47BCC6]/10 text-[14px] font-bold text-slate-700"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-black text-slate-500 tracking-widest uppercase mb-2">出席者</label>
-                <input
-                  value={tempConfig.attendees || ""}
-                  onChange={(e) => setTempConfig((p) => ({ ...p, attendees: e.target.value }))}
-                  placeholder="王小姐、陳經理（以逗號分隔）"
-                  className="w-full px-4 py-3.5 rounded-2xl border border-[#E0EEF0] bg-white outline-none focus:border-[#47BCC6]/60 focus:ring-2 focus:ring-[#47BCC6]/10 text-[14px] font-medium text-slate-700 placeholder:text-slate-300"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[11px] font-black text-slate-500 tracking-widest uppercase mb-2">會議描述（選填）</label>
-              <textarea
-                value={tempConfig.cover?.desc || ""}
-                onChange={(e) => setTempConfig((p) => ({ ...p, cover: { ...p.cover, desc: e.target.value } }))}
-                placeholder="補充本次會議目的、背景..."
-                rows={3}
-                className="w-full px-4 py-3 rounded-2xl border border-[#E0EEF0] bg-white outline-none focus:border-[#47BCC6]/60 focus:ring-2 focus:ring-[#47BCC6]/10 text-[14px] leading-[1.8] font-medium text-slate-700 placeholder:text-slate-300 resize-y min-h-[92px]"
-              />
-            </div>
-
-            <div className="rounded-2xl border border-[#E0EEF0] bg-[#F8FBFC] overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setIsAdvancedSettingOpen(!isAdvancedSettingOpen)}
-                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-white transition-all"
-              >
-                <div>
-                  <p className="text-[12px] font-black text-slate-600">進階設定</p>
-                  <p className="mt-1 text-[11px] text-slate-400 font-medium">調整首頁標題字級。</p>
-                </div>
-                {isAdvancedSettingOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-              </button>
-
-              {isAdvancedSettingOpen && (
-                <div className="px-4 pb-4 pt-1 border-t border-[#E0EEF0]">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[12px] font-black text-slate-500">首頁標題大小</span>
-                    <span className="text-[12px] font-black text-[#47BCC6]">{tempConfig.cover?.titleFontSize || 72}px</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-slate-400 font-bold">小</span>
-                    <input
-                      type="range"
-                      min="40"
-                      max="120"
-                      step="2"
-                      value={tempConfig.cover?.titleFontSize || 72}
-                      onChange={(e) =>
-                        setTempConfig((p) => ({
-                          ...p,
-                          cover: { ...p.cover, titleFontSize: Number(e.target.value) || 72 },
-                        }))
-                      }
-                      className="flex-1 accent-[#47BCC6] cursor-pointer"
-                    />
-                    <span className="text-[11px] text-slate-400 font-bold">大</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <div className="h-px bg-[#E0EEF0]" />
-
-        {/* ── 議題安排 ── */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.22em]">議題安排</p>
-            <button
-              onClick={addTopic}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-black text-white text-[12px] font-black hover:bg-slate-800 transition-all"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              新增
-            </button>
-          </div>
-
-          {(tempConfig.topics || []).length > 0 ? (
-            <div className="space-y-2">
-              {tempConfig.topics.map((t, idx) => {
-                const expanded = expandedSetupTopicId === t.id;
+            <div className="grid grid-cols-7 gap-y-3 gap-x-1">
+              {calendarDays.map((day) => {
+                if (day.type === 'empty') return <div key={day.id} />;
+                const isSelected = selectedDate === day.date;
+                const isToday = day.date === fmtDate(TODAY);
+                const hasEvents = day.events.length > 0;
+                const isRed = day.isWeekend || day.holiday;
+                
                 return (
-                  <div
-  key={t.id}
-  draggable={!expanded}
-  onDragStart={() => setDraggingSetupTopicId(t.id)}
-  onDragOver={(e) => e.preventDefault()}
-  onDrop={() => { moveTopicByDrag(draggingSetupTopicId, t.id); setDraggingSetupTopicId(null); }}
-  onDragEnd={() => setDraggingSetupTopicId(null)}
-  className={`bg-white border rounded-[18px] transition-all hover:border-[#47BCC6]/45 ${draggingSetupTopicId === t.id ? "opacity-50 border-[#47BCC6]" : expanded ? "border-[#47BCC6]/45 shadow-[0_10px_28px_rgba(71,188,198,0.08)]" : "border-[#E0EEF0]"}`}
->
-                    <div
-  onClick={() => setExpandedSetupTopicId(expanded ? null : t.id)}
-  className="px-4 py-3.5 flex items-center gap-3 cursor-pointer"
->
-                      <div className="text-slate-300 cursor-grab select-none text-[13px] font-black shrink-0">⋮⋮</div>
-                      <span className="text-[11px] font-black text-slate-300 font-mono shrink-0 w-6">{String(idx + 1).padStart(2, "0")}</span>
-                      <input
-                        value={t.title || ""}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => updateTempTopic(t.id, "title", e.target.value)}
-                        placeholder={`議題 ${idx + 1}`}
-                        className="flex-1 bg-transparent outline-none text-[14px] font-black text-slate-900 placeholder:text-slate-300 cursor-text"
-                      />
-                      <ChevronDown
-                        className={`w-4 h-4 text-slate-300 transition-transform ${expanded ? "rotate-180 text-[#47BCC6]" : ""}`}
-                      />
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeTempTopic(t.id); }}
-                        className="text-slate-300 hover:text-red-400 transition-colors p-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                  <div key={day.date} onClick={() => handleDayClick(day.date)} className="relative flex flex-col items-center justify-center cursor-pointer group h-[44px] tap-highlight-transparent">
+                    <div className={`absolute inset-0 rounded-[12px] transition-all duration-300 ease-out ${isSelected ? (isRed ? 'bg-[#D68C7A] scale-100 opacity-100 shadow-[0_4px_12px_rgba(214,140,122,0.25)]' : 'bg-[#233142] scale-100 opacity-100 shadow-[0_4px_12px_rgba(35,49,66,0.15)]') : 'scale-[0.85] opacity-0 group-hover:bg-[#F9F8F6] group-hover:scale-100 group-hover:opacity-100 group-active:bg-[#EAEAEA]'}`}></div>
+                    <div className={`relative z-10 w-8 h-8 flex items-center justify-center text-[15px] font-num transition-colors duration-200 ${isSelected ? 'text-white font-bold' : (isRed ? 'text-[#D68C7A] font-bold' : 'text-[#233142] font-medium')} ${!isSelected && isToday ? `border-[1.5px] ${isRed ? 'border-[#D68C7A]' : 'border-[#233142]'} rounded-[12px]` : ''}`}>
+                      {day.dayNum}
                     </div>
-          
-                      {expanded && (() => {
-                        const imgs = t.images?.length > 0 ? t.images : t.previewContent ? [t.previewContent] : [];
-
-                        return (
-                          <div className="px-4 pb-4 pl-[52px] space-y-4">
-                            <textarea
-                              value={t.desc || ""}
-                              onChange={(e) => updateTempTopic(t.id, "desc", e.target.value)}
-                              placeholder="議題描述"
-                              rows={3}
-                              className="w-full px-4 py-3 rounded-xl border border-[#E0EEF0] bg-[#F8FBFC] outline-none focus:bg-white focus:border-[#47BCC6]/60 text-[13px] leading-[1.8] font-medium text-slate-700 placeholder:text-slate-300 resize-y min-h-[92px]"
-                            />
-
-                            <div className="rounded-2xl border border-[#E0EEF0] bg-[#F8FBFC] p-4">
-                              <div className="flex items-center justify-between gap-3 mb-3">
-                                <div>
-                                  <p className="text-[12px] font-black text-slate-700">展示圖</p>
-                                  <p className="mt-1 text-[11px] text-slate-400 font-medium">上傳、刪除或拖曳縮圖調整播放順序。</p>
-                                </div>
-
-                                <label className="px-3 py-2 rounded-xl bg-white border border-dashed border-[#E0EEF0] text-[12px] font-bold text-[#47BCC6] hover:border-[#47BCC6]/40 transition-all flex items-center gap-1.5 cursor-pointer">
-                                  <Upload className="w-3.5 h-3.5" />
-                                  上傳圖片
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    className="hidden"
-                                    onChange={async (e) => {
-                                      await uploadImagesToTempTopic(t.id, e.target.files);
-                                      e.target.value = "";
-                                    }}
-                                  />
-                                </label>
-                              </div>
-
-                              {imgs.length > 0 ? (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                                  {imgs.map((img, i) => (
-                                    <div
-                                      key={`${t.id}-img-${i}`}
-                                      draggable
-                                      onDragStart={() => setDraggingSetupImage({ topicId: t.id, index: i })}
-                                      onDragOver={(e) => e.preventDefault()}
-                                      onDrop={() => {
-                                        if (draggingSetupImage?.topicId === t.id) {
-                                          moveTempTopicImageByDrag(t.id, draggingSetupImage.index, i);
-                                        }
-                                        setDraggingSetupImage(null);
-                                      }}
-                                      onDragEnd={() => setDraggingSetupImage(null)}
-                                      className={`group relative aspect-video rounded-xl border overflow-hidden bg-white cursor-grab transition-all ${
-                                        draggingSetupImage?.topicId === t.id && draggingSetupImage?.index === i
-                                          ? "opacity-45 border-[#47BCC6]"
-                                          : "border-[#E0EEF0] hover:border-[#47BCC6]/45"
-                                      }`}
-                                      title="拖曳調整順序"
-                                    >
-                                      <img src={img} alt="" className="w-full h-full object-contain p-1" />
-                                      <div className="absolute left-2 top-2 px-1.5 py-0.5 rounded-md bg-white/90 text-[10px] font-black text-slate-400 shadow-sm">
-                                        {i + 1}
-                                      </div>
-                                      <button
-                                        onClick={() => removeTempTopicImage(t.id, i)}
-                                        className="absolute right-2 top-2 w-6 h-6 rounded-full bg-slate-950/70 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-500"
-                                        title="刪除此張"
-                                      >
-                                        <X className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="rounded-xl border border-dashed border-[#E0EEF0] bg-white py-5 text-center text-[12px] text-slate-300 font-bold">
-                                  尚未上傳展示圖
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="rounded-2xl border border-[#E0EEF0] bg-[#F8FBFC] p-4 space-y-3">
-  <div className="flex items-center justify-between gap-3">
-    <p className="text-[13px] font-black tracking-wide text-slate-600 flex items-center gap-1.5">
-      <ExternalLink className="w-3.5 h-3.5" />
-      相關連結
-    </p>
-
-    <button
-      onClick={() => addTempTopicSystem(t.id)}
-      className="text-[11px] text-[#47BCC6] font-bold hover:underline"
-    >
-      + 新增
-    </button>
-  </div>
-
-  {(t.systems || []).length === 0 && (
-    <div className="text-[12px] text-slate-400 py-2">
-      尚未新增連結
-    </div>
-  )}
-
-  {(t.systems || []).map((sys, sidx) => (
-    <div key={sidx} className="flex gap-2 items-center">
-      <input
-        value={sys.name || ""}
-        onChange={(e) => updateTempTopicSystem(t.id, sidx, "name", e.target.value)}
-        placeholder="名稱，例如：APP 後台"
-        className="w-1/3 p-2 bg-white border border-[#E0EEF0] rounded-md text-[12px] outline-none focus:border-[#47BCC6]"
-      />
-
-      <input
-        value={sys.url || ""}
-        onChange={(e) => updateTempTopicSystem(t.id, sidx, "url", e.target.value)}
-        placeholder="https://..."
-        className="flex-1 p-2 bg-white border border-[#E0EEF0] rounded-md text-[12px] outline-none focus:border-[#47BCC6]"
-      />
-
-      <button
-        onClick={() => removeTempTopicSystem(t.id, sidx)}
-        className="p-1.5 text-slate-300 hover:text-red-500 rounded"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  ))}
-</div>
-                             
-
-                            </div>
-                        );
-                      })()}
+                    {day.holiday && !isSelected && (
+                      <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#D68C7A]/40"></div>
+                    )}
+                    {hasEvents && (
+                      <div className="relative z-10 absolute bottom-[2px] flex gap-[3px] items-center mt-1">
+                        {day.events.slice(0, 3).map((e, idx) => <span key={idx} className={`w-[4px] h-[4px] rounded-full transition-colors`} style={{ backgroundColor: isSelected ? '#FFFFFF' : TYPE_CONFIG[e.type].color }}></span>)}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
-          ) : (
-            <div className="py-14 rounded-[20px] border border-dashed border-[#E0EEF0] bg-white text-center">
-              <ClipboardList className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-              <p className="text-slate-400 font-bold text-[13px]">尚未建立議題</p>
-            </div>
-          )}
-        </section>
-
-        <div className="h-px bg-[#E0EEF0]" />
-
-        {/* ── 專案備份 ── */}
-        <section>
-          <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.22em] mb-4">專案備份</p>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={exportConfigJSON} className="px-4 py-2.5 rounded-xl bg-white border border-[#E0EEF0] text-slate-500 hover:text-[#47BCC6] hover:border-[#47BCC6]/35 transition-all font-bold text-[12px] flex items-center gap-2">
-              <Download className="w-4 h-4" />匯出 JSON
-            </button>
-            <label className="px-4 py-2.5 rounded-xl bg-white border border-[#E0EEF0] text-slate-500 hover:text-[#47BCC6] hover:border-[#47BCC6]/35 transition-all font-bold text-[12px] flex items-center gap-2 cursor-pointer">
-              <Upload className="w-4 h-4" />匯入 JSON
-              <input type="file" accept="application/json" className="hidden" onChange={importConfigJSON} />
-            </label>
           </div>
-        </section>
+        </div>
 
-      </div>
+        <div className="sticky top-0 z-20 bg-gradient-to-b from-[#F9F8F6] to-[#F9F8F6]/95 backdrop-blur-md pt-5 pb-3 px-5 mt-1 border-b border-[#EAEAEA]/80">
+          <div className={`flex gap-3 overflow-x-auto snap-x ${hideScrollbar}`}>
+            <button onClick={() => {triggerVibration(5); setFilter('all')}} className={`snap-start whitespace-nowrap px-4 py-2 text-[12px] font-bold transition-all active:scale-95 flex items-center justify-center rounded-[12px] shadow-sm ${filter === 'all' ? 'bg-[#233142] text-white' : 'bg-white text-[#8E8E93] border border-[#EAEAEA] hover:bg-[#F9F8F6]'}`}>
+              所有紀錄
+            </button>
+            {Object.entries(TYPE_CONFIG).map(([key, config]) => (
+              <button key={key} onClick={() => {triggerVibration(5); setFilter(key)}} className={`snap-start whitespace-nowrap flex items-center gap-2 px-4 py-2 text-[12px] font-bold transition-all active:scale-95 rounded-[12px] shadow-sm ${filter === key ? 'bg-[#233142] text-white' : 'bg-white text-[#8E8E93] border border-[#EAEAEA] hover:bg-[#F9F8F6]'}`}>
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: filter === key ? '#FFFFFF' : config.color }}></span>
+                {config.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-      {/* Footer */}
-      <div className="px-7 py-4 border-t border-[#E0EEF0] bg-white flex items-center">
+        <div className="px-5 mt-4 relative pb-20 min-h-[350px]">
+          <div className="flex items-center justify-between py-1 mb-5 z-10">
+            <h3 className="text-[17px] font-serif-jp font-bold text-[#233142] flex items-baseline gap-2 tracking-wide">
+              <span className={`text-[36px] font-editorial italic leading-none pr-1 ${holidays[selectedDate] || new Date(selectedDate).getDay() === 0 || new Date(selectedDate).getDay() === 6 ? 'text-[#D68C7A]' : ''}`}>{new Date(selectedDate).getDate()}</span>
+              <span className="text-[14px] leading-none text-[#8E8E93] font-medium">日</span>
+              {isTodaySelected && <span className="text-[10px] text-[#D68C7A] font-num bg-[#D68C7A]/10 px-2.5 py-1 rounded-md uppercase tracking-[0.2em] font-bold ml-1 transform -translate-y-1">Today</span>}
+              {holidays[selectedDate] && <span className="text-[10px] text-white bg-[#D68C7A] px-2.5 py-1 rounded-md tracking-widest font-bold ml-1 shadow-[0_2px_6px_rgba(214,140,122,0.25)] transform -translate-y-1">{holidays[selectedDate]}</span>}
+            </h3>
+          </div>
 
-  <div className="flex items-center gap-8">
-
-    <button
-      onClick={() => setIsConfigOpen(false)}
-      className="px-1 py-2 text-[13px] font-bold text-slate-400 hover:text-slate-700 transition-colors"
-    >
-      放棄變更
-    </button>
-
-    <button
-      onClick={() => {
-        if (window.confirm("確定清除全部設定？")) {
-          setTempConfig(INITIAL_CLEAN_CONFIG);
-        }
-      }}
-      className="px-1 py-2 text-[13px] font-bold text-slate-400 hover:text-red-500 transition-colors"
-    >
-      清除全部設定
-    </button>
-  </div>
-
-  <button
-    onClick={applyConfig}
-    className="ml-auto px-6 py-2.5 rounded-xl bg-black text-white hover:bg-slate-800 transition-all font-black text-[13px] flex items-center gap-2"
-  >
-    儲存設定
-    <Check className="w-4 h-4" />
-  </button>
-</div>
-    </div>
-  </div>
-)}
-
-        {/* ════════════════════════════════════════
-            Export Modal
-        ════════════════════════════════════════ */}
-        {showExportModal && (
-          <div className="fixed inset-0 z-[9100] flex items-center justify-center p-6 bg-slate-950/45 backdrop-blur-sm">
-            <div
-              className="w-full max-w-[760px] max-h-[86vh] bg-white rounded-[34px] shadow-2xl border border-[#E0EEF0] overflow-hidden flex flex-col"
-              style={{ fontFamily: FONT_FAMILY }}
-            >
-              <div className="px-8 py-6 border-b border-[#E0EEF0] flex items-center justify-between shrink-0">
-                <div>
-                  <p className="text-[10px] font-black tracking-[0.3em] uppercase text-[#47BCC6] mb-2">
-                    Export Session
-                  </p>
-                  <h3 className="text-[22px] font-black text-slate-900">
-                    匯出會議紀錄
-                  </h3>
-                </div>
-
-                <button
-                  onClick={() => setShowExportModal(false)}
-                  className="p-2.5 rounded-xl hover:bg-[#F1FAFB] text-slate-400 hover:text-[#47BCC6] transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+          <div key={animKey} className="animate-in fade-in slide-in-from-bottom-4 duration-400 ease-out pb-4">
+            {dayEvents.length === 0 ? (
+              <div className="bg-white/60 backdrop-blur-md rounded-[24px] p-12 text-center flex flex-col items-center justify-center border border-[#EAEAEA]/80 mt-2 shadow-sm">
+                <Leaf size={32} strokeWidth={1.5} className="text-[#D1CFC7] mb-4" />
+                <p className="text-[#8E8E93] text-[13px] tracking-widest font-bold m-0 uppercase font-serif-jp">這天是一張白紙</p>
               </div>
+            ) : (
+              <div className="relative">
+                {/* 時序引導線 */}
+                <div className="absolute left-[20px] top-6 bottom-4 z-0"
+                  style={{ width: '1px', borderLeft: '1px dashed #E3DFD5' }} />
+                
+                <div className="space-y-3 relative mt-2">
+                  {dayEvents.map((e) => {
+                    const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
+                    return (
+                      <div key={e.id} className={`relative pl-[46px] pr-1 group cursor-pointer tap-highlight-transparent active:scale-[0.99] transition-all ${e.is_done ? 'opacity-55 grayscale-[0.2]' : ''}`} onClick={() => setEditingEvent(e)}>
 
-              <div className="flex-1 overflow-y-auto custom-scrollbar-light px-8 py-7 space-y-6">
-                <div>
-                  <h4 className="text-[15px] font-black text-slate-900 mb-3">
-                    選擇匯出用途
-                  </h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {Object.entries(EXPORT_OPTIONS).map(([fmt, item]) => {
-                      const Icon = item.Icon;
-                      const active = exportFormat === fmt;
-
-                      return (
+                        {/* Timeline Node — 可點擊打勾 */}
                         <button
-                          key={fmt}
-                          onClick={() => setExportFormat(fmt)}
-                          className="text-left rounded-[22px] p-5 transition-all"
-                          style={
-                            active
-                              ? {
-                                  background: "rgba(71,188,198,0.10)",
-                                  border: "1px solid rgba(71,188,198,0.35)",
-                                  boxShadow:
-                                    "0 12px 24px rgba(71,188,198,0.10)",
-                                }
-                              : {
-                                  background: "#F8FBFC",
-                                  border: "1px solid #E0EEF0",
-                                }
+                          onClick={(ev) => handleToggleDone(ev, e)}
+                          className={`absolute left-[8px] top-[14px] w-[26px] h-[26px] rounded-[8px] border flex items-center justify-center z-10 transition-all active:scale-90
+                            ${e.is_done ? 'bg-[#233142] border-[#233142]' : 'bg-white border-[#DDDBD5]'}`}
+                          style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                          {e.is_done
+                            ? <Check size={13} strokeWidth={3} className="text-white" />
+                            : e.type === 'mood'
+                              ? <span style={{ fontSize: 12, lineHeight: 1 }}>{e.mood}</span>
+                              : <TypeIcon size={12} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color }} />
                           }
-                        >
-                          <div
-                            className="w-10 h-10 rounded-2xl flex items-center justify-center mb-4"
-                            style={{
-                              background: active
-                                ? "rgba(71,188,198,0.14)"
-                                : "white",
-                              color: active ? THEME.cyan : "#94a3b8",
-                            }}
-                          >
-                            <Icon className="w-5 h-5" />
-                          </div>
-
-                          <p
-                            className={`text-[13px] font-black ${
-                              active ? "text-[#47BCC6]" : "text-slate-700"
-                            }`}
-                          >
-                            {item.label}
-                          </p>
-
-                          <p className="mt-2 text-[11px] leading-[1.6] text-slate-400 font-medium">
-                            {item.desc}
-                          </p>
                         </button>
-                      );
-                    })}
-                  </div>
-                </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-[15px] font-black text-slate-900">
-                      選擇匯出內容
-                    </h4>
+                        <div className="bg-white px-4 py-3 rounded-[18px] border border-[#EAEAEA] shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold tracking-[0.18em] uppercase"
+                              style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
+                              {TYPE_CONFIG[e.type]?.label}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(ev) => { ev.stopPropagation(); triggerVibration(8); setNotifyEvent(e); }}
+                              className="w-8 h-8 -mr-1 -my-1 rounded-full bg-transparent flex items-center justify-center text-[#B8B2AA] hover:text-[#D68C7A] active:bg-[#F9F8F6] active:scale-95 transition-all shrink-0"
+                              aria-label="發送 LINE 提醒"
+                            >
+                              <Bell size={16} strokeWidth={2.5} />
+                            </button>
+                          </div>
 
-                    <button
-                      onClick={() => {
-                        const allSelected = Object.values(
-                          exportSelection
-                        ).every(Boolean);
-
-                        const next = {
-                          cover: !allSelected,
-                          agenda: !allSelected,
-                        };
-
-                        config.topics?.forEach((t) => {
-                          next[t.id] = !allSelected;
-                        });
-
-                        setExportSelection(next);
-                      }}
-                      className="text-[12px] font-bold text-[#47BCC6] hover:text-[#3baab4]"
-                    >
-                      全選 / 取消全選
-                    </button>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="flex items-center justify-between gap-4 rounded-[18px] border border-[#E0EEF0] bg-[#F8FBFC] px-5 py-4 cursor-pointer hover:border-[#47BCC6]/35 transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-2xl bg-white border border-[#E0EEF0] flex items-center justify-center text-[#47BCC6]">
-                          <Home className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-[14px] font-black text-slate-800">
-                            封面
+                          <p className={`text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
+                            style={{ fontFamily: 'Noto Sans TC, PingFang TC, sans-serif', letterSpacing: '0.01em' }}>
+                            {e.type === 'mood' ? e.text : e.text}
                           </p>
-                          <p className="text-[11px] text-slate-400 font-medium mt-1">
-                            會議標題、日期、出席者與進度資訊
-                          </p>
+
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-[5px] h-[5px] rounded-[2px]"
+                              style={{ background: e.is_done ? '#D1CFC7' : '#D68C7A' }} />
+                            <span className="text-[11px] text-[#8E8E93]"
+                              style={{ letterSpacing: '0.04em' }}>{e.member}</span>
+                          </div>
+                          {notifyEvent?.id === e.id && <NotifyActionPanel event={e} />}
                         </div>
                       </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
-                      <input
-                        type="checkbox"
-                        checked={Boolean(exportSelection.cover)}
-                        onChange={() => toggleExportSelection("cover")}
-                        className="w-4 h-4 accent-[#47BCC6]"
-                      />
-                    </label>
+  // ==============================================================
+  // 2. 本週手帳 (WeeklyPlannerView) — 全週攤開版
+  // ==============================================================
+  const WeeklyPlannerView = () => {
+    const DAY_LABELS_TW = ['日', '一', '二', '三', '四', '五', '六'];
 
-                    <label className="flex items-center justify-between gap-4 rounded-[18px] border border-[#E0EEF0] bg-[#F8FBFC] px-5 py-4 cursor-pointer hover:border-[#47BCC6]/35 transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-2xl bg-white border border-[#E0EEF0] flex items-center justify-center text-[#F8B74A]">
-                          <List className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-[14px] font-black text-slate-800">
-                            議程總覽
-                          </p>
-                          <p className="text-[11px] text-slate-400 font-medium mt-1">
-                            所有議題順序與討論狀態
-                          </p>
-                        </div>
-                      </div>
+    const weekDays = useMemo(() => {
+      const days = [];
+      const curr = new Date(selectedDate);
+      const dayIndex = curr.getDay() === 0 ? 6 : curr.getDay() - 1;
+      const first = curr.getDate() - dayIndex;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(curr.getFullYear(), curr.getMonth(), first + i);
+        const dateStr = fmtDate(d);
+        days.push({
+          dateStr,
+          dayLabel: DAY_LABELS_TW[d.getDay()],
+          dateNum: d.getDate(),
+          monthNum: d.getMonth() + 1,
+          isToday: dateStr === fmtDate(TODAY),
+          isWeekend: d.getDay() === 0 || d.getDay() === 6,
+          holiday: holidays[dateStr] || null,
+          events: events.filter(e => e.date === dateStr).sort((a,b) => {
+            if(a.is_done !== b.is_done) return a.is_done ? 1 : -1;
+            return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
+          })
+        });
+      }
+      return days;
+    }, [selectedDate, events, holidays]);
 
-                      <input
-                        type="checkbox"
-                        checked={Boolean(exportSelection.agenda)}
-                        onChange={() => toggleExportSelection("agenda")}
-                        className="w-4 h-4 accent-[#47BCC6]"
-                      />
-                    </label>
+    const weekLabel = (() => {
+      if (!weekDays.length) return '';
+      const s = new Date(weekDays[0].dateStr);
+      const e = new Date(weekDays[6].dateStr);
+      if (s.getMonth() === e.getMonth()) return `${s.getMonth()+1}月 ${s.getDate()}日 — ${e.getDate()}日`;
+      return `${s.getMonth()+1}月${s.getDate()}日 — ${e.getMonth()+1}月${e.getDate()}日`;
+    })();
 
-                    {config.topics?.map((t, idx) => (
-                      <label
-                        key={t.id}
-                        className="flex items-center justify-between gap-4 rounded-[18px] border border-[#E0EEF0] bg-white px-5 py-4 cursor-pointer hover:border-[#47BCC6]/35 transition-all"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-2xl bg-[#F1FAFB] border border-[#E0EEF0] flex items-center justify-center text-slate-400 font-black text-[11px]">
-                            {String(idx + 1).padStart(2, "0")}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[14px] font-black text-slate-800 truncate">
-                              {t.title || `未命名議題 ${idx + 1}`}
-                            </p>
-                            <p className="text-[11px] text-slate-400 font-medium mt-1">
-                              {t.status === "resolved" ? "已決議" : "討論中"}・
-                              {(t.images?.length || 0)} 張素材
-                            </p>
-                          </div>
-                        </div>
+    return (
+      <div className="flex flex-col h-full animate-in fade-in duration-300">
+        {/* 週標題 */}
+        <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-[#EAEAEA]">
+          <div>
+            <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-[0.25em] font-num mb-0.5">Weekly Planner</p>
+            <h2 className="text-[18px] font-serif-jp font-bold text-[#233142] tracking-wide">{weekLabel}</h2>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setSelectedDate(shiftDays(selectedDate, -7))}
+              className="w-8 h-8 rounded-full bg-white border border-[#EAEAEA] flex items-center justify-center shadow-sm active:scale-90 transition-all">
+              <ChevronLeft size={16} strokeWidth={2.5} className="text-[#8E8E93]" />
+            </button>
+            <button onClick={() => setSelectedDate(fmtDate(TODAY))}
+              className="px-3 h-8 rounded-full bg-white border border-[#EAEAEA] text-[11px] font-bold text-[#8E8E93] shadow-sm active:scale-90 transition-all tracking-wider">
+              今週
+            </button>
+            <button onClick={() => setSelectedDate(shiftDays(selectedDate, 7))}
+              className="w-8 h-8 rounded-full bg-white border border-[#EAEAEA] flex items-center justify-center shadow-sm active:scale-90 transition-all">
+              <ChevronRight size={16} strokeWidth={2.5} className="text-[#8E8E93]" />
+            </button>
+          </div>
+        </div>
 
-                        <input
-                          type="checkbox"
-                          checked={Boolean(exportSelection[t.id])}
-                          onChange={() => toggleExportSelection(t.id)}
-                          className="w-4 h-4 accent-[#47BCC6]"
-                        />
-                      </label>
-                    ))}
+        {/* 全週攤開 */}
+        <div className={`flex-1 overflow-y-auto overflow-x-hidden px-5 pb-28 pt-4 ${hideScrollbar}`}>
+          <div className="space-y-6">
+            {weekDays.map((day) => {
+              const isRed = day.isWeekend || !!day.holiday;
+              return (
+                <div key={day.dateStr}>
+                  {/* 每日標題列 */}
+                  <div className="flex items-baseline gap-2 mb-3 pb-2 border-b border-dashed border-[#E3DFD5]">
+                    <span className={`text-[36px] font-editorial italic leading-none ${isRed || day.isToday ? 'text-[#D68C7A]' : 'text-[#233142]'}`}>
+                      {day.dateNum}
+                    </span>
+                    <span className="text-[13px] font-serif-jp font-bold text-[#8E8E93]">週{day.dayLabel}</span>
+                    {day.isToday && (
+                      <span className="text-[9px] bg-[#D68C7A] text-white px-2 py-0.5 rounded-md tracking-[0.2em] uppercase font-num font-bold shadow-sm -translate-y-0.5">Today</span>
+                    )}
+                    {day.holiday && (
+                      <span className="text-[9px] text-white bg-[#D68C7A] px-2 py-0.5 rounded-md tracking-widest font-bold shadow-sm -translate-y-0.5">{day.holiday}</span>
+                    )}
+                    <span className="ml-auto text-[11px] font-num text-[#C4C4C4]">{day.monthNum}/{day.dateNum}</span>
                   </div>
+
+                  {/* 事件 */}
+                  {day.events.length === 0 ? (
+                    <div className="flex items-center gap-2 py-2 pl-1">
+                      <Leaf size={14} strokeWidth={1.5} className="text-[#D1CFC7]" />
+                      <p className="text-[#C4C4C4] text-[12px] font-medium tracking-widest italic font-serif-jp">這天是一張白紙...</p>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="absolute left-[19px] top-2 bottom-2 z-0"
+                        style={{ width: '1px', borderLeft: '1.5px dashed #E3DFD5' }} />
+                      <div className="space-y-3 relative">
+                        {day.events.map((e) => {
+                          const TypeIcon = TYPE_CONFIG[e.type]?.icon || Activity;
+                          return (
+                            <div key={e.id}
+                              className={`relative pl-[46px] pr-1 group cursor-pointer tap-highlight-transparent active:scale-[0.99] transition-all ${e.is_done ? 'opacity-55 grayscale-[0.2]' : ''}`}
+                              onClick={() => setEditingEvent(e)}>
+                              <button
+                                onClick={(ev) => handleToggleDone(ev, e)}
+                                className={`absolute left-[7px] top-[12px] w-[26px] h-[26px] rounded-[8px] border flex items-center justify-center z-10 transition-all active:scale-90
+                                  ${e.is_done ? 'bg-[#233142] border-[#233142]' : 'bg-white border-[#DDDBD5]'}`}
+                                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                                {e.is_done
+                                  ? <Check size={12} strokeWidth={3} className="text-white" />
+                                  : e.type === 'mood'
+                                    ? <span style={{ fontSize: 11, lineHeight: 1 }}>{e.mood}</span>
+                                    : <TypeIcon size={11} strokeWidth={2.5} style={{ color: TYPE_CONFIG[e.type]?.color }} />
+                                }
+                              </button>
+                              <div className="bg-white px-4 py-3 rounded-[18px] border border-[#EAEAEA] shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase"
+                                    style={{ color: e.is_done ? '#A0A0A0' : TYPE_CONFIG[e.type]?.color }}>
+                                    {TYPE_CONFIG[e.type]?.label}
+                                  </span>
+                                  <button
+                              type="button"
+                              onClick={(ev) => { ev.stopPropagation(); triggerVibration(8); setNotifyEvent(e); }}
+                              className="w-8 h-8 -mr-1 -my-1 rounded-full bg-transparent flex items-center justify-center text-[#B8B2AA] hover:text-[#D68C7A] active:bg-[#F9F8F6] active:scale-95 transition-all shrink-0"
+                              aria-label="發送 LINE 提醒"
+                            >
+                              <Bell size={16} strokeWidth={2.5} />
+                            </button>
+                                </div>
+                                <p className={`text-[15px] font-bold leading-snug break-words ${e.is_done ? 'text-[#A0A0A0] line-through' : 'text-[#233142]'}`}
+                                  style={{ fontFamily: 'Noto Sans TC, PingFang TC, sans-serif', letterSpacing: '0.01em' }}>
+                                  {e.text}
+                                </p>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-[5px] h-[5px] rounded-[2px]"
+                                    style={{ background: e.is_done ? '#D1CFC7' : '#D68C7A' }} />
+                                  <span className="text-[11px] text-[#8E8E93]" style={{ letterSpacing: '0.04em' }}>{e.member}</span>
+                                </div>
+                                {notifyEvent?.id === e.id && <NotifyActionPanel event={e} />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ==============================================================
+  // 3. 週期事務 (RoutinesView)
+  // ==============================================================
+  const calculateRoutineStatus = (routine) => {
+    const lastLog = routine.logs && routine.logs.length > 0 ? routine.logs[0].date : routine.created_at;
+    const lastDate = new Date(lastLog);
+    const nextDate = new Date(lastDate);
+    nextDate.setDate(nextDate.getDate() + routine.interval_days);
+    
+    const today = new Date(TODAY);
+    const nextDateOnly = new Date(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const diffTime = nextDateOnly.getTime() - todayOnly.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    const totalTime = nextDate.getTime() - lastDate.getTime();
+    const passedTime = today.getTime() - lastDate.getTime();
+    let progress = Math.max(0, Math.min(100, (passedTime / totalTime) * 100));
+
+    return { daysLeft: diffDays, progress, lastDate: fmtDate(lastDate), nextDate: fmtDate(nextDate) };
+  };
+
+  const RoutineCard = ({ r, setRoutines, showToast, handleDeleteRoutine }) => {
+    const status = calculateRoutineStatus(r);
+    const isUrgent = status.daysLeft <= 3;
+    const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+    
+    const [isAddingLog, setIsAddingLog] = useState(false);
+    const [logDate, setLogDate] = useState(fmtDate(TODAY));
+    const [logNote, setLogNote] = useState('');
+    
+    const [editingLogId, setEditingLogId] = useState(null);
+    const [editDate, setEditDate] = useState('');
+    const [editNote, setEditNote] = useState('');
+
+    const handleLogRoutine = async (noteToSave, dateToSave) => {
+      triggerVibration(10);
+      const finalNote = noteToSave.trim() || '';
+      const finalDate = cleanDateOnly(dateToSave);
+      const { data, error } = await supabase.from('routine_logs').insert([{
+          routine_name: r.name, member: r.member || null, interval_days: r.interval_days || null, last_done_at: finalDate, note: finalNote
+      }]).select();
+
+      if (!error && data) {
+          setRoutines(prev => prev.map(rt => {
+              if (rt.id === r.id) {
+                  const newLogs = [{ id: data[0].id, date: finalDate, note: finalNote }, ...rt.logs].sort((a, b) => new Date(b.date) - new Date(a.date));
+                  return { ...rt, logs: newLogs };
+              }
+              return rt;
+          }));
+          setIsAddingLog(false); setLogNote(''); setLogDate(fmtDate(TODAY));
+          showToast(`✅ 紀錄已儲存`);
+      } else { showToast('❌ 紀錄失敗'); console.error('log error:', error); }
+    };
+
+    const handleUpdateLog = async () => {
+      triggerVibration(10);
+      const finalNote = editNote.trim() || '';
+      const finalDate = cleanDateOnly(editDate);
+      const { error } = await supabase.from('routine_logs').update({ last_done_at: finalDate, note: finalNote }).eq('id', editingLogId);
+      if (!error) {
+        setRoutines(prev => prev.map(rt => {
+            if (rt.id === r.id) {
+                const newLogs = rt.logs.map(l => l.id === editingLogId ? { ...l, date: finalDate, note: finalNote } : l).sort((a, b) => new Date(b.date) - new Date(a.date));
+                return { ...rt, logs: newLogs };
+            }
+            return rt;
+        }));
+        setEditingLogId(null); showToast('✅ 紀錄已更新');
+      }
+    };
+
+    const handleDeleteLog = async (logId) => {
+      if (window.confirm('確定要刪除這筆紀錄嗎？')) {
+        const { error } = await supabase.from('routine_logs').delete().eq('id', logId);
+        if (!error) {
+          setRoutines(prev => prev.map(rt => {
+              if (rt.id === r.id) return { ...rt, logs: rt.logs.filter(l => l.id !== logId) };
+              return rt;
+          }));
+          showToast('🗑️ 紀錄已刪除');
+        }
+      }
+    };
+
+    return (
+      <div className="bg-white p-5 sm:p-6 rounded-[24px] border border-[#EAEAEA] shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col transition-all">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+              <h3 className="text-[18px] font-bold text-[#233142] tracking-wide leading-tight mb-2.5">{r.name}</h3>
+              <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest bg-[#F9F8F6] border border-[#EAEAEA] px-2 py-1 rounded-md inline-block shadow-sm">間隔 {r.interval_days} 天</p>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+              <div className={`px-2.5 py-1.5 rounded-[8px] text-[10px] font-bold tracking-widest uppercase border shadow-[0_2px_4px_rgba(0,0,0,0.02)] ${status.daysLeft <= 0 ? 'bg-[#D68C7A]/10 text-[#D68C7A] border-[#D68C7A]/20' : isUrgent ? 'bg-[#C49553]/10 text-[#C49553] border-[#C49553]/20' : 'bg-white text-[#233142] border-[#EAEAEA]'}`}>
+              {status.daysLeft < 0 ? `逾期 ${Math.abs(status.daysLeft)} 天` : status.daysLeft === 0 ? '今天到期' : `剩餘 ${status.daysLeft} 天`}
               </div>
+              <button onClick={() => handleDeleteRoutine(r.id)} className="text-[#D1CFC7] hover:text-[#D68C7A] transition-colors p-1"><Trash2 size={14} strokeWidth={2.5}/></button>
+          </div>
+        </div>
 
-              <div className="px-8 py-5 border-t border-[#E0EEF0] bg-[#F8FBFC] flex flex-wrap items-center justify-between gap-3 shrink-0">
-                <p className="text-[12px] text-slate-400 font-medium">
-                  匯出會依目前會議內容產生，不會影響原始資料。
-                </p>
+        <div className="mb-6">
+          <div className="flex justify-between text-[10px] font-bold text-[#A0A0A0] mb-2.5 uppercase tracking-widest font-num">
+            <span>上次 {fmtDateChinese(status.lastDate)}</span>
+            <span>下次 {fmtDateChinese(status.nextDate)}</span>
+          </div>
+          <div className="w-full bg-[#F9F8F6] h-[8px] rounded-full overflow-hidden shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] border border-[#EAEAEA]">
+              <div className={`h-full rounded-full transition-all duration-1000 ease-out ${status.daysLeft <= 0 ? 'bg-[#D68C7A]' : isUrgent ? 'bg-[#C49553]' : 'bg-[#233142]'}`} style={{ width: `${status.progress}%` }}></div>
+          </div>
+        </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowExportModal(false)}
-                    className="px-5 py-2.5 rounded-xl bg-white border border-[#E0EEF0] text-slate-500 hover:text-slate-800 transition-all font-bold text-[13px]"
-                  >
-                    取消
-                  </button>
+        <div className="mt-auto">
+            <button onClick={() => handleLogRoutine('', fmtDate(TODAY))} className="w-full py-3.5 bg-[#233142] text-white text-[13px] font-bold tracking-[0.2em] rounded-[16px] flex justify-center items-center gap-2 active:scale-[0.98] transition-transform shadow-[0_4px_16px_rgba(35,49,66,0.2)]">
+                <Check size={16} strokeWidth={3}/> 完成今日
+            </button>
+        </div>
 
-                  <button
-                    onClick={handleConfirmExport}
-                    className="px-6 py-2.5 rounded-xl bg-black text-white hover:bg-slate-800 transition-all font-black text-[13px] flex items-center gap-2"
-                  >
-                    確認匯出
-                    <FileDown className="w-4 h-4" />
-                  </button>
+        <div className="mt-5 border-t border-[#EAEAEA] border-dashed pt-4">
+            <button onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} className="flex items-center gap-2 w-full text-left focus:outline-none group">
+                <div className={`p-1.5 rounded-lg transition-colors ${isHistoryExpanded ? 'bg-[#EAEAEA] text-[#233142]' : 'bg-[#F9F8F6] text-[#A0A0A0] group-hover:bg-[#EAEAEA] group-hover:text-[#8E8E93]'}`}>
+                  <History size={14} strokeWidth={2.5}/>
                 </div>
+                <span className="text-[11px] font-bold text-[#8E8E93] uppercase tracking-widest flex-1">歷史紀錄 ({r.logs.length})</span>
+                <ChevronDown size={14} className={`text-[#A0A0A0] transition-transform duration-300 ${isHistoryExpanded ? 'rotate-180' : ''}`}/>
+            </button>
+
+            {isHistoryExpanded && (
+              <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                {r.logs.length === 0 ? (
+                  <div className="text-[11px] text-[#A0A0A0] italic font-medium font-serif-jp pl-2">尚無紀錄</div>
+                ) : (
+                  r.logs.map(log => (
+                    <div key={log.id} className="bg-[#F9F8F6] border border-[#EAEAEA] p-3.5 rounded-[16px] shadow-[0_2px_4px_rgba(0,0,0,0.01)]">
+                      {editingLogId === log.id ? (
+                        <div className="flex flex-col gap-2.5">
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#8E8E93] mb-1 uppercase tracking-widest">日期</label>
+                            <DateTimePicker date={editDate} setDate={setEditDate} time="" setTime={() => {}} showTime={false} />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#8E8E93] mb-1 uppercase tracking-widest">備註</label>
+                            <input value={editNote} onChange={e=>setEditNote(e.target.value)} placeholder="備註..."
+                              className="w-full bg-white border border-[#EAEAEA] text-[13px] p-2.5 rounded-xl text-[#233142] outline-none focus:border-[#233142]"
+                              style={{ boxSizing: 'border-box' }} />
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => setEditingLogId(null)} className="flex-1 text-[11px] font-bold text-[#8E8E93] px-3 py-2 bg-[#EAEAEA]/50 rounded-xl hover:bg-[#EAEAEA] transition-colors tracking-widest">取消</button>
+                            <button onClick={handleUpdateLog} className="flex-[2] text-[11px] font-bold text-white px-3 py-2 bg-[#233142] rounded-xl shadow-sm tracking-widest active:scale-[0.98]">儲存</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex flex-col gap-1.5 flex-1 pl-1">
+                            <span className="text-[11px] font-num font-bold text-[#D68C7A] tracking-widest">{fmtDateChinese(log.date)}</span>
+                            <span className="text-[14px] font-medium text-[#233142] break-words leading-snug">{log.note || <span className="text-[#D1CFC7] italic font-serif-jp text-[13px]">無備註</span>}</span>
+                          </div>
+                          <div className="flex gap-1.5 shrink-0">
+                            <button onClick={() => { setEditingLogId(log.id); setEditDate(log.date); setEditNote(log.note||''); }} className="w-8 h-8 flex items-center justify-center text-[#A0A0A0] hover:text-[#233142] bg-white border border-[#EAEAEA] shadow-sm rounded-[10px] transition-colors active:scale-95"><Edit2 size={12} strokeWidth={2.5}/></button>
+                            <button onClick={() => handleDeleteLog(log.id)} className="w-8 h-8 flex items-center justify-center text-[#A0A0A0] hover:text-[#D68C7A] bg-white border border-[#EAEAEA] shadow-sm rounded-[10px] transition-colors active:scale-95"><Trash2 size={12} strokeWidth={2.5}/></button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+
+                {!isAddingLog ? (
+                  <button onClick={() => setIsAddingLog(true)} className="w-full py-3 mt-3 border border-dashed border-[#A0A0A0] text-[#8E8E93] rounded-[16px] text-[12px] font-bold tracking-widest hover:bg-[#F9F8F6] transition-colors flex items-center justify-center gap-1.5 active:scale-[0.98]"><Plus size={14}/> 補登歷史紀錄</button>
+                ) : (
+                  <div className="bg-white border border-[#EAEAEA] p-4 rounded-[16px] flex flex-col gap-3 mt-3 shadow-md animate-in zoom-in-95 duration-200">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#8E8E93] mb-1.5 uppercase tracking-widest">日期</label>
+                      <DateTimePicker date={logDate} setDate={setLogDate} time="" setTime={() => {}} showTime={false} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#8E8E93] mb-1.5 uppercase tracking-widest">備註（選填）</label>
+                      <input value={logNote} onChange={e => setLogNote(e.target.value)}
+                        onKeyDown={e => { if(e.key === 'Enter') handleLogRoutine(logNote, logDate); }}
+                        placeholder="輸入備註..."
+                        className="w-full bg-[#F9F8F6] border border-[#EAEAEA] text-[14px] p-3 rounded-[12px] text-[#233142] outline-none focus:border-[#233142]"
+                        style={{ boxSizing: 'border-box' }} />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => { setIsAddingLog(false); setLogNote(''); setLogDate(fmtDate(TODAY)); }}
+                        className="flex-1 text-[12px] font-bold text-[#8E8E93] py-2.5 bg-[#F9F8F6] rounded-[12px] hover:bg-[#EAEAEA] transition-colors tracking-widest">取消</button>
+                      <button onClick={() => handleLogRoutine(logNote, logDate)}
+                        className="flex-[2] text-[12px] font-bold text-white py-2.5 bg-[#233142] rounded-[12px] shadow-sm tracking-widest active:scale-[0.98]">加入紀錄</button>
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
+        </div>
+      </div>
+    );
+  };
+
+  const RoutinesView = () => {
+    const [isAdding, setIsAdding] = useState(false);
+    const [newName, setNewName] = useState('');
+    const [newInterval, setNewInterval] = useState(30);
+    const [newLastDate, setNewLastDate] = useState(fmtDate(TODAY)); 
+
+    const handleAddRoutine = async () => {
+      if (!newName.trim() || Number(newInterval) < 1) return;
+      const routinePayload = {
+        name: newName.trim(),
+        interval_days: Number(newInterval),
+        member: null,
+        category: 'routine',
+        active: true,
+      };
+
+      const { data, error } = await supabase.from('routines').insert([routinePayload]).select();
+
+      if (!error && data?.length) {
+        const createdRoutine = { ...data[0], logs: [] };
+
+        if (newLastDate) {
+          const finalDate = cleanDateOnly(newLastDate);
+          const { data: logData, error: logError } = await supabase.from('routine_logs').insert([{
+            routine_name: createdRoutine.name,
+            member: createdRoutine.member || null,
+            interval_days: createdRoutine.interval_days,
+            last_done_at: finalDate,
+            note: '初始設定',
+          }]).select();
+
+          if (!logError && logData?.length) {
+            createdRoutine.logs = [{ id: logData[0].id, date: finalDate, note: '初始設定' }];
+          } else if (logError) {
+            console.error('initial routine log error:', logError);
+          }
+        }
+
+        setRoutines(prev => [...prev, createdRoutine]);
+        setIsAdding(false);
+        setNewName('');
+        setNewInterval(30);
+        setNewLastDate(fmtDate(TODAY));
+        showToast('✅ 週期卡片已建立');
+      } else {
+        console.error('routine insert error:', error);
+        showToast(`❌ 建立失敗：${error?.message || '請稍後再試'}`);
+      }
+    };
+
+    const handleDeleteRoutine = async (id) => {
+      if (window.confirm('確定要刪除這個週期卡片嗎？')) {
+        const { error } = await supabase.from('routines').delete().eq('id', id);
+        if (!error) { setRoutines(prev => prev.filter(r => r.id !== id)); showToast('🗑️ 卡片已刪除'); }
+      }
+    };
+
+    return (
+      <div className="px-5 pb-32 pt-6 animate-in fade-in duration-400 relative min-h-full">
+        <div className="flex items-end justify-between mb-8 pb-4 border-b border-[#EAEAEA]">
+          <div>
+            <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-[0.25em] font-num mb-0.5">Routine Tracker</p>
+            <h2 className="text-[34px] font-editorial italic font-bold text-[#233142] leading-none">Routine<br/><span className="text-[28px] font-serif-jp normal-case tracking-widest">Tracker</span></h2>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {routines.length === 0 && !isAdding ? (
+            <div className="bg-white/60 backdrop-blur-md rounded-[24px] p-12 text-center flex flex-col items-center justify-center border border-[#EAEAEA]/80 mt-4 shadow-sm">
+              <RotateCw size={32} strokeWidth={1.5} className="text-[#D1CFC7] mb-4" />
+              <p className="text-[#8E8E93] text-[13px] tracking-widest font-bold m-0 uppercase font-serif-jp">目前沒有週期事務</p>
+            </div>
+          ) : (
+            routines.map(r => (
+               <RoutineCard key={r.id} r={r} setRoutines={setRoutines} showToast={showToast} handleDeleteRoutine={handleDeleteRoutine} />
+            ))
+          )}
+        </div>
+
+        {!isAdding ? (
+          <button onClick={() => setIsAdding(true)} className="w-full mt-8 py-4 bg-white border border-dashed border-[#A0A0A0] text-[#8E8E93] rounded-[24px] flex items-center justify-center gap-2 font-bold text-[14px] hover:bg-[#F9F8F6] transition-colors tracking-widest active:scale-[0.98] shadow-sm"><Plus size={18} strokeWidth={2.5} /> 建立新卡片</button>
+        ) : (
+          <div className="mt-8 bg-white p-6 rounded-[24px] border border-[#EAEAEA] space-y-5 animate-in fade-in zoom-in-95 duration-300 shadow-[0_12px_40px_rgba(35,49,66,0.06)]">
+            <div>
+              <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">任務名稱</label>
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="例：定期保養車子" className={inputStyle} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">上次完成日</label>
+              <DateTimePicker date={newLastDate} setDate={setNewLastDate} time="" setTime={() => {}} showTime={false} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">間隔天數</label>
+              <div className="flex items-center gap-3">
+                <input type="number" value={newInterval} onChange={e => setNewInterval(Number(e.target.value))} min="1"
+                  className="w-28 bg-[#F9F8F6] border border-[#EAEAEA] focus:bg-white focus:border-[#233142] rounded-[16px] px-4 py-3.5 text-[15px] font-medium text-[#233142] outline-none"
+                  style={{ boxSizing: 'border-box' }} />
+                <span className="text-[14px] font-bold text-[#8E8E93]">天</span>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-3">
+              <button onClick={() => { setIsAdding(false); setNewName(''); setNewInterval(30); setNewLastDate(fmtDate(TODAY)); }} className="flex-[1] py-3.5 bg-[#F9F8F6] text-[#8E8E93] rounded-[16px] flex items-center justify-center text-[13px] font-bold active:scale-[0.98] transition-all tracking-widest hover:bg-[#EAEAEA]">取消</button>
+              <button onClick={handleAddRoutine} disabled={!newName.trim() || newInterval < 1} className="flex-[2] py-3.5 bg-[#233142] disabled:bg-[#D1CFC7] disabled:text-[#F9F8F6] text-white rounded-[16px] flex items-center justify-center gap-2 text-[14px] font-bold active:scale-[0.98] transition-transform tracking-widest shadow-[0_4px_12px_rgba(35,49,66,0.2)]"><Check size={16} strokeWidth={3} /> 確認建立</button>
             </div>
           </div>
         )}
       </div>
-    </>
-  );
-};
+    );
+  };
 
-export default App;
+  // ==============================================================
+  // 彈出視窗組件 (Modals)
+  // ==============================================================
+  const EventEditModal = () => {
+    const [text, setText] = useState('');
+    const [type, setType] = useState('todo');
+    const [date, setDate] = useState('');
+    const [time, setTime] = useState('');
+    const [member, setMember] = useState('全家');
+    const [mood, setMood] = useState('😊');
+    const [scheduleNotifyEnabled, setScheduleNotifyEnabled] = useState(false);
+    const [scheduleNotifyMode, setScheduleNotifyMode] = useState('private');
+
+    useEffect(() => {
+      if (editingEvent) {
+        let initText = editingEvent.text || editingEvent.title || '';
+        let initTime = '';
+        if (editingEvent.type === 'schedule') {
+          const match = initText.match(/^(\d{2}:\d{2})\s+(.*)/);
+          if (match) { initTime = match[1]; initText = match[2]; }
+        } else if (editingEvent.type === 'remind') {
+          const match = initText.match(/(.*?)\s+\((\d{2}:\d{2})\s+截止\)$/);
+          if (match) { initText = match[1]; initTime = match[2]; }
+        }
+        setText(initText); setType(editingEvent.type || 'todo'); setDate(editingEvent.date);
+        setTime(initTime); setMember(editingEvent.member || '全家'); setMood(editingEvent.mood || '😊');
+
+        loadScheduledNotificationForEvent(editingEvent.id).then(schedule => {
+          if (schedule) {
+            setScheduleNotifyEnabled(true);
+            setScheduleNotifyMode(schedule.target_mode || 'private');
+          } else {
+            setScheduleNotifyEnabled(false);
+            setScheduleNotifyMode('private');
+          }
+        });
+      }
+    }, [editingEvent]);
+
+    if (!editingEvent) return null;
+
+    const handleSave = async () => {
+      if (!text.trim() && type !== 'mood') return;
+      const updateRow = {
+        ...editingEvent,
+        type,
+        text: text.trim(),
+        date,
+        time,
+        member,
+        mood: type === 'mood' ? mood : null,
+      };
+
+      await handleUpdateEvent(updateRow);
+
+      try {
+        await saveScheduledNotification({
+          eventId: editingEvent.id,
+          date,
+          time,
+          enabled: scheduleNotifyEnabled && (type === 'schedule' || type === 'remind') && Boolean(time),
+          targetMode: scheduleNotifyMode,
+        });
+        if (scheduleNotifyEnabled && time && (type === 'schedule' || type === 'remind')) {
+          showToast(`✅ 已設定 ${getNotificationModeLabel(scheduleNotifyMode)}預約提醒`);
+        }
+      } catch (err) {
+        console.error('schedule notification error:', err);
+        showToast(`⚠️ 記事已更新，但預約提醒設定失敗：${err?.message || '請稍後再試'}`);
+      }
+    };
+
+    const isOtherDate = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => setEditingEvent(null)}>
+        <div
+          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-hidden"
+          style={{ maxHeight: 'calc(92dvh - env(safe-area-inset-bottom, 0px))' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <DragHeader className="px-5 pb-2 border-b border-[#EAEAEA] shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#233142] flex items-center justify-center shadow-md"><PenLine size={18} className="text-white" strokeWidth={2} /></div>
+                <span className="text-[20px] font-serif-jp font-bold text-[#233142] tracking-widest">編輯記事</span>
+              </div>
+              <button onClick={() => setEditingEvent(null)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 active:scale-90 transition-all"><X size={18} strokeWidth={2.5}/></button>
+            </div>
+          </DragHeader>
+
+          <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scroll px-5 pt-5" style={{ paddingBottom: '8px' }}>
+            <div className="space-y-5">
+              {/* 分類 */}
+              <div>
+                <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">變更分類</label>
+                <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                  {Object.entries(TYPE_CONFIG).filter(([k]) => k !== 'routine').map(([k, v]) => {
+                    const Icon = v.icon; const isSelected = type === k;
+                    return (
+                      <button key={k} onClick={() => { setType(k); if(k!=='schedule'&&k!=='remind') setTime(''); }}
+                        className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-[12px] text-[12px] font-bold transition-all border ${isSelected ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>
+                        <Icon size={14} strokeWidth={isSelected ? 2.5 : 2} /> {v.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 內容 */}
+              <div>
+                <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">事項內容</label>
+                <input value={text} onChange={(e) => setText(e.target.value)} className={inputStyle} />
+              </div>
+
+              {type === 'mood' ? (
+                <div>
+                  <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">當下心情</label>
+                  <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                    {moodOptions.map(m => (
+                      <button key={m} onClick={() => setMood(m)}
+                        className={`snap-start shrink-0 w-[48px] h-[48px] rounded-[14px] flex items-center justify-center text-[22px] transition-all border ${mood === m ? 'bg-white border-[#D68C7A] scale-105 shadow-[0_4px_12px_rgba(214,140,122,0.15)]' : 'bg-[#EAEAEA]/40 border-transparent grayscale opacity-50'}`}>{m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">日期{(type==='schedule'||type==='remind') ? ' & 時間' : ''}</label>
+                    <DateTimePicker date={date} setDate={setDate} time={time} setTime={setTime} showTime={type==='schedule'||type==='remind'} />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">關聯成員</label>
+                    <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                      {['全家', ...members.map(m => m.name)].map(m => (
+                        <button key={m} onClick={() => setMember(m)}
+                          className={`snap-start shrink-0 whitespace-nowrap px-4 py-2.5 text-[13px] font-bold rounded-[12px] transition-all border ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>{m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="shrink-0 px-5 pt-3 bg-[#F9F8F6] border-t border-[#EAEAEA]" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}>
+            <div className="flex gap-3">
+              <button onClick={() => handleDeleteEvent(editingEvent.id)} className="w-[52px] h-[52px] bg-white text-[#C85A5A] rounded-[14px] font-bold flex items-center justify-center active:scale-95 transition-all shadow-sm border border-[#EAEAEA]"><Trash2 size={18} strokeWidth={2} /></button>
+              <button onClick={handleSave} disabled={!text.trim() && type !== 'mood'} className="flex-1 h-[52px] bg-[#233142] disabled:bg-[#D1CFC7] text-white rounded-[14px] text-[15px] font-bold active:scale-[0.98] transition-transform flex items-center justify-center tracking-widest shadow-[0_4px_16px_rgba(35,49,66,0.2)]">儲存變更</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const AiModal = () => {
+    const [text, setText] = useState('');
+    const [type, setType] = useState('schedule');
+    const [date, setDate] = useState(fmtDate(TODAY));
+    const [time, setTime] = useState('');
+    const [member, setMember] = useState('全家');
+    const [mood, setMood] = useState('😊');
+    const [scheduleNotifyEnabled, setScheduleNotifyEnabled] = useState(false);
+    const [scheduleNotifyMode, setScheduleNotifyMode] = useState('private');
+
+    if (!isAiModalOpen) return null;
+
+    const handleManualSubmit = async () => {
+      if (!text.trim() && type !== 'mood') return;
+
+      const insertRow = buildEventPayload({
+        type,
+        text,
+        member,
+        date,
+        time,
+        mood,
+        currentUserLineId,
+        members,
+        base: { is_done: false, completed: false },
+      });
+
+      const { data, error } = await supabase.from('events').insert([insertRow]).select();
+
+      if (!error && data?.length) {
+        const createdEvent = normalizeEvent(data[0]);
+        setEvents(prev => [...prev, createdEvent].sort((a, b) => {
+          if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
+          return (PRIORITY[a.type] || 99) - (PRIORITY[b.type] || 99);
+        }));
+        if (scheduleNotifyEnabled && (type === 'schedule' || type === 'remind') && time) {
+          try {
+            await saveScheduledNotification({
+              eventId: createdEvent.id,
+              date: createdEvent.date,
+              time,
+              enabled: true,
+              targetMode: scheduleNotifyMode,
+            });
+            showToast(`✅ 已存入手札，並設定${getNotificationModeLabel(scheduleNotifyMode)}預約提醒`);
+          } catch (scheduleError) {
+            console.error('schedule notification error:', scheduleError);
+            showToast('✅ 已存入手札，但預約提醒設定失敗');
+          }
+        } else {
+          showToast('✅ 已存入手札');
+        }
+
+        setSelectedDate(createdEvent.date);
+        setIsAiModalOpen(false);
+        setText('');
+        setTime('');
+        setType('schedule');
+        setMember('全家');
+        setMood('😊');
+        setScheduleNotifyEnabled(false);
+        setScheduleNotifyMode('private');
+      } else {
+        console.error('insert error:', error);
+        showToast(`❌ 儲存失敗：${error?.message || '請檢查資料表欄位'}`);
+      }
+    };
+
+    const isOtherDate = date !== shiftDays(TODAY,0) && date !== shiftDays(TODAY,1) && date !== shiftDays(TODAY,2);
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => setIsAiModalOpen(false)}>
+        <div
+          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-hidden"
+          style={{ maxHeight: 'calc(92dvh - env(safe-area-inset-bottom, 0px))' }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <DragHeader className="px-5 pb-2 border-b border-[#EAEAEA] shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#233142] flex items-center justify-center shadow-md"><PenLine size={18} className="text-white" strokeWidth={2} /></div>
+                <span className="text-[20px] font-serif-jp font-bold text-[#233142] tracking-widest">建立記事</span>
+              </div>
+              <button onClick={() => setIsAiModalOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 active:scale-90 transition-all"><X size={18} strokeWidth={2.5}/></button>
+            </div>
+          </DragHeader>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scroll px-5 pt-5" style={{ paddingBottom: '8px' }}>
+            <div className="space-y-5">
+
+              {/* 分類 */}
+              <div>
+                <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">選擇分類</label>
+                <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                  {Object.entries(TYPE_CONFIG).filter(([k]) => k !== 'routine').map(([k, v]) => {
+                    const Icon = v.icon; const isSelected = type === k;
+                    return (
+                      <button key={k} onClick={() => { setType(k); setTime(''); }}
+                        className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-[12px] text-[12px] font-bold transition-all border ${isSelected ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>
+                        <Icon size={14} strokeWidth={isSelected ? 2.5 : 2} /> {v.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 內容 */}
+              <div>
+                <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">{type === 'mood' ? '想說些什麼？(選填)' : '事項內容'}</label>
+                <input value={text} onChange={(e) => setText(e.target.value)}
+                  placeholder={type === 'mood' ? '今天過得如何...' : '例：去超市買牛奶'}
+                  className={inputStyle} />
+              </div>
+
+              {type === 'mood' ? (
+                <div>
+                  <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">當下心情</label>
+                  <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                    {moodOptions.map(m => (
+                      <button key={m} onClick={() => setMood(m)}
+                        className={`snap-start shrink-0 w-[48px] h-[48px] rounded-[14px] flex items-center justify-center text-[22px] transition-all border ${mood === m ? 'bg-white border-[#D68C7A] scale-105 shadow-[0_4px_12px_rgba(214,140,122,0.15)]' : 'bg-[#EAEAEA]/40 border-transparent grayscale opacity-50'}`}>{m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* 日期 + 時間 */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">日期{(type==='schedule'||type==='remind') ? ' & 時間' : ''}</label>
+                    <DateTimePicker date={date} setDate={setDate} time={time} setTime={setTime} showTime={type==='schedule'||type==='remind'} />
+                  </div>
+
+                  {/* 關聯成員 */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">關聯成員</label>
+                    <div className={`flex gap-2 overflow-x-auto pb-1 snap-x ${hideScrollbar}`}>
+                      {['全家', ...members.map(m => m.name)].map(m => (
+                        <button key={m} onClick={() => setMember(m)}
+                          className={`snap-start shrink-0 whitespace-nowrap px-4 py-2.5 text-[13px] font-bold rounded-[12px] transition-all border ${member === m ? 'bg-[#233142] text-white border-[#233142] shadow-md' : 'bg-white text-[#8E8E93] border-[#EAEAEA] shadow-sm'}`}>{m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer button - always visible */}
+          <div className="shrink-0 px-5 pt-3 bg-[#F9F8F6] border-t border-[#EAEAEA]" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}>
+            <button onClick={handleManualSubmit} disabled={!text.trim() && type !== 'mood'}
+              className="w-full h-[52px] bg-[#233142] disabled:bg-[#D1CFC7] disabled:text-[#F9F8F6] text-white rounded-[16px] flex items-center justify-center gap-2 text-[15px] font-bold active:scale-[0.98] transition-transform tracking-widest shadow-[0_4px_16px_rgba(35,49,66,0.2)]">
+              <Check size={18} strokeWidth={3} /> 儲存記事
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const MemberModal = () => {
+    const [nameInput, setNameInput] = useState('');
+    const [roleInput, setRoleInput] = useState('');
+    const [isAddingRole, setIsAddingRole] = useState(false); 
+
+    if (!isMemberModalOpen) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm transition-opacity" onClick={() => setIsMemberModalOpen(false)}>
+        <div className="bg-[#F9F8F6] w-full max-w-[480px] max-h-[85vh] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal" onClick={e => e.stopPropagation()}>
+          <DragHeader className="px-6 pb-2 border-b border-[#EAEAEA] shrink-0">
+             <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#566B56] flex items-center justify-center shadow-md"><Users size={20} className="text-white" strokeWidth={2.5} /></div>
+                  <span className="text-[22px] font-serif-jp font-bold text-[#233142] tracking-widest">群體角色設定</span>
+                </div>
+                <button onClick={() => setIsMemberModalOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 hover:bg-[#D0D0D0]/80 active:scale-90 transition-all"><X size={18} strokeWidth={2.5}/></button>
+             </div>
+             <p className="text-[12px] font-bold text-[#8E8E93] tracking-widest leading-relaxed mt-2 mb-2 pl-1">建立專屬稱謂，以便自動分派任務。</p>
+          </DragHeader>
+          
+          <div className="px-6 pt-6 pb-[calc(24px+env(safe-area-inset-bottom))] overflow-y-auto flex-1 hide-scroll">
+            
+            <div className="flex-1">
+              {unboundLineUsers.length > 0 && (
+                <div className="mb-6 p-4 bg-white border border-[#D68C7A]/30 rounded-[20px] shadow-[0_4px_12px_rgba(214,140,122,0.06)]">
+                  <p className="text-[11px] font-bold text-[#D68C7A] mb-3 flex items-center gap-1.5 uppercase tracking-widest">
+                    <Wind size={14} strokeWidth={2.5} /> 待安排專屬角色的成員：
+                  </p>
+                  <div className="flex flex-wrap gap-2.5">
+                    {unboundLineUsers.map(u => (
+                      <span key={u.user_id} className="text-[12px] bg-[#F9F8F6] pl-2.5 pr-1.5 py-1.5 rounded-xl border border-[#EAEAEA] shadow-sm flex items-center gap-2 font-bold text-[#233142]">
+                        {u.picture_url ? (
+                          <img src={u.picture_url} className="w-6 h-6 rounded-md border border-[#EAEAEA]" alt="avatar" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-md bg-[#D1CFC7] flex items-center justify-center text-[10px] text-white">?</div>
+                        )}
+                        <span className="truncate max-w-[70px]">{u.display_name}</span>
+                        <button onClick={() => handleIgnoreUser(u.user_id, true)} className="text-[#8E8E93] hover:text-[#D68C7A] p-1 rounded-md transition-colors active:bg-[#EAEAEA]"><X size={14} strokeWidth={2.5} /></button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3 mb-6">
+                {members.length === 0 ? (
+                  <div className="text-center py-8 text-[#D1CFC7] text-[13px] font-bold tracking-widest uppercase border border-dashed border-[#EAEAEA] rounded-[24px]">尚無建立任何角色</div>
+                ) : (
+                  members.map(m => (
+                    <div key={m.id} className="flex justify-between items-center p-4 bg-white rounded-[20px] border border-[#EAEAEA] shadow-[0_2px_8px_rgba(44,42,40,0.02)] transition-colors">
+                      <div>
+                        <span className="block text-[16px] font-bold text-[#233142] tracking-wide mb-2">{m.name}</span>
+                        <span className="text-[10px] font-bold tracking-widest text-[#566B56] bg-[#F4F8F4] px-2 py-1 rounded-md border border-[#EAEAEA] shadow-sm inline-block uppercase">{m.role_name}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={async () => {
+                            if (!currentUserLineId) { alert("授權準備中，請稍後重試。"); return; }
+                            if (m.line_user_id === currentUserLineId) {
+                              if (window.confirm(`確定要解除您與「${m.name}」的綁定關係嗎？`)) {
+                                await supabase.from("members").update({ line_user_id: null }).eq("id", m.id);
+                                setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, line_user_id: null } : mem));
+                                showToast(`🔓 已解除綁定`);
+                              }
+                              return;
+                            }
+                            if (m.line_user_id && m.line_user_id !== currentUserLineId) { alert("此角色已被其他家人綁定！"); return; }
+                            const myRole = members.find(mem => mem.line_user_id === currentUserLineId);
+                            if (myRole && myRole.id !== m.id) { alert(`您已綁定為「${myRole.name}」，無法再綁定其他身分喔！`); return; }
+                            await supabase.from("members").update({ line_user_id: currentUserLineId }).eq("id", m.id);
+                            setMembers(prev => prev.map(mem => mem.id === m.id ? { ...mem, line_user_id: currentUserLineId } : mem));
+                            showToast(`✅ 綁定成功！您現在是：${m.name}`);
+                          }}
+                          disabled={m.line_user_id && m.line_user_id !== currentUserLineId}
+                          className={`text-[12px] px-4 py-2.5 rounded-[12px] font-bold tracking-widest transition-all ${m.line_user_id === currentUserLineId ? 'bg-[#566B56] text-white active:scale-95 shadow-sm' : m.line_user_id ? 'bg-[#EAEAEA] text-[#8E8E93] cursor-not-allowed opacity-70' : 'bg-[#233142] text-white active:scale-95 shadow-sm' }`}
+                        >
+                          {m.line_user_id === currentUserLineId ? '✅ 我的身分' : m.line_user_id ? '已被綁定' : '綁定我'}
+                        </button>
+                        <button onClick={() => handleDeleteMember(m.id)} className="text-[12px] bg-white text-[#C85A5A] px-3.5 py-2.5 rounded-[12px] active:scale-95 border border-[#EAEAEA] shadow-sm transition-all flex items-center justify-center hover:bg-[#FDF5F5]"><Trash2 size={16} strokeWidth={2.5} /></button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {!isAddingRole ? (
+                <button onClick={() => setIsAddingRole(true)} className="w-full py-4 bg-white border border-dashed border-[#A0A0A0] text-[#8E8E93] rounded-[24px] flex items-center justify-center gap-2 font-bold text-[13px] hover:bg-[#F9F8F6] transition-colors mt-6 mb-8 tracking-widest active:scale-[0.98] shadow-sm"><Plus size={18} strokeWidth={2.5} /> 建立新角色</button>
+              ) : (
+                <div className="bg-white p-6 rounded-[24px] border border-[#EAEAEA] space-y-5 mt-6 mb-8 animate-in fade-in zoom-in-95 duration-300 shadow-[0_8px_24px_rgba(44,42,40,0.06)]">
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">名字/暱稱</label>
+                      <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="例：林老杯" className={inputStyle} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">擔任身分</label>
+                      <input value={roleInput} onChange={(e) => setRoleInput(e.target.value)} placeholder="例：採買總監" className={inputStyle} />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => { setIsAddingRole(false); setNameInput(''); setRoleInput(''); }} className="flex-[1] py-3.5 bg-[#F9F8F6] text-[#8E8E93] rounded-[16px] flex items-center justify-center text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest shadow-sm hover:bg-[#EAEAEA]">取消</button>
+                    <button onClick={async () => { const ok = await handleAddMember(nameInput, roleInput); if(ok) { setNameInput(''); setRoleInput(''); setIsAddingRole(false); } }} disabled={!nameInput.trim() || !roleInput.trim()} className="flex-[2] py-3.5 bg-[#233142] disabled:bg-[#D1CFC7] disabled:text-[#F9F8F6] text-white rounded-[16px] flex items-center justify-center gap-2 text-[13px] font-bold active:scale-[0.98] transition-transform tracking-widest shadow-md"><Check size={16} strokeWidth={3} /> 確認建立</button>
+                  </div>
+                </div>
+              )}
+
+              {ignoredLineUsers.length > 0 && (
+                <div className="mb-4 pt-6 border-t border-[#EAEAEA] border-dashed">
+                  <button onClick={() => setIsHideListOpen(!isHideListOpen)} className="w-full flex items-center justify-between text-[11px] font-bold text-[#8E8E93] uppercase tracking-widest py-2 hover:text-[#233142] focus:outline-none">
+                    <span>🙈 已隱藏的成員 ({ignoredLineUsers.length})</span>
+                    <ChevronDown size={14} className={`transform transition-transform duration-300 ${isHideListOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isHideListOpen && (
+                    <div className="flex flex-wrap gap-2.5 mt-3 p-4 bg-white rounded-[20px] border border-[#EAEAEA] shadow-sm">
+                      {ignoredLineUsers.map(u => (
+                        <span key={u.user_id} className="text-[12px] bg-[#F9F8F6] pl-3 pr-2 py-1.5 rounded-xl border border-[#EAEAEA] flex items-center gap-2 text-[#8E8E93] font-bold">
+                          {u.display_name}
+                          <button onClick={() => handleIgnoreUser(u.user_id, false)} className="text-[#566B56] hover:text-[#233142] bg-[#EAEAEA] hover:bg-[#D0D0D0] p-1.5 rounded-lg transition-colors"><RotateCw size={12} strokeWidth={2.5} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+
+  const ReportSettingsModal = () => {
+    const [enabled, setEnabled] = useState(Boolean(reportSettings?.enabled));
+    const [sendTime, setSendTime] = useState(reportSettings?.send_time ? String(reportSettings.send_time).slice(0, 5) : '08:00');
+    const [targetMode, setTargetMode] = useState(reportSettings?.target_mode || 'private');
+
+    useEffect(() => {
+      if (isReportSettingsOpen) {
+        setEnabled(Boolean(reportSettings?.enabled));
+        setSendTime(reportSettings?.send_time ? String(reportSettings.send_time).slice(0, 5) : '08:00');
+        setTargetMode(reportSettings?.target_mode || 'private');
+      }
+    }, [isReportSettingsOpen, reportSettings]);
+
+    if (!isReportSettingsOpen) return null;
+
+    const modeOptions = [
+      { key: 'private', label: '私訊', desc: '每位成員收到自己的清單' },
+      { key: 'group', label: '群組', desc: '發送一份群組總覽' },
+      { key: 'both', label: '全部', desc: '群組總覽 + 個人私訊' },
+    ];
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A2532]/40 backdrop-blur-sm" onClick={() => setIsReportSettingsOpen(false)}>
+        <div
+          className="bg-[#F9F8F6] w-full max-w-[480px] rounded-t-[32px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] flex flex-col spring-modal overflow-hidden"
+          style={{ maxHeight: 'calc(88dvh - env(safe-area-inset-bottom, 0px))' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <DragHeader className="px-5 pb-2 border-b border-[#EAEAEA] shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-[#566B56] flex items-center justify-center shadow-md shrink-0">
+                  <Clock size={18} className="text-white" strokeWidth={2.5} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[20px] font-serif-jp font-bold text-[#233142] tracking-widest truncate">晨間報表</p>
+                  <p className="text-[10px] font-num font-bold text-[#8E8E93] tracking-[0.22em] uppercase mt-0.5">Morning Brief</p>
+                </div>
+              </div>
+              <button onClick={() => setIsReportSettingsOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#8E8E93] bg-[#EAEAEA]/80 active:scale-90 transition-all shrink-0">
+                <X size={18} strokeWidth={2.5}/>
+              </button>
+            </div>
+          </DragHeader>
+
+          <div className="px-5 py-5 space-y-5 overflow-y-auto hide-scroll">
+            <div className="bg-white border border-[#EAEAEA] rounded-[22px] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[14px] font-bold text-[#233142] tracking-wide">啟用晨間報表</p>
+                  <p className="text-[11px] text-[#8E8E93] mt-1 leading-relaxed">到設定時間時，整理今日與逾期未完成事項。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnabled(!enabled)}
+                  className={`shrink-0 w-[48px] h-[28px] rounded-full p-[3px] transition-all active:scale-95 ${enabled ? 'bg-[#233142]' : 'bg-[#EAEAEA]'}`}
+                >
+                  <span className={`block w-[22px] h-[22px] rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">推播時間</label>
+              <TimeWheelPicker time={sendTime} setTime={setSendTime} />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-[#8E8E93] mb-2 uppercase tracking-widest">推播方式</label>
+              <div className="space-y-2">
+                {modeOptions.map(opt => (
+                  <button
+                    type="button"
+                    key={opt.key}
+                    onClick={() => setTargetMode(opt.key)}
+                    className={`w-full rounded-[18px] border px-4 py-3 text-left transition-all active:scale-[0.99] ${
+                      targetMode === opt.key
+                        ? 'bg-[#233142] border-[#233142] text-white shadow-[0_4px_16px_rgba(35,49,66,0.16)]'
+                        : 'bg-white border-[#EAEAEA] text-[#233142] shadow-sm'
+                    }`}
+                  >
+                    <span className="block text-[13px] font-bold tracking-widest">{opt.label}</span>
+                    <span className={`block text-[11px] mt-1 ${targetMode === opt.key ? 'text-white/70' : 'text-[#8E8E93]'}`}>{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="shrink-0 px-5 pt-3 bg-[#F9F8F6] border-t border-[#EAEAEA]" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}>
+            <button
+              type="button"
+              disabled={isSavingReportSettings || !sendTime}
+              onClick={() => handleSaveReportSettings({ enabled, send_time: sendTime, target_mode: targetMode })}
+              className="w-full h-[52px] bg-[#233142] disabled:bg-[#D1CFC7] disabled:text-[#F9F8F6] text-white rounded-[16px] flex items-center justify-center gap-2 text-[15px] font-bold active:scale-[0.98] transition-transform tracking-widest shadow-[0_4px_16px_rgba(35,49,66,0.2)]"
+            >
+              <Check size={18} strokeWidth={3} /> {isSavingReportSettings ? '儲存中...' : '儲存設定'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ==============================================================
+  // 主畫面 Layout
+  // ==============================================================
+  return (
+    <div className={`fixed inset-0 bg-[#DFDCD4] flex justify-center overflow-hidden select-none selection:bg-[#D68C7A] selection:text-white ${hideScrollbar}`} style={{ fontFamily: 'PingFang TC, PingFang SC, sans-serif', fontStyle: 'normal' }}>
+      <div className="w-full max-w-[480px] h-full bg-[#F9F8F6] relative flex flex-col overflow-hidden sm:border-x border-[#D1CFC7] sm:rounded-[40px] sm:my-4 sm:h-[calc(100dvh-32px)] sm:shadow-[0_20px_60px_rgba(44,42,40,0.1)]">
+        
+        <header className="flex-none pt-12 pb-4 px-6 flex justify-between items-center z-30 bg-[#F9F8F6]/95 backdrop-blur-xl border-b border-[#EAEAEA] sticky top-0">
+          <div>
+            <h1 className="text-[28px] font-editorial italic font-bold tracking-tight text-[#233142]">Family Hub</h1>
+            <p className="text-[9px] text-[#8E8E93] tracking-[0.4em] font-num font-bold uppercase mt-1">Life Navigator</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={fetchSupabaseData} disabled={isRefreshing} className="flex items-center gap-1.5 px-3 py-2 rounded-[12px] border-[1.5px] border-[#566B56] bg-white active:scale-95 transition-all disabled:opacity-70 shadow-sm hover:bg-[#F4F8F4]">
+              <RotateCw size={12} strokeWidth={3} className={`text-[#566B56] ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="text-[10px] font-num font-bold text-[#566B56] uppercase tracking-[0.2em]">{isRefreshing ? 'SYNC' : 'SYNC'}</span>
+            </button>
+            <button onClick={() => setIsMemberModalOpen(true)} className="relative w-[38px] h-[38px] bg-white border-[1.5px] border-[#EAEAEA] rounded-[12px] flex items-center justify-center text-[#233142] shadow-sm hover:bg-[#F9F8F6] active:scale-95 transition-all">
+              <Users size={18} strokeWidth={2.5} />
+              {unboundLineUsers.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-[12px] w-[12px]">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#D68C7A] opacity-60"></span>
+                  <span className="relative inline-flex rounded-[4px] h-[12px] w-[12px] bg-[#D68C7A] border-[2px] border-[#F9F8F6]"></span>
+                </span>
+              )}
+            </button>
+          </div>
+        </header>
+
+        {unboundLineUsers.length > 0 && (
+          <div className="flex-none bg-[#D68C7A]/10 border-b border-[#D68C7A]/20 px-6 py-3.5 flex items-start animate-in slide-in-from-top duration-300 z-20">
+            <p className="text-[12px] font-bold text-[#D68C7A] m-0 tracking-wide text-left leading-relaxed">
+              📢 偵測到 {unboundLineUsers.length} 位夥伴已加入，請點選右上角按鈕進行綁定。
+            </p>
+          </div>
+        )}
+
+        <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative z-10 scroll-smooth ${hideScrollbar}`}>
+          {activeTab === 'board' ? <BoardView /> : activeTab === 'weekly' ? <WeeklyPlannerView /> : <RoutinesView />}
+        </main>
+
+        {activeTab !== 'routines' && (
+          <button
+            onClick={() => { triggerVibration(10); setIsAiModalOpen(true); }}
+            aria-label="新增手札"
+            className="absolute right-5 z-20 flex flex-col items-center gap-1 active:scale-90 transition-transform animate-in zoom-in-95 duration-200"
+            style={{ bottom: 'calc(88px + env(safe-area-inset-bottom, 0px))' }}
+          >
+            <div className="w-[50px] h-[50px] rounded-full bg-[#233142] flex items-center justify-center shadow-[0_4px_16px_rgba(35,49,66,0.24)]">
+              <PenLine size={20} strokeWidth={2} className="text-white" />
+            </div>
+            <span className="text-[9px] font-bold text-[#8E8E93] tracking-[0.12em] font-num">手札</span>
+          </button>
+        )}
+
+        <AiModal />
+        <MemberModal />
+        <EventEditModal />
+        {toast && (
+          <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 bg-[#233142]/95 backdrop-blur-xl text-white text-[13px] font-bold tracking-widest px-6 py-3.5 rounded-[16px] shadow-[0_10px_30px_rgba(35,49,66,0.2)] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+            <Check size={18} className="text-[#EAEAEA]" strokeWidth={3} />
+            {toast}
+          </div>
+        )}
+
+        {/* Bottom Navigation */}
+        <nav className="flex-none w-full bg-[#F9F8F6]/90 backdrop-blur-2xl border-t border-[#EAEAEA]/80 z-20 flex justify-around items-start pt-3 px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]"
+             style={{ height: 'calc(75px + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          <button onClick={() => { triggerVibration(5); setActiveTab('board'); }} className={`flex flex-col items-center gap-1.5 w-20 transition-all duration-400 ease-out ${activeTab === 'board' ? 'text-[#233142] -translate-y-1' : 'text-[#A0A0A0] hover:text-[#8E8E93]'}`}>
+            <CalendarDays size={24} strokeWidth={activeTab === 'board' ? 2.5 : 2} />
+            <span className="text-[10px] font-bold tracking-[0.2em] uppercase font-num">任務看板</span>
+            {activeTab === 'board' && <div className="w-[18px] h-[3px] rounded-full bg-[#233142] mt-0.5 shadow-sm"></div>}
+          </button>
+
+          <button onClick={() => { triggerVibration(5); setActiveTab('weekly'); }} className={`flex flex-col items-center gap-1.5 w-20 transition-all duration-400 ease-out ${activeTab === 'weekly' ? 'text-[#233142] -translate-y-1' : 'text-[#A0A0A0] hover:text-[#8E8E93]'}`}>
+            <PenLine size={24} strokeWidth={activeTab === 'weekly' ? 2.5 : 2} />
+            <span className="text-[10px] font-bold tracking-[0.2em] uppercase font-num">本週手帳</span>
+            {activeTab === 'weekly' && <div className="w-[18px] h-[3px] rounded-full bg-[#233142] mt-0.5 shadow-sm"></div>}
+          </button>
+
+          <button onClick={() => { triggerVibration(5); setActiveTab('routines'); }} className={`flex flex-col items-center gap-1.5 w-20 transition-all duration-400 ease-out ${activeTab === 'routines' ? 'text-[#233142] -translate-y-1' : 'text-[#A0A0A0] hover:text-[#8E8E93]'}`}>
+            <RotateCw size={24} strokeWidth={activeTab === 'routines' ? 2.5 : 2} />
+            <span className="text-[10px] font-bold tracking-[0.2em] uppercase font-num">進階追蹤</span>
+            {activeTab === 'routines' && <div className="w-[18px] h-[3px] rounded-full bg-[#233142] mt-0.5 shadow-sm"></div>}
+          </button>
+        </nav>
+
+      </div>
+    </div>
+  );
+}
